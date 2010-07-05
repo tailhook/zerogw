@@ -1,0 +1,123 @@
+
+Server:
+  listen: !Array
+    element:
+      host: !Property
+        type: string
+      port: !Property
+        type: int
+        min: 1
+        max: 65536
+        default: 80
+
+Globals: &settings
+  logging:
+    level: !Property
+      type: int
+      min: 0
+      max: 7
+      default: 3
+      description: >
+        Verbosity of error log
+      command-line: --log-level
+      command-line-incr: [-v, --verbose]
+      command-line-decr: [-q, --quiet]
+    warning-timeout: !Property
+      type: int
+      min: 0
+      max: 3600
+      default: 300
+      description: >
+        Timeout of displaying repeatable warnings
+        Very small value will flood your logfile, but very
+        big value will not make you confident when the
+        problem is gone (wait at least this timeout
+        and a minute or so on overloaded server, unless
+        you know truth by some other means)
+      command-line: [-w, --warning-timeout]
+    access: !Property
+      type: file
+      default: "/var/applog/zerogw/access.log"
+      check-existence: no
+      check-dir: yes
+      description: >
+        Where to write access log messages. Use "-" for stderr.
+      command-line: [-l, --access-log]
+    error: !Property
+      type: file
+      default: "/var/applog/zerogw/error.log"
+      check-existence: no
+      check-dir: yes
+      description: >
+        Where to write error log messages. Use "-" for stderr.
+      command-line: [-e, --error-log]
+  contents: !Array
+    element: !Property
+      type: string
+    default:
+      - Cookie-SID
+      - PostBody
+  limits:
+    method: !Array
+      element: !Property
+        type: string
+      default:
+        - POST
+    max-body-size: !Property
+      type: int
+      min: 0
+      default: 65536 # 64k
+  responses:
+    domain-not-found: &response
+      code: &statuscode !Property
+        type: int
+        min: 100
+        max: 999
+        default: 404
+      status: !Property
+        type: string
+        default: |-
+          Not Found
+      body: !Property
+        type: string
+        default: |
+          <html>
+            <head>
+              <title>404 Not Found</title>
+            </head>
+            <body>
+              <h1>404 Not Found</h1>
+            </body>
+          </html>
+    uri-not-found: *response
+    internal-error:
+      code: !Property
+        <<: *statuscode
+        default: 500
+      status: !Property
+        type: string
+        default: |-
+          Internal Server Error
+      body: !Property
+        type: string
+        default: |
+          <html>
+            <head>
+              <title>500 Internal Server Error</title>
+            </head>
+            <body>
+              <h1>Internal Server Error</h1>
+              Sorry, you can retry again later
+            </body>
+          </html>
+Pages: !Mapping
+  element:
+    <<: *settings
+    pages: !Array
+      element:
+        <<: *settings
+        path: !Property
+          type: string
+        forward: !Array
+          element: !Property
+            type: string

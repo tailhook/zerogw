@@ -1,0 +1,12 @@
+PROJECT(AUTOMATA)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+
+ADD_LIBRARY(automata
+    src/automata.c)
+SET_TARGET_PROPERTIES(automata
+    PROPERTIES
+    LINK_FLAGS "-std=c99"
+    COMPILE_FLAGS "-std=c99"
+    )
+
+ADD_SUBDIRECTORY(tests)
