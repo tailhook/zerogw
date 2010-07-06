@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import sys
 import optparse
 import re
@@ -41,6 +41,8 @@ header_tpl = jinenv.from_string(r"""
 {%- elif isinstance(valtype, Mapping) %}
 {{'    '*level}}struct config_{{ smallname }}_{{ name }}_s *{{ name -}}
 {{- tail(valtype, name) -}}
+{% else %}
+{{- valtype/0 -}}
 {%- endif %}
 {%- endmacro %}
 
@@ -588,7 +590,7 @@ def inityaml():
 
     yaml.add_representer(TcpSocket, writesock)
     yaml.add_representer(UnixSocket, writesock)
-    yaml.add_representer(str, uni_convert)
+    #~ yaml.add_representer(str, uni_convert)
 
 #~ def makemain(data, file):
     #~ file.write(main_tpl.render_unicode(data=data))
@@ -607,6 +609,7 @@ def stdvars():
         Property=Property, Array=Array, Mapping=Mapping, varname=varname,
         dict=dict, set=set, enumerate=enumerate, getattr=getattr, bool=bool,
         str=str, setattr=setattr, cstring=cstring, hasattr=hasattr,
+        print=print, #for debugging
         )
 
 def makeheader(data, file, name):
@@ -647,7 +650,7 @@ def alterdata(data, filter=None, replace=None, alter=None):
                 del data[k]
         elif isinstance(v, (Property, Array, Mapping)):
             if filter is not None:
-                if not list(filter(v)):
+                if not filter(v):
                     del data[k]
                     continue
             if alter is not None:
@@ -661,11 +664,11 @@ def makeexample(data, file, mode):
     if mode == 'defaults':
         alterdata(data, filter=lambda v: hasattr(v, 'default'),
             replace=lambda v: v.default)
-        yaml.dump(data, file, default_flow_style=False)
+        yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
     elif mode == 'minimal':
         alterdata(data, filter=lambda v: not hasattr(v, 'default'),
             replace=lambda v: '(%s)' % v.type)
-        yaml.dump(data, file, default_flow_style=False)
+        yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
     elif mode == 'full':
         objects = {}
         def powerfull_replace(v):
@@ -685,8 +688,8 @@ def makeexample(data, file, mode):
             file.write(word_wrap(prop.description, indent=indent, prefix='# '))
             return ""
         alterdata(data, replace=powerfull_replace)
-        s = BytesIO()
-        yaml.dump(data, s, default_flow_style=False)
+        s = StringIO()
+        yaml.dump(data, s, default_flow_style=False, allow_unicode=True)
         s.seek(0, 0)
         for line in s:
             if not line.startswith(' '):
@@ -728,14 +731,14 @@ def main():
 
     inityaml()
     if len(args):
-        f = open(args[0])
+        f = open(args[0], 'rt', encoding='utf-8')
     else:
         f = sys.stdin
     with f:
         data = yaml.load(f)
 
     if options.output:
-        o = open(options.output, 'w', encoding='utf-8')
+        o = open(options.output, 'wt', encoding='utf-8')
     else:
         o = sys.stdout
     with o:

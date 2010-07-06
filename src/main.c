@@ -26,12 +26,12 @@ serverroot_t root;
 int main(int argc, char **argv) {
     prepare_configuration(argc, argv);
 
-    AUTOMATA dom_automata = automata_ascii_new();
+    AUTOMATA dom_automata = automata_ascii_new(TRUE);
 
     config_zerogw_Pages_t *site = config.Pages;
-    while(page) {
+    while(site) {
         //~ automata_ascii_add_backwards_star(dom_automata, page->
     }
-    root->automata = automata_ascii_compile(dom_automata, NULL, NULL);
+    root.automata = automata_ascii_compile(dom_automata, NULL, NULL);
     automata_ascii_free(dom_automata);
 }

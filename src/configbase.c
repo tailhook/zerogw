@@ -184,7 +184,7 @@ STATE_FUN(config_state_file);
 STATE_FUN(config_state_dir);
 STATE_FUN(config_state_string);
 
-char *config_filename = "/etc/counter.yaml";
+char *config_filename = "/etc/zerogw.yaml";
 
 #define IN_CONFIG_C
 #include "config.h"

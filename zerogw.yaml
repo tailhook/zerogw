@@ -1,0 +1,14 @@
+
+Server:
+  listen:
+    host: localhost
+    port: 8000
+
+Pages:
+  localhost:
+    - uri: /chat
+      body:
+        - Cookie-Username
+        - PostBody
+      forward:
+        - "ipc:///tmp/chat"
