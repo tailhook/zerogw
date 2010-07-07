@@ -33,7 +33,9 @@ class CmdLine(object):
         TYPE_CHECKER["listen"] = check_listen
 
     def __init__(self, data):
-        self.op = optparse.OptionParser(option_class=self.Option)
+        self.op = optparse.OptionParser(usage="zerogw [options]",
+            description="Zerogw is an HTTP/zeromq gateway",
+            option_class=self.Option)
         self.op.add_option('-c', '--config', metavar="FILE",
             help="Configuration file (default \"/etc/zerogw.yaml\")",
             dest="config", default="/etc/zerogw.yaml")
@@ -48,6 +50,7 @@ class CmdLine(object):
                     if isinstance(l, str):
                         l = (l,)
                     self.op.add_option(*l, dest=n, type=v.py_type(),
+                        metavar=n.rsplit('.', 1)[1].upper(),
                         help=v.description, default=getattr(v, 'default', None))
             elif isinstance(v, dict):
                 self.collect(v, n + '.')
@@ -60,7 +63,17 @@ class CmdLine(object):
         return self.op.option_list
 
     def format_help(self):
-        return self.op.format_help()
+        # sorry, can't use self.op.format_help, because f*cking "waf"
+        # patches it :(
+        fmt = self.op.formatter
+        result = []
+        if self.op.usage:
+            result.append(fmt.format_usage(self.op.usage) + "\n")
+        if self.op.description:
+            result.append(self.op.format_description(fmt) + "\n")
+        result.append(self.op.format_option_help(fmt))
+        result.append(self.op.format_epilog(fmt))
+        return "".join(result)
 
 class PropBase(object):
     def make_subs(self, val, Loader):

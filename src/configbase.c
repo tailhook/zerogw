@@ -202,7 +202,7 @@ char *cfgdup(config_head_t *head, char *str, int length) {
 }
 
 void prepare_configuration(int argc, char **argv) {
-    loglevel = LOG_NOTICE;
+    loglevel = LOG_INFO;
     config_meta.read_options(argc, argv, NULL);
     init_config(&config);
     config_meta.config_defaults(&config);
@@ -326,19 +326,7 @@ static void skip_subtree(config_parsing_info_t *info) {
     } while(level);
 }
 
-static void parse_global_config(config_parsing_info_t *info) {
-    advance_yaml_parser(info);
-    SYNTAX_ERROR(info->event.type == YAML_MAPPING_START_EVENT);
-    int state = 0;
-    for(;info->event.type != YAML_MAPPING_END_EVENT || state != 0;
-        advance_yaml_parser(info)) {
-        ANIMPL(state == info->states[state].id);
-        state = info->states[state].func(info, &info->states[state]);
-    }
-    SYNTAX_ERROR(info->event.type == YAML_MAPPING_END_EVENT);
-}
-
-static void parse_specific_config(config_parsing_info_t *info) {
+static void parse_config_body(config_parsing_info_t *info) {
     advance_yaml_parser(info);
     SYNTAX_ERROR(info->event.type == YAML_MAPPING_START_EVENT);
     int state = 0;
@@ -355,22 +343,9 @@ static void the_very_beginning(config_parsing_info_t *info) {
     SYNTAX_ERROR(info->event.type == YAML_STREAM_START_EVENT);
     advance_yaml_parser(info);
     SYNTAX_ERROR(info->event.type == YAML_DOCUMENT_START_EVENT);
-    advance_yaml_parser(info);
-    SYNTAX_ERROR(info->event.type == YAML_MAPPING_START_EVENT);
-    advance_yaml_parser(info);
 
-    for(;info->event.type != YAML_MAPPING_END_EVENT;advance_yaml_parser(info)) {
-        SYNTAX_ERROR(info->event.type == YAML_SCALAR_EVENT);
-        if(!strcmp(info->event.data.scalar.value, "Global")) {
-            parse_global_config(info);
-        } else if(!strcmp(info->event.data.scalar.value, info->section_name)) {
-            parse_specific_config(info);
-        } else {
-            skip_subtree(info);
-        }
-    }
+    parse_config_body(info);
 
-    SYNTAX_ERROR(info->event.type == YAML_MAPPING_END_EVENT);
     advance_yaml_parser(info);
     SYNTAX_ERROR(info->event.type == YAML_DOCUMENT_END_EVENT);
     advance_yaml_parser(info);
@@ -549,7 +524,9 @@ STATE_FUN(config_state_array) {
         int child = state->options.o_array.inner_state;
         while(child != state->id) {
             advance_yaml_parser(info);
-            if(info->event.type == YAML_SEQUENCE_END_EVENT) break;
+            if(info->event.type == YAML_SEQUENCE_END_EVENT) {
+                goto endloop;
+            }
             ANIMPL(child == info->states[child].id);
             child = info->states[child].func(info, &info->states[child]);
         }
@@ -558,10 +535,12 @@ STATE_FUN(config_state_array) {
             state->options.o_array.current_element->next = el;
         }
         state->options.o_array.current_element = el;
+        ANIMPL(!el->next);
         if(!RESULT2(array_element_t *)) {
             RESULT2(array_element_t *) = el;
         }
     }
+    endloop:
     info->config = oldconfig;
 
     state->options.o_array.current_element = NULL;

@@ -5,8 +5,7 @@
 
 #include <stdlib.h>
 #define BOOL int
-#define TRUE 1
-#define FALSE 0
+#include "configbase.h" // some constants
 #ifndef __AUTOMATA_INTERNALS
 #define AUTOMATA void *
 #endif // __AUTOMATA_INTERNALS

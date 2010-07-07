@@ -89,7 +89,7 @@ typedef struct config_{{ smallname }}_{{ name }}_s {
 
 source_tpl = jinja2.Template(r"""
 /* WARNING: THIS IS AUTOMATICALLY GENERATED FILE, DO NOT EDIT! */
-{%- set bigname = cname|upper %}
+{% set bigname = cname|upper -%}
 {%- set smallname = cname|lower -%}
 
 #define _GNU_SOURCE
@@ -135,14 +135,14 @@ static void config_defaults_{{ smallname }}_{{ constname(key) }}(void *cfg, void
 {%- endif %}
 {%- endfor %}
 
-{% set idx = 0 %}
+{% set idx = [0] %}
 static struct_transition_t transitions_{{ smallname }}[] = {
 {%- for m in options.structs() %}
-    {{- setattr(m, 'transition_index', idx) or '' -}}
+    {{- setattr(m, 'transition_index', idx[0]) or '' -}}
     {%- for (key, state) in m.transitions() %}
-    { "{{ key }}", {{ state.id }} }, {% set idx = idx+1 %}
+    { "{{ key }}", {{ state.id }} }, {{- idx.__setitem__(0, idx[0]+1) or '' -}}
     {%- endfor %}
-    { NULL, 0 }, {% set idx = idx+1 %}
+    { NULL, 0 }, {{- idx.__setitem__(0, idx[0]+1) or '' -}}
 {%- endfor %}
     };
 

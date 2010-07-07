@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 from util import makeconfig
 import yaml
 
@@ -35,12 +37,12 @@ def build(bld):
         target       = 'zerogw',
         includes     = ['src', bld.bdir + '/default'],
         defines      = [
+            'CONFIG_DEBUG',
             'CONFIG_ZEROGW',
             'LOG_STRIP_PATH="../src/"',
             ],
-        ccflags      = ['-std=c99'],
-        lib          = ['yaml'],
-        after        = ['configc', 'configh'],
+        ccflags      = ['-std=c99', '-g'],
+        lib          = ['yaml', 'zmq', 'event'],
         )
 
 def makeheader(task):
