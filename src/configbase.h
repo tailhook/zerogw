@@ -4,8 +4,10 @@
 #include <obstack.h>
 
 #define FALSE   0
-#define TRUE    0
+#define TRUE    1
 #define bool    int
+#define CARRAY_LOOP(type, varname, value) \
+    for(type varname=value; varname; varname = (type)varname->head.next)
 
 struct memcached_info {
     char **hostnames;

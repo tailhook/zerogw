@@ -42,6 +42,7 @@ header_tpl = jinenv.from_string(r"""
 {{'    '*level}}struct config_{{ smallname }}_{{ name }}_s *{{ name -}}
 {{- tail(valtype, name) -}}
 {% else %}
+{{- print(valtype) -}}
 {{- valtype/0 -}}
 {%- endif %}
 {%- endmacro %}

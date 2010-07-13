@@ -59,8 +59,10 @@ void logstd(int level, char *file, int line, char *msg, ...) {
     va_list args;
     time(&tm);
     localtime_r(&tm, &ts);
-    int idx = snprintf(buf, 4096, "%04d-%02d-%02d %02d:%02d:%02d [%4s] %s:%d: ",
-        ts.tm_year+1900, ts.tm_mon+1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec, levels[level], file+path_strip_chars, line);
+    int idx = snprintf(buf, 4096, "%04d-%02d-%02d %02d:%02d:%02d [%4s] %s:%d: (e%d) ",
+        ts.tm_year+1900, ts.tm_mon+1, ts.tm_mday,
+        ts.tm_hour, ts.tm_min, ts.tm_sec,
+        levels[level], file+path_strip_chars, line, errno);
     va_start(args, msg);
     idx += vsnprintf(buf + idx, 4096 - idx, msg, args);
     if(idx < 4093) {

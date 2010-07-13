@@ -2,6 +2,7 @@
 #define AUTOMATA struct automata *
 #define STATE struct state
 #include "automata.h"
+#include "log.h"
 #include <string.h>
 #include <assert.h>
 #include <alloca.h>
@@ -217,6 +218,7 @@ STATE *create_state(AUTOMATA m) {
 
 AUTOMATA automata_ascii_new(BOOL annotated) {
     AUTOMATA result = malloc(sizeof(struct automata));
+    ANIMPL(annotated);
     result->annotated = !!annotated;
     result->states = 0;
     result->first_state = create_state(result);
