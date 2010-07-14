@@ -191,14 +191,14 @@ void http_request(evhttp_request_t req, void *_) {
     ++sieve->in_progress;
     zmq_msg_t msg;
     zmq_msg_init_size(&msg, 16);
+    LDEBUG("Preparing %d bytes", zmq_msg_size(&msg));
     void *data = zmq_msg_data(&msg);
     ((uint64_t*)data)[0] = zreq->index;
     ((uint64_t*)data)[1] = zreq->hole;
-    zmq_send(root.worker_sock, &msg, ZMQ_SNDMORE);
-    zmq_msg_close(&msg);
-    zmq_msg_init_size(&msg, 0); // empty message, the sentinel for routing data
-    zmq_send(root.worker_sock, &msg, ZMQ_SNDMORE);
-    zmq_msg_close(&msg);
+    SNIMPL(zmq_send(root.worker_sock, &msg, ZMQ_SNDMORE));
+    // empty message, the sentinel for routing data (cleared in zmq_send)
+    SNIMPL(zmq_send(root.worker_sock, &msg, ZMQ_SNDMORE));
+    SNIMPL(zmq_msg_close(&msg));
     config_zerogw_contents_t *contents = page->config->contents;
     if(!contents) contents = site->config->contents;
     if(!contents) contents = config.Globals.contents;
@@ -206,8 +206,8 @@ void http_request(evhttp_request_t req, void *_) {
     CARRAY_LOOP(config_zerogw_contents_t *, item, contents) {
         zmq_msg_t msg;
         if(!strcmp(item->value, "PostBody")) {
-            zmq_msg_init_data(&msg, (void *)req->input_buffer->buffer,
-                req->input_buffer->off, NULL, NULL);
+            SNIMPL(zmq_msg_init_data(&msg, (void *)req->input_buffer->buffer,
+                req->input_buffer->off, NULL, NULL));
         } else if(!strncmp(item->value, "Header-", 7)) {
             const char *val = evhttp_find_header(req->input_headers,
                 item->value + 7 /*strlen("Header-")*/);
@@ -215,23 +215,24 @@ void http_request(evhttp_request_t req, void *_) {
                 val = ""; // Empty message
             }
             int len = strlen(val);
-            zmq_msg_init_data(&msg, (void *)val, len, NULL, NULL);
+            SNIMPL(zmq_msg_init_data(&msg, (void *)val, len, NULL, NULL));
         } else if(!strcmp(item->value, "URI")) {
             const char *val = req->uri;
             int len = strlen(val);
-            zmq_msg_init_data(&msg, (void *)val, len, NULL, NULL);
+            SNIMPL(zmq_msg_init_data(&msg, (void *)val, len, NULL, NULL));
         } else if(!strcmp(item->value, "Method")) {
             const char *val = decode_method(req->type);
             int len = strlen(val);
-            zmq_msg_init_data(&msg, (void *)val, len, NULL, NULL);
+            SNIMPL(zmq_msg_init_data(&msg, (void *)val, len, NULL, NULL));
         } else if(!strncmp(item->value, "Cookie-", 7)) {
             //TODO
             LNIMPL("Not implemented message field \"%s\"", item->value);
         } else {
             LNIMPL("Unknown message field \"%s\"", item->value);
         }
-        zmq_send(root.worker_sock, &msg, (ZMQ_SNDMORE ? !!item->head.next : 0));
-        zmq_msg_close(&msg);
+        SNIMPL(zmq_send(root.worker_sock, &msg,
+            (item->head.next ? ZMQ_SNDMORE : 0)));
+        SNIMPL(zmq_msg_close(&msg));
     }
 }
 
@@ -250,17 +251,68 @@ void worker_loop() {
         if(!count) continue;
         if(worker.poll[0].revents & ZMQ_POLLIN) { /* got new request */
             --count;
-            LNIMPL("Server request");
+            zmq_msg_t msg;
+            uint64_t opt;
+            size_t len = sizeof(opt);
+            zmq_msg_init(&msg);
+            zmq_recv(worker.server_sock, &msg, 0);
+            SNIMPL(zmq_getsockopt(worker.server_sock, ZMQ_RCVMORE, &opt, &len));
+            ANIMPL(opt);
+            ANIMPL(zmq_msg_size(&msg) == 0);
+            zmq_recv(worker.server_sock, &msg, 0);
+            SNIMPL(zmq_getsockopt(worker.server_sock, ZMQ_RCVMORE, &opt, &len));
+            ANIMPL(opt);
+            ANIMPL(zmq_msg_size(&msg) == 16);
+            uint64_t reqid = ((uint64_t*)zmq_msg_data(&msg))[0];
+            uint64_t holeid = ((uint64_t*)zmq_msg_data(&msg))[1];
+            ANIMPL(holeid < sieve->max);
+            request_t *req = sieve->requests[holeid];
+            if(req && req->index == reqid) {
+                int sockn = req->socket;
+                ANIMPL(sockn > 0 && sockn < worker.nsockets);
+                SNIMPL(zmq_send(worker.poll[sockn].socket, &msg, ZMQ_SNDMORE));
+                while(opt) {
+                    SNIMPL(zmq_recv(worker.server_sock, &msg, 0));
+                    SNIMPL(zmq_getsockopt(worker.server_sock,
+                        ZMQ_RCVMORE, &opt, &len));
+                    SNIMPL(zmq_send(worker.poll[sockn].socket, &msg,
+                        opt ? ZMQ_SNDMORE : 0));
+                }
+            } else {
+                // else: request already abandoned, discard whole message
+                while(opt) {
+                    SNIMPL(zmq_recv(worker.server_sock, &msg, 0));
+                    SNIMPL(zmq_getsockopt(worker.server_sock,
+                        ZMQ_RCVMORE, &opt, &len));
+                }
+            }
+            SNIMPL(zmq_msg_close(&msg));
         }
         if(!count) continue;
         if(worker.poll[1].revents & ZMQ_POLLIN) { /* got status request */
             --count;
             LNIMPL("Status request");
         }
+        if(!count) break;
         for(int i = 2; i < worker.nsockets; ++i) {
-            if(!count) break; // fast shortcut
-            if(worker.poll[1].revents & ZMQ_POLLIN) {
-                LNIMPL("Got response %d", i);
+            if(worker.poll[i].revents & ZMQ_POLLIN) {
+                --count;
+                zmq_msg_t msg;
+                uint64_t opt = 1;
+                size_t len = sizeof(opt);
+                zmq_socket_t sock = worker.poll[i].socket;
+                zmq_msg_init(&msg);
+                while(opt) {
+                    SNIMPL(zmq_recv(sock, &msg, 0));
+                    SNIMPL(zmq_getsockopt(sock, ZMQ_RCVMORE, &opt, &len));
+                    LDEBUG("Message %d bytes from %d (%d)", zmq_msg_size(&msg), i, opt);
+                    SNIMPL(zmq_send(worker.server_sock, &msg,
+                        opt ? ZMQ_SNDMORE : 0));
+                }
+                SNIMPL(zmq_msg_close(&msg));
+                opt = 1;
+                write(worker.server_event, &opt, sizeof(opt));
+                if(!count) break;
             }
         }
     }
@@ -298,7 +350,7 @@ void prepare_sockets() {
     worker.poll[0].events = ZMQ_POLLIN;
 
     LINFO("Binding status socket: %s", config.Server.status_socket);
-    worker.status_sock = zmq_socket(root.zmq, ZMQ_REP);
+    worker.status_sock = zmq_socket(root.zmq, ZMQ_XREP);
     ANIMPL(worker.status_sock);
     SNIMPL(zmq_bind(worker.status_sock, config.Server.status_socket));
     worker.poll[1].socket = worker.status_sock;
@@ -400,7 +452,6 @@ int main(int argc, char **argv) {
 
     int64_t event = 0;
     /* first event means configuration is setup */
-    //~ LINFO("WHAT? %d", read(root.worker_event, &event, sizeof(event)));
     ANIMPL(read(root.worker_event, &event, sizeof(event)) == 8);
     ANIMPL(event == 1);
 

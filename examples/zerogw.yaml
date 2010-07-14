@@ -1,0 +1,19 @@
+Server:
+  listen:
+    - host: localhost
+      port: 8000
+
+Globals:
+  logging:
+    level: 7
+
+Pages:
+  "localhost:8000":
+    pages:
+    - uri: /chat
+      methods: [ GET, POST ]
+      contents:
+        - Header-Cookie
+        - PostBody
+      forward:
+        - "ipc:///tmp/chat"

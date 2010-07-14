@@ -2,7 +2,7 @@ Zerogw
 ======
 
 Zerogw is a http to zeromq gateway. Which means it listens HTTP, parses
-request and sends it using zeromq socket (ZMQ_REP). Then waits for the reply
+request and sends it using zeromq socket (ZMQ_REQ). Then waits for the reply
 and responds with data received from zeromq socket.
 
 Zerogw is written in C. And uses libevent library for handling HTTP.
