@@ -181,6 +181,29 @@ void http_request(evhttp_request_t req, void *_) {
         }
         return;
     }
+    // Let's populate headers
+    CARRAY_LOOP(config_zerogw_headers_t *, header, config.Globals.headers) {
+        evhttp_add_header(req->output_headers, header->head.key,
+            header->value);
+    }
+    CARRAY_LOOP(config_zerogw_headers_t *, header, site->config->headers) {
+        evhttp_add_header(req->output_headers, header->head.key,
+            header->value);
+    }
+    CARRAY_LOOP(config_zerogw_headers_t *, header, page->config->headers) {
+        evhttp_add_header(req->output_headers, header->head.key,
+            header->value);
+    }
+    // Let's decide whether it's static
+    if(page->config->static_string) {
+        evbuffer_t buf = evbuffer_new();
+        evbuffer_add(buf, page->config->static_string,
+            page->config->static_string_len);
+        evhttp_send_reply(req, 200, "OK", buf);
+        evbuffer_free(buf);
+        return;
+    }
+    // Ok, it's zeromq forward
     request_t *zreq = SAFE_MALLOC(sizeof(request_t));
     zreq->index = sieve->index;
     zreq->hole = find_hole();

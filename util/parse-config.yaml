@@ -101,6 +101,9 @@ Globals: &settings
     default:
       - Cookie-SID
       - PostBody
+  headers: !Mapping
+    element: !Property
+      type: string
   limits:
     method: !Array
       element: !Property
@@ -203,6 +206,8 @@ Pages: !Mapping
       element:
         <<: *settings
         uri: !Property
+          type: string
+        static-string: !Property
           type: string
         forward: !Array
           element: !Property
