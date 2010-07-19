@@ -554,10 +554,12 @@ int main(int argc, char **argv) {
     ANIMPL(root.event);
     root.evhttp = evhttp_new(root.event);
     ANIMPL(root.evhttp);
-    config_zerogw_listen_t *slisten = config.Server.listen;
-    while(slisten) {
-        evhttp_bind_socket(root.evhttp, slisten->host, slisten->port);
-        slisten = (config_zerogw_listen_t *)slisten->head.next;
+    CARRAY_LOOP(config_zerogw_listen_t *, slisten, config.Server.listen) {
+        if(slisten->fd) {
+            evhttp_accept_socket(root.evhttp, slisten->fd);
+        } else {
+            evhttp_bind_socket(root.evhttp, slisten->host, slisten->port);
+        }
     }
     evhttp_set_gencb(root.evhttp, http_request, NULL);
 

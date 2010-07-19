@@ -1,5 +1,9 @@
+ * Check request method
  * Do internal communication using ZMQ_PAIR, instead XREQ/XREP
- * Add headers to the output
  * Allow binding zeromq sockets instead of connecting
  * Decouple configuration library into separate project
  * Serving static from file (maybe)
+ * Add access logging
+ * Implement status requests
+ * Strip port number from domain name
+ * Add server name-version header

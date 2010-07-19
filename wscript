@@ -3,6 +3,9 @@
 from util import makeconfig
 import yaml
 
+APPNAME='zerogw'
+VERSION='0.1.1'
+
 top = '.'
 out = 'build'
 
@@ -44,6 +47,11 @@ def build(bld):
         ccflags      = ['-std=c99', '-g'],
         lib          = ['yaml', 'zmq', 'event'],
         )
+
+    if bld.env['PREFIX'] == '/usr':
+        bld.install_files('/etc', ['examples/zerogw.yaml'])
+    else:
+        bld.install_files('${PREFIX}/etc', ['examples/zerogw.yaml'])
 
 def makeheader(task):
     makeconfig.inityaml()
