@@ -555,7 +555,7 @@ int main(int argc, char **argv) {
     root.evhttp = evhttp_new(root.event);
     ANIMPL(root.evhttp);
     CARRAY_LOOP(config_zerogw_listen_t *, slisten, config.Server.listen) {
-        if(slisten->fd) {
+        if(slisten->fd >= 0) {
             evhttp_accept_socket(root.evhttp, slisten->fd);
         } else {
             evhttp_bind_socket(root.evhttp, slisten->host, slisten->port);

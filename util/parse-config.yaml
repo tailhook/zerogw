@@ -54,6 +54,7 @@ Server:
       fd: !Property
         type: int
         min: 0
+        max: 65536
         default: -1
   default-host: !Property
     type: string
