@@ -4,7 +4,7 @@ from util import makeconfig
 import yaml
 
 APPNAME='zerogw'
-VERSION='0.1.2'
+VERSION='0.1.3'
 
 top = '.'
 out = 'build'

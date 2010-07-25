@@ -314,6 +314,7 @@ void send_message(int socket, short events, void *_) {
                         for(; cur < end; ++cur) {
                             if(!*cur) {
                                 value = cur + 1;
+                                ++cur;
                                 break;
                             }
                         }
@@ -555,9 +556,11 @@ int main(int argc, char **argv) {
     root.evhttp = evhttp_new(root.event);
     ANIMPL(root.evhttp);
     CARRAY_LOOP(config_zerogw_listen_t *, slisten, config.Server.listen) {
-        if(slisten->fd >= 0) {
+        if(slisten->fd > 0) {
+            LDEBUG("Using socket %d", slisten->fd);
             evhttp_accept_socket(root.evhttp, slisten->fd);
         } else {
+            LDEBUG("Using host %s port %d", slisten->host, slisten->port);
             evhttp_bind_socket(root.evhttp, slisten->host, slisten->port);
         }
     }
