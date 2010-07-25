@@ -283,7 +283,7 @@ void send_message(int socket, short events, void *_) {
         if(req && req->index == reqid) {
             SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
             SNIMPL(zmq_getsockopt(root.worker_sock, ZMQ_RCVMORE, &opt, &len));
-            ANIMPL(opt);
+            if(!opt) goto skipmessage;
             ANIMPL(zmq_msg_size(&msg) == 0); // The sentinel of routing data
             SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
             SNIMPL(zmq_getsockopt(root.worker_sock,
@@ -335,7 +335,12 @@ void send_message(int socket, short events, void *_) {
                     SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
                     SNIMPL(zmq_getsockopt(root.worker_sock,
                         ZMQ_RCVMORE, &opt, &len));
-                    ANIMPL(!opt);
+                    if(opt) {
+                        LWARN("Too many message parts");
+                        http_error_response(req->evreq, (error_report_t*)
+                            &config.Globals.responses.internal_error);
+                        goto skipmessage;
+                    }
                 }
             }
             // the last part is always a body
