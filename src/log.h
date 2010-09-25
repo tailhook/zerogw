@@ -2,6 +2,9 @@
 #define _H_LOG
 
 #include <time.h>
+#include "config.h"
+
+extern config_main_t config;
 
 #define LOG_EMERG   0
 #define LOG_ALERT   1

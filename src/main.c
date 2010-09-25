@@ -1,47 +1,35 @@
 #include <zmq.h>
-typedef unsigned char u_char; // for libevent
-typedef unsigned short u_short; // for libevent
-#include <event.h>
-#include <evhttp.h>
+#include <ev.h>
+#include <website.h>
 #include <pthread.h>
 #include <strings.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <sys/socket.h>
 #include <sys/eventfd.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "log.h"
 #include "config.h"
-#include "automata.h"
 
 typedef void *zmq_context_t;
 typedef void *zmq_socket_t;
-typedef struct event *watch_t;
-typedef struct event_base *event_loop_t;
-typedef struct evhttp *evhttp_t;
-typedef struct evhttp_request *evhttp_request_t;
-typedef struct evbuffer *evbuffer_t;
+typedef struct ev_loop *evloop_t;
+typedef struct ev_io watch_t;
 typedef int socket_t;
-typedef struct timeval timestr_t;
-typedef struct tm timeparts_t;
-typedef double tstamp_t;
-
-typedef struct error_report_s {
-    char * status; size_t status_len;
-    char * body; size_t body_len;
-    int code;
-} error_report_t;
 
 typedef struct serverroot_s {
-    char *automata;
+    ws_server_t ws;
     zmq_context_t zmq;
     zmq_socket_t worker_sock;
+    evloop_t loop;
     socket_t worker_event;
-    watch_t event_watch;
-    event_loop_t event;
-    evhttp_t evhttp;
+    watch_t worker_watch;
 } serverroot_t;
 
 typedef struct status_s {
-    timestr_t time;
+    ev_tstamp time;
     int http_requests;
     int http_responses;
     int http_in_bytes;
@@ -52,13 +40,6 @@ typedef struct status_s {
     int zmq_out_bytes;
 } status_t;
 
-typedef struct snapshoter_s {
-    int timerfd;
-    status_t *snapshots;
-    int nsnapshots;
-    int cur_snapshot;
-} snapshoter_t;
-
 typedef struct worker_s {
     pthread_t thread;
     zmq_pollitem_t *poll;
@@ -68,25 +49,11 @@ typedef struct worker_s {
     socket_t server_event;
 } worker_t;
 
-typedef struct siteroot_s {
-    config_zerogw_Pages_t *config;
-    char *automata;
-    serverroot_t *root;
-} siteroot_t;
-
-typedef struct page_s {
-    config_zerogw_pages_t *config;
-    siteroot_t *site;
-    serverroot_t *root;
-    zmq_socket_t sock;
-    int socket_index;
-} page_t;
-
 typedef struct request_s {
+    ws_request_t ws;
     uint64_t index;
     int hole;
-    int socket;
-    evhttp_request_t evreq;
+    socket_t socket;
 } request_t;
 
 typedef struct sieve_s {
@@ -100,15 +67,11 @@ typedef struct sieve_s {
 serverroot_t root;
 worker_t worker;
 status_t status;
-status_t *status_snapshots;
-snapshoter_t *snapshoters;
 sieve_t *sieve;
+config_main_t config;
 
-void http_error_response(evhttp_request_t req, error_report_t *resp) {
-    evbuffer_t buf = evbuffer_new();
-    evbuffer_add(buf, resp->body, resp->body_len);
-    evhttp_send_reply(req, resp->code, resp->status, buf);
-    evbuffer_free(buf);
+void http_error_response(request_t *req, config_StaticResponse_t *resp) {
+    LNIMPL("ERROR RESPONSE IS NOT IMPLEMENTED\n");
 }
 
 size_t find_hole() {
@@ -136,123 +99,111 @@ void prepare_sieve() {
     sieve->max = config.Server.max_requests;
 }
 
-const char *decode_method(int type)
-{
-    switch (type) {
-        case EVHTTP_REQ_GET: return "GET";
-        case EVHTTP_REQ_POST: return "POST";
-        case EVHTTP_REQ_HEAD: return "HEAD";
-        default: LNIMPL("Request type %d", type);
+const char *get_field(request_t *req, config_RequestField_t*value, size_t*len) {
+    switch(value->kind) {
+    case CONFIG_Body:
+/*        if(len) {*/
+/*            *len = req->ws.body_len;*/
+/*        }*/
+/*        return req->ws.body;*/
+        if(len) {
+            *len = 0;
+        }
+        return "";
+    case CONFIG_Header:
+        if(len) {
+            *len = strlen(req->ws.headerindex[value->_field_index]);
+        }
+        return req->ws.headerindex[value->_field_index];
+    case CONFIG_Uri:
+        if(len) {
+            *len = strlen(req->ws.uri);
+        }
+        return req->ws.uri;
+    case CONFIG_Method:
+        if(len) {
+            *len = strlen(req->ws.method);
+        }
+        return req->ws.method;
+    case CONFIG_Cookie:
+        LNIMPL("Cookie field");
+    case CONFIG_Nothing:
+        return NULL;
     }
+    LNIMPL("Unknown field");
 }
+
 /* server thread callback */
-void http_request(evhttp_request_t req, void *_) {
+void http_request(request_t *req) {
     if(sieve->in_progress >= sieve->max) {
         LWARN("Too many requests");
         http_error_response(req,
-            (error_report_t *)&config.Globals.responses.service_unavailable);
+           &config.Globals.responses.service_unavailable);
         return;
     }
-    //TODO: check allowed method
-    char *host = (char *)evhttp_find_header(req->input_headers, "Host");
-    if(!host || !*host) {
-        host = config.Server.default_host;
-    }
-    LDEBUG("Input request, host: \"%s\", uri: \"%s\"",
-        host, req->uri);
-    siteroot_t *site = (siteroot_t*)automata_ascii_backwards_select(
-        root.automata, host);
-    if(!site) {
-        LDEBUG("Domain not matched");
-        http_error_response(req,
-            (error_report_t *)&config.Globals.responses.domain_not_found);
-        return;
-    }
-    page_t *page = (page_t*)automata_ascii_forwards_select(
-        site->automata, req->uri);
-    if(!page) {
-        LDEBUG("URI not matched");
-        if(site->config->responses.domain_not_found.code) {
-            http_error_response(req,
-                (error_report_t *)&site->config->responses.domain_not_found);
-        } else {
-            http_error_response(req,
-                (error_report_t *)&config.Globals.responses.domain_not_found);
+
+    config_Route_t *route = &config.Routing;
+    while(route->routing.kind != CONFIG_Leaf) {
+        const char *data = get_field(req, &route->routing_by, NULL);
+        switch(route->routing.kind) {
+        case CONFIG_Nothing:
+            break;
+        case CONFIG_Exact:
+            LNIMPL("Exact matching");
+            continue;
+        case CONFIG_Prefix:
+            LNIMPL("Prefix matching");
+            continue;
+        case CONFIG_Suffix:
+            LNIMPL("Suffix matching");
+            continue;
+        case CONFIG_Hash:
+            LNIMPL("Hash matching");
+            continue;
+        case CONFIG_Hash1024:
+            LNIMPL("Consistent hash");
+            continue;
         }
-        return;
+        break;
     }
-    // Let's populate headers
-    CARRAY_LOOP(config_zerogw_headers_t *, header, config.Globals.headers) {
-        evhttp_add_header(req->output_headers, header->head.key,
-            header->value);
-    }
-    CARRAY_LOOP(config_zerogw_headers_t *, header, site->config->headers) {
-        evhttp_add_header(req->output_headers, header->head.key,
-            header->value);
-    }
-    CARRAY_LOOP(config_zerogw_headers_t *, header, page->config->headers) {
-        evhttp_add_header(req->output_headers, header->head.key,
-            header->value);
-    }
+
     // Let's decide whether it's static
-    if(page->config->static_string) {
-        evbuffer_t buf = evbuffer_new();
-        evbuffer_add(buf, page->config->static_string,
-            page->config->static_string_len);
-        evhttp_send_reply(req, 200, "OK", buf);
-        evbuffer_free(buf);
+    if(!route->zmq_forward_len) {
+        char status[route->responses.default_.status_len + 5];
+        sprintf(status, "%03d %s",
+            route->responses.default_.code,
+            route->responses.default_.status);
+        ws_statusline(&req->ws, status);
+        ws_add_header(&req->ws, "Server", config.Server.header);
+        ws_reply_data(&req->ws,
+            route->responses.default_.body,
+            route->responses.default_.body_len);
         return;
     }
     // Ok, it's zeromq forward
-    request_t *zreq = SAFE_MALLOC(sizeof(request_t));
-    zreq->index = sieve->index;
-    zreq->hole = find_hole();
-    zreq->evreq = req;
-    zreq->socket = page->socket_index;
-    sieve->requests[zreq->hole] = zreq;
+    req->index = sieve->index;
+    req->hole = find_hole();
+    req->socket = route->_socket_index;
+    sieve->requests[req->hole] = req;
     ++sieve->index;
     ++sieve->in_progress;
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init_size(&msg, 16));
     LDEBUG("Preparing %d bytes", zmq_msg_size(&msg));
     void *data = zmq_msg_data(&msg);
-    ((uint64_t*)data)[0] = zreq->index;
-    ((uint64_t*)data)[1] = zreq->hole;
+    ((uint64_t*)data)[0] = req->index;
+    ((uint64_t*)data)[1] = req->hole;
     SNIMPL(zmq_send(root.worker_sock, &msg, ZMQ_SNDMORE));
     // empty message, the sentinel for routing data (cleared in zmq_send)
     SNIMPL(zmq_send(root.worker_sock, &msg, ZMQ_SNDMORE));
     SNIMPL(zmq_msg_close(&msg));
-    config_zerogw_contents_t *contents = page->config->contents;
-    if(!contents) contents = site->config->contents;
-    if(!contents) contents = config.Globals.contents;
+    config_a_RequestField_t *contents = route->zmq_contents;
     ANIMPL(contents);
-    CARRAY_LOOP(config_zerogw_contents_t *, item, contents) {
+    for(config_a_RequestField_t *item=contents; item; item = item->head.next) {
+        size_t len;
+        const char *value = get_field(req, &item->value, &len);
         zmq_msg_t msg;
-        if(!strcmp(item->value, "PostBody")) {
-            SNIMPL(zmq_msg_init_data(&msg, (void *)req->input_buffer->buffer,
-                req->input_buffer->off, NULL, NULL));
-        } else if(!strncmp(item->value, "Header-", 7)) {
-            const char *val = evhttp_find_header(req->input_headers,
-                item->value + 7 /*strlen("Header-")*/);
-            if(!val) {
-                val = ""; // Empty message
-            }
-            int len = strlen(val);
-            SNIMPL(zmq_msg_init_data(&msg, (void *)val, len, NULL, NULL));
-        } else if(!strcmp(item->value, "URI")) {
-            const char *val = req->uri;
-            int len = strlen(val);
-            SNIMPL(zmq_msg_init_data(&msg, (void *)val, len, NULL, NULL));
-        } else if(!strcmp(item->value, "Method")) {
-            const char *val = decode_method(req->type);
-            int len = strlen(val);
-            SNIMPL(zmq_msg_init_data(&msg, (void *)val, len, NULL, NULL));
-        } else if(!strncmp(item->value, "Cookie-", 7)) {
-            //TODO
-            LNIMPL("Not implemented message field \"%s\"", item->value);
-        } else {
-            LNIMPL("Unknown message field \"%s\"", item->value);
-        }
+        SNIMPL(zmq_msg_init_data(&msg, (void *)value, len, NULL, NULL));
         SNIMPL(zmq_send(root.worker_sock, &msg,
             (item->head.next ? ZMQ_SNDMORE : 0)));
         SNIMPL(zmq_msg_close(&msg));
@@ -260,7 +211,7 @@ void http_request(evhttp_request_t req, void *_) {
 }
 
 /* server thread callback */
-void send_message(int socket, short events, void *_) {
+void send_message(evloop_t loop, watch_t *watch, int revents) {
     LDEBUG("Got something");
     uint64_t opt;
     size_t len = sizeof(opt);
@@ -293,13 +244,8 @@ void send_message(int socket, short events, void *_) {
                 char *tail;
                 int dlen = zmq_msg_size(&msg);
                 LDEBUG("Status line: [%d] %s", dlen, data);
-                int statuscode = strtol(data, &tail, 10);
-                if(statuscode > 999 || statuscode < 100) {
-                    LWARN("Wrong status returned %d", statuscode);
-                    goto skipmessage;
-                }
-                strncpy(statusline, tail, 31);
-                statusline[31] = 0;
+                ws_statusline(&req->ws, data);
+
                 SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
                 SNIMPL(zmq_getsockopt(root.worker_sock,
                     ZMQ_RCVMORE, &opt, &len));
@@ -320,8 +266,7 @@ void send_message(int socket, short events, void *_) {
                         }
                         for(; cur < end; ++cur) {
                             if(!*cur) {
-                                evhttp_add_header(req->evreq->output_headers,
-                                    name, value);
+                                ws_add_header(&req->ws, name, value);
                                 name = cur + 1;
                                 break;
                             }
@@ -337,17 +282,14 @@ void send_message(int socket, short events, void *_) {
                         ZMQ_RCVMORE, &opt, &len));
                     if(opt) {
                         LWARN("Too many message parts");
-                        http_error_response(req->evreq, (error_report_t*)
-                            &config.Globals.responses.internal_error);
+                        http_error_response(req,
+                            &config.Routing.responses.internal_error);
                         goto skipmessage;
                     }
                 }
             }
             // the last part is always a body
-            evbuffer_t buf = evbuffer_new();
-            evbuffer_add(buf, zmq_msg_data(&msg), zmq_msg_size(&msg));
-            evhttp_send_reply(req->evreq, statuscode, statusline, buf);
-            evbuffer_free(buf);
+            ws_reply_data(&req->ws, zmq_msg_data(&msg), zmq_msg_size(&msg));
             -- sieve->in_progress;
             sieve->requests[req->hole] = NULL;
             free(req);
@@ -364,7 +306,6 @@ void send_message(int socket, short events, void *_) {
     }
     SNIMPL(zmq_msg_close(&msg));
     LDEBUG("Done processing...", opt);
-    SNIMPL(event_add(root.event_watch, NULL));
 }
 
 /* worker thread callback */
@@ -448,26 +389,52 @@ void worker_loop() {
     }
 }
 
+static size_t count_sockets(config_Route_t *route) {
+    size_t res = route->zmq_forward_len ? 1 : 0;
+    CONFIG_ROUTE_LOOP(item, route->children) {
+        res += count_sockets(&item->value);
+    }
+    CONFIG_STRING_ROUTE_LOOP(item, route->map) {
+        res += count_sockets(&item->value);
+    }
+}
+
+int zmq_open(zmq_socket_t target, config_zmqaddr_t *addr) {
+    if(addr->kind == CONFIG_zmq_Bind) {
+        return zmq_bind(target, addr->value);
+    } else if(addr->kind == CONFIG_zmq_Connect) {
+        return zmq_connect(target, addr->value);
+    } else {
+        LNIMPL("Uknown socket type");
+    }
+}
+
+int socket_visitor(config_Route_t *route, int *sock_index) {
+    if(route->zmq_forward_len) {
+        zmq_socket_t sock = zmq_socket(root.zmq, ZMQ_XREQ);
+        ANIMPL(sock);
+        CONFIG_ZMQADDR_LOOP(item, route->zmq_forward) {
+            ANIMPL(zmq_open(sock, &item->value));
+        }
+        worker.poll[*sock_index].socket = sock;
+        worker.poll[*sock_index].events = ZMQ_POLLIN;
+        *sock_index ++;
+    }
+    CONFIG_ROUTE_LOOP(item, route->children) {
+        SNIMPL(socket_visitor(&item->value, sock_index));
+    }
+    CONFIG_STRING_ROUTE_LOOP(item, route->map) {
+        SNIMPL(socket_visitor(&item->value, sock_index));
+    }
+}
+
 /*
 Must prepare in a worker, because zmq does not allow to change thread of socket
 */
 void prepare_sockets() {
 
-    AUTOMATA dom_automata = automata_ascii_new(TRUE);
-    ANIMPL(dom_automata);
-
     // Let's count our sockets
-    worker.nsockets = 2; // status and server
-    config_zerogw_Pages_t *sconfig = config.Pages;
-    while(sconfig) {
-        siteroot_t *site = SAFE_MALLOC(sizeof(siteroot_t));
-        config_zerogw_pages_t *pconfig = sconfig->pages;
-        while(pconfig) {
-            pconfig = (config_zerogw_pages_t *)pconfig->head.next;
-            ++ worker.nsockets;
-        }
-        sconfig = (config_zerogw_Pages_t *)sconfig->head.next;
-    }
+    worker.nsockets = 2 + count_sockets(&config.Routing); // status and server
 
     // Ok, now lets fill them
     worker.poll = SAFE_MALLOC(sizeof(zmq_pollitem_t)*worker.nsockets);
@@ -482,50 +449,12 @@ void prepare_sockets() {
     LINFO("Binding status socket: %s", config.Server.status_socket);
     worker.status_sock = zmq_socket(root.zmq, ZMQ_XREP);
     ANIMPL(worker.status_sock);
-    SNIMPL(zmq_bind(worker.status_sock, config.Server.status_socket));
+    SNIMPL(zmq_open(worker.status_sock, &config.Server.status_socket));
     worker.poll[1].socket = worker.status_sock;
     worker.poll[1].events = ZMQ_POLLIN;
 
     int sock_index = 2;
-    sconfig = config.Pages;
-    while(sconfig) {
-        siteroot_t *site = SAFE_MALLOC(sizeof(siteroot_t));
-        site->config = sconfig;
-        site->root = &root;
-        AUTOMATA pagemach = automata_ascii_new(TRUE);
-        ANIMPL(pagemach);
-        config_zerogw_pages_t *pconfig = sconfig->pages;
-        while(pconfig) {
-            page_t *page = SAFE_MALLOC(sizeof(page_t));
-            page->config = pconfig;
-            page->site = site;
-            page->root = &root;
-            page->sock = zmq_socket(root.zmq, ZMQ_XREQ);
-            ANIMPL(page->sock);
-            config_zerogw_forward_t *fconfig = pconfig->forward;
-            while(fconfig) {
-                LINFO("Connecting to: %s", fconfig->value);
-                SNIMPL(zmq_connect(page->sock, fconfig->value));
-                fconfig = (config_zerogw_forward_t *)fconfig->head.next;
-            }
-            LDEBUG("Adding page \"%s\" -> %x", pconfig->uri, (size_t)page);
-            automata_ascii_add_forwards_star(pagemach, pconfig->uri,
-                (size_t)page);
-            worker.poll[sock_index].socket = page->sock;
-            worker.poll[sock_index].events = ZMQ_POLLIN;
-            page->socket_index = sock_index;
-            ++ sock_index;
-            pconfig = (config_zerogw_pages_t *)pconfig->head.next;
-        }
-        site->automata = automata_ascii_compile(pagemach, NULL, NULL);
-        automata_ascii_free(pagemach);
-        LDEBUG("Adding domain \"%s\" -> %x", sconfig->head.key, (size_t)site);
-        automata_ascii_add_backwards_star(dom_automata, sconfig->head.key,
-            (size_t)site);
-        sconfig = (config_zerogw_Pages_t *)sconfig->head.next;
-    }
-    root.automata = automata_ascii_compile(dom_automata, NULL, NULL);
-    automata_ascii_free(dom_automata);
+    SNIMPL(socket_visitor(&config.Routing, &sock_index));
     ANIMPL(sock_index == worker.nsockets);
     LINFO("All connections complete");
 
@@ -539,37 +468,28 @@ void *worker_fun(void *_) {
     worker_loop();
 }
 
-void prepare_status_snapshots() {
-    int all_snapshots = 0;
-    CARRAY_LOOP(config_zerogw_statuses_t *, status, config.Server.statuses) {
-        all_snapshots += status->snapshots;
-    }
-    status_snapshots = SAFE_MALLOC(all_snapshots*sizeof(status_t));
-
-    int cur_snapshot = 0;
-    CARRAY_LOOP(config_zerogw_statuses_t *, status, config.Server.statuses) {
-        //~ int fd = timerfd(CLOCK_MONOTONIC, TFD_CLOEXEC|TFD_NONBLOCK);
-        // TODO
-    }
-}
-
 int main(int argc, char **argv) {
-    prepare_configuration(argc, argv);
+    config_load(&config, argc, argv);
 
-    root.event = event_init();
-    ANIMPL(root.event);
-    root.evhttp = evhttp_new(root.event);
-    ANIMPL(root.evhttp);
-    CARRAY_LOOP(config_zerogw_listen_t *, slisten, config.Server.listen) {
-        if(slisten->fd > 0) {
-            LDEBUG("Using socket %d", slisten->fd);
-            evhttp_accept_socket(root.evhttp, slisten->fd);
+    root.loop = ev_default_loop(0);
+    ANIMPL(root.loop);
+    ws_server_init(&root.ws, root.loop);
+    CONFIG_LISTENADDR_LOOP(slisten, config.Server.listen) {
+        if(slisten->value.fd > 0) {
+            LDEBUG("Using socket %d", slisten->value.fd);
+            ws_add_fd(&root.ws, slisten->value.fd);
+/*        } else if(slisten->value.unix_socket && *slisten->value.unix_socket) {*/
+/*            LDEBUG("Using unix socket \"%s\"", slisten->value.unix_socket);*/
+/*            ws_add_unix(&root.ws, slisten->value.unix_socket);*/
         } else {
-            LDEBUG("Using host %s port %d", slisten->host, slisten->port);
-            evhttp_bind_socket(root.evhttp, slisten->host, slisten->port);
+            LDEBUG("Using host %s port %d",
+                slisten->value.host, slisten->value.port);
+            ws_add_tcp(&root.ws, inet_addr(slisten->value.host),
+                slisten->value.port);
         }
     }
-    evhttp_set_gencb(root.evhttp, http_request, NULL);
+    ws_REQUEST_STRUCT(&root.ws, request_t);
+    ws_REQUEST_CB(&root.ws, http_request);
 
     // Probably here is a place to fork! :)
 
@@ -581,17 +501,13 @@ int main(int argc, char **argv) {
     SNIMPL(zmq_bind(root.worker_sock, "inproc://worker"));
     pthread_create(&worker.thread, NULL, worker_fun, NULL);
 
-    prepare_status_snapshots();
     prepare_sieve();
 
     int64_t event = 0;
     /* first event means configuration is setup */
     ANIMPL(read(root.worker_event, &event, sizeof(event)) == 8);
     ANIMPL(event == 1);
-
-    root.event_watch = SAFE_MALLOC(sizeof(*root.event_watch));
-    ANIMPL(root.event_watch);
-    event_set(root.event_watch, root.worker_event, EV_READ, send_message, NULL);
-    SNIMPL(event_add(root.event_watch, NULL));
-    event_base_dispatch(root.event);
+    ev_io_init(&root.worker_watch, send_message, root.worker_event, EV_READ);
+    ev_io_start(root.loop, &root.worker_watch);
+    ev_loop(root.loop, 0);
 }

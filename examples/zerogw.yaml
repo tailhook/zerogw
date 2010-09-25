@@ -1,32 +1,40 @@
 Server:
   listen:
-    - host: localhost
+    - host: 127.0.0.1
       port: 8000
 
 Globals:
   logging:
     level: 6
 
-Pages:
-  "localhost:8000":
-    pages:
-    - uri: /chat
-      methods: [ GET, POST ]
-      contents:
-        - Header-Cookie
-        - PostBody
-      forward:
-        - "ipc:///tmp/chat"
-    - uri: / # Fallback page
-      headers:
-        Content-Type: text/plain; charset="utf-8"
-      static-string: |
-        Sorry, this is API only site. There is no frontpage
-    - uri: /crossdomain.xml
-      headers:
-        Content-Type: text/xml
-      static-string: |
-        <?xml version="1.0"?>
-        <cross-domain-policy>
-            <allow-access-from domain="*" />
-        </cross-domain-policy>
+Routing:
+  routing: !Suffix ~
+  routing-by: !Header Host
+  map:
+      "localhost:8000":
+        routing: !Prefix ~
+        routing-by: !Uri ~
+        map:
+            "/chat":
+              zmq-contents:
+                - !Header Cookie
+                - !Body ~
+              zmq-forward:
+                - !zmq.Bind "ipc:///tmp/chat"
+            "/": # Fallback page
+#              extra-headers:
+#                Content-Type: text/plain; charset="utf-8"
+              responses:
+                default:
+                  body: |
+                    Sorry, this is API only site. There is no frontpage
+            "/crossdomain.xml":
+#              extra-headers:
+#                Content-Type: text/xml
+              responses:
+                default:
+                  body: |
+                    <?xml version="1.0"?>
+                    <cross-domain-policy>
+                        <allow-access-from domain="*" />
+                    </cross-domain-policy>

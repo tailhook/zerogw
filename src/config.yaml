@@ -1,0 +1,190 @@
+
+__meta__:
+  program-name: zerogw
+  default-config: /etc/zerogw.yaml
+  description: >
+    A HTTP to zeromq gateway. It's actually a web server which uses zeromq for
+    communication with backends.
+
+__types__:
+
+  zmqaddr:
+    __tags__:
+      __property__: kind
+      __default__: zmq.Bind
+      zmq.Bind: 1
+      zmq.Connect: 2
+    __value__: !String ""
+
+  stat_group:
+      interval: !Int
+        min: 1
+      snapshots: !Int
+        type: int
+        min: 1
+        default: 2
+
+  listenaddr:
+    host: !String ""
+    port: !Int
+      min: 1
+      max: 65535
+      =: 80
+    unix-socket: !String ""
+    fd: !Int -1
+    # __value__ !Convert convert_listenaddr
+
+
+  StaticResponse:
+    code: !Int
+        min: 100
+        max: 999
+        default: 200
+    status: !String "OK"
+    body: !String |
+      <html>
+        <head>
+          <title>Utitled</title>
+        </head>
+        <body>
+          <h1>No Content Here</h1>
+        </body>
+      </html>
+
+  RoutingType:
+    __tags__:
+      __property__: kind
+      __default__: Leaf
+      Leaf: 0x0
+      Exact: 0x10
+      Prefix: 0x11
+      Suffix: 0x12
+      Hash: 0x20
+      Hash1024: 0x21
+      TrySerially: 0x31
+    __value__: !String ~
+
+  RequestField:
+    __tags__:
+      __property__: kind
+      __default__: Nothing
+      Nothing: 0
+      Uri: 1
+      Method: 2
+      Header: 3
+      Cookie: 4
+      Body: 5
+    __value__: !String ~
+    _field_index: !Int -1
+
+  Route:
+    limits: &limits
+      method: !Array
+        element: !String ""
+      max-body-size: !Int
+        min: 0
+        default: 65536 # 64k
+    responses: &responses
+      default: !Struct StaticResponse
+      maintainance: !Struct StaticResponse
+      not-found: !Struct StaticResponse
+      method-not-allowed: !Struct StaticResponse
+      internal-error: !Struct StaticResponse
+      service-unavailable: !Struct StaticResponse
+    maintainance: !Int 0
+
+    zmq-forward: !Array
+      element: !Struct zmqaddr
+    zmq-contents: !Array
+      element: !Struct RequestField
+
+    match: !Array
+      element: !String ~
+    routing: !Struct RoutingType
+    routing-by: !Struct RequestField
+    map: !Mapping
+      key-element: !String ""
+      value-element: !Struct Route
+    children: !Array
+      element: !Struct Route
+
+    _socket-index: !Int -1
+    _child-match: !_VoidPtr ~
+
+Server:
+  zmq-io-threads: !Int
+    min: 1
+    max: 65535
+    default: 1
+    description: >
+      ZMQ IO threads to use. See zmq_init(3) for more information
+    command-line: [-z, --zmq-io-threads]
+  status-socket: !Struct
+    type: zmqaddr
+    default: tcp://127.0.0.1:9376
+    description: >
+      Zeromq REP-type socket, which will respond with status messages
+  statuses: !Array
+    element: !Struct stat_group
+    description: >
+      Intervals at which to do status snapshots. Please don't do too much,
+      because for each of interval snapshots status structure is copied
+      a each interval `snapshot` times. And for each of them, the snapshot
+      data will be sent in response to status command.
+  max-requests: !Int
+    min: 4
+    max: 1073741824
+    default: 4096
+    command-line: [-m, --limit-requests]
+    description: >
+      Limits maximum of concurrent requests at any given time.  Don't make too
+      much because it allocates static buffer with 2 words for each request
+      (An you also need some memory for requests itself). When buffer is full
+      all requests will be rejected with "service-unavailable" error (usually
+      503 status code) without parsing request.
+  listen: !Array
+    element: !Struct listenaddr
+  header: !String zerogw
+  default-host: !String "localhost"
+
+Globals: &settings
+  logging:
+    level: !Int
+      min: 0
+      max: 7
+      default: 6
+      description: >
+        Verbosity of error log
+      command-line: --log-level
+      command-line-incr: [-v, --verbose]
+      command-line-decr: [-q, --quiet]
+    warning-timeout: !Int
+      min: 0
+      max: 3600
+      default: 300
+      description: >
+        Timeout of displaying repeatable warnings
+        Very small value will flood your logfile, but very
+        big value will not make you confident when the
+        problem is gone (wait at least this timeout
+        and a minute or so on overloaded server, unless
+        you know truth by some other means)
+      command-line: [-w, --warning-timeout]
+    access: !File
+      default: "/var/applog/zerogw/access.log"
+      check-existence: no
+      check-dir: yes
+      description: >
+        Where to write access log messages. Use "-" for stderr.
+      command-line: [-l, --access-log]
+    error: !File
+      default: "/var/applog/zerogw/error.log"
+      check-existence: no
+      check-dir: yes
+      description: >
+        Where to write error log messages. Use "-" for stderr.
+      command-line: [-e, --error-log]
+  limits: *limits
+  responses: *responses
+
+Routing: !Struct Route
