@@ -108,6 +108,7 @@ void prepare_sieve() {
 }
 
 const char *get_field(request_t *req, config_RequestField_t*value, size_t*len) {
+    const char *result;
     switch(value->kind) {
     case CONFIG_Body:
 /*        if(len) {*/
@@ -119,26 +120,29 @@ const char *get_field(request_t *req, config_RequestField_t*value, size_t*len) {
         }
         return "";
     case CONFIG_Header:
-        if(len) {
-            *len = strlen(req->ws.headerindex[value->_field_index]);
-        }
-        return req->ws.headerindex[value->_field_index];
+        result = req->ws.headerindex[value->_field_index];
+        break;
     case CONFIG_Uri:
-        if(len) {
-            *len = strlen(req->ws.uri);
-        }
-        return req->ws.uri;
+        result = req->ws.uri;
+        break;
     case CONFIG_Method:
-        if(len) {
-            *len = strlen(req->ws.method);
-        }
-        return req->ws.method;
+        result = req->ws.method;
+        break;
     case CONFIG_Cookie:
         LNIMPL("Cookie field");
     case CONFIG_Nothing:
         return NULL;
+    default:
+        LNIMPL("Unknown field");
     }
-    LNIMPL("Unknown field");
+    if(len) {
+        if(result) {
+            *len = strlen(result);
+        } else {
+            *len = 0;
+        }
+    }
+    return result;
 }
 
 /* server thread callback */
@@ -309,7 +313,6 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
             ws_reply_data(&req->ws, zmq_msg_data(&msg), zmq_msg_size(&msg));
             -- sieve->in_progress;
             sieve->requests[req->hole] = NULL;
-            free(req);
         } else {
             // else: request already abandoned, discard whole message
             skipmessage:
@@ -354,7 +357,7 @@ void worker_loop() {
             request_t *req = sieve->requests[holeid];
             if(req && req->index == reqid) {
                 int sockn = req->socket;
-                ANIMPL(sockn > 0 && sockn < worker.nsockets);
+                ANIMPL(sockn > 1 && sockn < worker.nsockets);
                 SNIMPL(zmq_send(worker.poll[sockn].socket, &msg, ZMQ_SNDMORE));
                 while(opt) {
                     SNIMPL(zmq_recv(worker.server_sock, &msg, 0));
@@ -414,6 +417,7 @@ static size_t count_sockets(config_Route_t *route) {
     CONFIG_STRING_ROUTE_LOOP(item, route->map) {
         res += count_sockets(&item->value);
     }
+    return res;
 }
 
 int zmq_open(zmq_socket_t target, config_zmqaddr_t *addr) {
@@ -431,11 +435,12 @@ static int socket_visitor(config_Route_t *route, int *sock_index) {
         zmq_socket_t sock = zmq_socket(root.zmq, ZMQ_XREQ);
         ANIMPL(sock);
         CONFIG_ZMQADDR_LOOP(item, route->zmq_forward) {
-            ANIMPL(zmq_open(sock, &item->value));
+            SNIMPL(zmq_open(sock, &item->value));
         }
         worker.poll[*sock_index].socket = sock;
         worker.poll[*sock_index].events = ZMQ_POLLIN;
-        *sock_index ++;
+        route->_socket_index = *sock_index;
+        *sock_index += 1;
     }
     if(route->routing.kind) {
         switch(route->routing.kind) {
@@ -549,10 +554,7 @@ void prepare_sockets() {
 
     // Let's count our sockets
     worker.nsockets = count_sockets(&config.Routing);
-    worker.nsockets += 1; // server sock
-    if(config.Server.status_socket.kind) {
-        worker.nsockets += 1; // guess what
-    }
+    worker.nsockets += 2; // server socket and status socket
 
     // Ok, now lets fill them
     worker.poll = SAFE_MALLOC(sizeof(zmq_pollitem_t)*worker.nsockets);
@@ -563,17 +565,14 @@ void prepare_sockets() {
     SNIMPL(zmq_connect(worker.server_sock, "inproc://worker"));
     worker.poll[0].socket = worker.server_sock;
     worker.poll[0].events = ZMQ_POLLIN;
-    int sock_index = 1;
 
-    if(config.Server.status_socket.kind) {
-        LINFO("Binding status socket: %s", config.Server.status_socket);
-        worker.status_sock = zmq_socket(root.zmq, ZMQ_XREP);
-        ANIMPL(worker.status_sock);
-        SNIMPL(zmq_open(worker.status_sock, &config.Server.status_socket));
-        worker.poll[1].socket = worker.status_sock;
-        worker.poll[1].events = ZMQ_POLLIN;
-        ++ sock_index;
-    }
+    LINFO("Binding status socket: %s", config.Server.status_socket.value);
+    worker.status_sock = zmq_socket(root.zmq, ZMQ_XREP);
+    ANIMPL(worker.status_sock);
+    SNIMPL(zmq_open(worker.status_sock, &config.Server.status_socket));
+    worker.poll[1].socket = worker.status_sock;
+    worker.poll[1].events = ZMQ_POLLIN;
+    int sock_index = 2;
 
     SNIMPL(socket_visitor(&config.Routing, &sock_index));
     ANIMPL(sock_index == worker.nsockets);

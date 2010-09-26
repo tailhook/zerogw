@@ -1,11 +1,13 @@
 Server:
+  zmq-io-threads: 1
   listen:
     - host: 127.0.0.1
       port: 8000
+  status-socket: !zmq.Bind ipc:///tmp/zerogw
 
 Globals:
   logging:
-    level: 7
+    level: 5
 
 Routing:
   routing: !Suffix ~
