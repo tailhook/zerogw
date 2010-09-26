@@ -27,7 +27,7 @@ def build(bld):
         defines      = [
             'LOG_STRIP_PATH="../src/"',
             ],
-        ccflags      = ['-std=c99'],
+        ccflags      = ['-std=c99', '-g', '-O0'],
         lib          = ['yaml', 'zmq', 'ev', 'coyaml', 'website'],
         config       = 'src/config.yaml',
         )

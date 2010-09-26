@@ -41,6 +41,9 @@ __types__:
         max: 999
         default: 200
     status: !String "OK"
+    headers: !Mapping
+      key-element: !String ~
+      value-element: !String ~
     body: !String |
       <html>
         <head>

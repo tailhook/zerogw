@@ -31,7 +31,7 @@ static char *levels[] = {
 static char source_path[] = LOG_STRIP_PATH;
 static int path_strip_chars = sizeof(source_path)-1;
 static int logfile = 1;
-int loglevel;
+int loglevel = LOG_WARN;
 int errlevel = LOG_CRIT;
 
 void logmsg(int level, char *file, int line, char *msg, ...) {
