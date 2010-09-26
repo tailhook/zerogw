@@ -111,14 +111,10 @@ const char *get_field(request_t *req, config_RequestField_t*value, size_t*len) {
     const char *result;
     switch(value->kind) {
     case CONFIG_Body:
-/*        if(len) {*/
-/*            *len = req->ws.body_len;*/
-/*        }*/
-/*        return req->ws.body;*/
         if(len) {
-            *len = 0;
+            *len = req->ws.bodylen;
         }
-        return "";
+        return req->ws.body;
     case CONFIG_Header:
         result = req->ws.headerindex[value->_field_index];
         break;

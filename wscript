@@ -3,7 +3,7 @@
 import yaml
 
 APPNAME='zerogw'
-VERSION='0.2.0'
+VERSION='0.2.1'
 
 top = '.'
 out = 'build'
@@ -27,7 +27,7 @@ def build(bld):
         defines      = [
             'LOG_STRIP_PATH="../src/"',
             ],
-        ccflags      = ['-std=c99', '-g', '-O0'],
+        ccflags      = ['-std=c99'],
         lib          = ['yaml', 'zmq', 'ev', 'coyaml', 'website'],
         config       = 'src/config.yaml',
         )
