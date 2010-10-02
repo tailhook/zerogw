@@ -13,6 +13,9 @@
 #include "log.h"
 #include "config.h"
 
+#define REQ_DECREF(req) if(!--(req)->refcnt) { ws_request_free(&(req)->ws); }
+#define REQ_INCREF(req) (++(req)->refcnt)
+
 typedef void *zmq_context_t;
 typedef void *zmq_socket_t;
 typedef struct ev_loop *evloop_t;
@@ -54,6 +57,9 @@ typedef struct request_s {
     uint64_t index;
     int hole;
     socket_t socket;
+    int refcnt;
+    bool has_message;
+    zmq_msg_t response_msg;
 } request_t;
 
 typedef struct sieve_s {
@@ -141,13 +147,19 @@ const char *get_field(request_t *req, config_RequestField_t*value, size_t*len) {
     return result;
 }
 
+void request_decref(void *_data, void *request) {
+    REQ_DECREF((request_t *)request);
+}
+
 /* server thread callback */
-void http_request(request_t *req) {
+int http_request(request_t *req) {
+    req->refcnt = 1;
+    req->has_message = FALSE;
     if(sieve->in_progress >= sieve->max) {
         LWARN("Too many requests");
         http_static_response(req,
            &config.Globals.responses.service_unavailable);
-        return;
+        return 0;
     }
 
     config_Route_t *route = &config.Routing;
@@ -161,7 +173,7 @@ void http_request(request_t *req) {
                 route = (config_Route_t *)tmp;
             } else {
                 http_static_response(req, &route->responses.not_found);
-                return;
+                return 0;
             }
             continue;
         case CONFIG_Prefix:
@@ -169,7 +181,7 @@ void http_request(request_t *req) {
                 route = (config_Route_t *)tmp;
             } else {
                 http_static_response(req, &route->responses.not_found);
-                return;
+                return 0;
             }
             continue;
         case CONFIG_Suffix:
@@ -177,7 +189,7 @@ void http_request(request_t *req) {
                 route = (config_Route_t *)tmp;
             } else {
                 http_static_response(req, &route->responses.not_found);
-                return;
+                return 0;
             }
             continue;
         case CONFIG_Hash:
@@ -195,7 +207,7 @@ void http_request(request_t *req) {
     // Let's decide whether it's static
     if(!route->zmq_forward_len) {
         http_static_response(req, &route->responses.default_);
-        return;
+        return 0;
     }
     // Ok, it's zeromq forward
     req->index = sieve->index;
@@ -220,11 +232,21 @@ void http_request(request_t *req) {
         size_t len;
         const char *value = get_field(req, &item->value, &len);
         zmq_msg_t msg;
-        SNIMPL(zmq_msg_init_data(&msg, (void *)value, len, NULL, NULL));
+        REQ_INCREF(req);
+        SNIMPL(zmq_msg_init_data(&msg, (void *)value, len, request_decref, req));
         SNIMPL(zmq_send(root.worker_sock, &msg,
             (item->head.next ? ZMQ_SNDMORE : 0)));
         SNIMPL(zmq_msg_close(&msg));
     }
+    return 0;
+}
+
+int http_request_finish(request_t *req) {
+    if(req->has_message) {
+        zmq_msg_close(&req->response_msg);
+    }
+    REQ_DECREF(req);
+    return 1;
 }
 
 /* server thread callback */
@@ -306,7 +328,12 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
                 }
             }
             // the last part is always a body
-            ws_reply_data(&req->ws, zmq_msg_data(&msg), zmq_msg_size(&msg));
+            ANIMPL(!req->has_message);
+            zmq_msg_init(&req->response_msg);
+            req->has_message = TRUE;
+            zmq_msg_move(&req->response_msg, &msg);
+            ws_reply_data(&req->ws, zmq_msg_data(&req->response_msg),
+                zmq_msg_size(&req->response_msg));
             -- sieve->in_progress;
             sieve->requests[req->hole] = NULL;
         } else {
@@ -318,9 +345,9 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
                 SNIMPL(zmq_getsockopt(root.worker_sock,
                     ZMQ_RCVMORE, &opt, &len));
             }
+            SNIMPL(zmq_msg_close(&msg));
         }
     }
-    SNIMPL(zmq_msg_close(&msg));
     LDEBUG("Done processing...", opt);
 }
 
@@ -608,6 +635,7 @@ int main(int argc, char **argv) {
     }
     ws_REQUEST_STRUCT(&root.ws, request_t);
     ws_REQUEST_CB(&root.ws, http_request);
+    ws_FINISH_CB(&root.ws, http_request_finish);
 
     // Probably here is a place to fork! :)
 
