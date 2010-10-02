@@ -592,18 +592,18 @@ int main(int argc, char **argv) {
     ANIMPL(root.loop);
     ws_server_init(&root.ws, root.loop);
     CONFIG_LISTENADDR_LOOP(slisten, config.Server.listen) {
-        if(slisten->value.fd > 0) {
+        if(slisten->value.fd >= 0) {
             LDEBUG("Using socket %d", slisten->value.fd);
-            ws_add_fd(&root.ws, slisten->value.fd);
+            SNIMPL(ws_add_fd(&root.ws, slisten->value.fd));
         } else if(slisten->value.unix_socket && *slisten->value.unix_socket) {
             LDEBUG("Using unix socket \"%s\"", slisten->value.unix_socket);
-            ws_add_unix(&root.ws, slisten->value.unix_socket,
-                slisten->value.unix_socket_len);
+            SNIMPL(ws_add_unix(&root.ws, slisten->value.unix_socket,
+                slisten->value.unix_socket_len));
         } else {
             LDEBUG("Using host %s port %d",
                 slisten->value.host, slisten->value.port);
-            ws_add_tcp(&root.ws, inet_addr(slisten->value.host),
-                slisten->value.port);
+            SNIMPL(ws_add_tcp(&root.ws, inet_addr(slisten->value.host),
+                slisten->value.port));
         }
     }
     ws_REQUEST_STRUCT(&root.ws, request_t);
