@@ -9,6 +9,7 @@
 #include <sys/eventfd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <signal.h>
 
 #include "log.h"
 #include "config.h"
@@ -614,6 +615,9 @@ void *worker_fun(void *_) {
 int main(int argc, char **argv) {
     config_load(&config, argc, argv);
     loglevel = config.Globals.logging.level;
+
+    signal(SIGHUP, SIG_IGN);
+    signal(SIGPIPE, SIG_IGN);
 
     root.loop = ev_default_loop(0);
     ANIMPL(root.loop);
