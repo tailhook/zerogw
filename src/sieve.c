@@ -49,7 +49,7 @@ void *sieve_get(sieve_t *sieve, size_t holeid) {
 }
 
 void sieve_empty(sieve_t *sieve, size_t holeid) {
-    LNIMPL(sieve->items[holeid]);
+    ANIMPL(sieve->items[holeid]);
     sieve->items[holeid] = NULL;
     sieve->filled -= 1;
 }

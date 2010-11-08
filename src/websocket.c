@@ -1,8 +1,10 @@
 #include "websocket.h"
 
 typedef struct subscriber_s {
-    struct subscriber_s *next;
-    struct subscriber_s *prev;
+    struct subscriber_s *topic_next;
+    struct subscriber_s *topic_prev;
+    struct subscriber_s *client_next;
+    struct subscriber_s *client_prev;
     connection_t *conn;
 } subscriber_t;
 

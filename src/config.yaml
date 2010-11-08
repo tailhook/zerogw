@@ -115,7 +115,8 @@ __types__:
     children: !Array
       element: !Struct Route
 
-    _socket-index: !Int -1
+    _http-zmq-index: !Int -1
+    _websock-zmq-index: !Int -1
     _child-match: !_VoidPtr ~
 
 Server:

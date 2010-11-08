@@ -80,6 +80,10 @@ Routing:
                     <div id="output"></div>
                     </html>
             "/echo":
+              zmq-forward:
+                - !zmq.Bind "ipc:///tmp/echo"
+              zmq-contents:
+                - !Body ~
               websock-forward:
                 - !zmq.Bind "ipc:///tmp/echo-input"
               websock-subscribe:

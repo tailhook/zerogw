@@ -20,6 +20,7 @@
 
 #define REQ_DECREF(req) if(!--(req)->refcnt) { ws_request_free(&(req)->ws); }
 #define REQ_INCREF(req) (++(req)->refcnt)
+#define HARDCODED_SOCKETS 2
 
 typedef void *zmq_context_t;
 typedef void *zmq_socket_t;
@@ -30,29 +31,22 @@ typedef int socket_t;
 typedef struct serverroot_s {
     ws_server_t ws;
     zmq_context_t zmq;
-    zmq_socket_t worker_sock;
+    zmq_socket_t worker_push;
+    zmq_socket_t worker_pull;
     evloop_t loop;
     socket_t worker_event;
     watch_t worker_watch;
 } serverroot_t;
 
-typedef struct status_s {
-    ev_tstamp time;
-    int http_requests;
-    int http_responses;
-    int http_in_bytes;
-    int http_out_bytes;
-    int zmq_requests;
-    int zmq_responses;
-    int zmq_in_bytes;
-    int zmq_out_bytes;
-} status_t;
-
 typedef struct worker_s {
     pthread_t thread;
     zmq_pollitem_t *poll;
     int nsockets;
-    zmq_socket_t server_sock;
+    int http_sockets;
+    int websock_forward;
+    int websock_subscribe;
+    zmq_socket_t server_pull;
+    zmq_socket_t server_push;
     zmq_socket_t status_sock;
     socket_t server_event;
 } worker_t;
@@ -69,7 +63,6 @@ typedef struct request_s {
 
 serverroot_t root;
 worker_t worker;
-status_t status;
 sieve_t *sieve;
 config_main_t config;
 
@@ -201,16 +194,14 @@ int http_request(request_t *req) {
     }
     // Ok, it's zeromq forward
     sieve_find_hole(sieve, req, &req->index, &req->hole);
-    req->socket = route->_socket_index;
+    req->socket = route->_http_zmq_index;
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init_size(&msg, 16));
     LDEBUG("Preparing %d bytes", zmq_msg_size(&msg));
     void *data = zmq_msg_data(&msg);
     ((uint64_t*)data)[0] = req->index;
     ((uint64_t*)data)[1] = req->hole;
-    SNIMPL(zmq_send(root.worker_sock, &msg, ZMQ_SNDMORE));
-    // empty message, the sentinel for routing data (cleared in zmq_send)
-    SNIMPL(zmq_send(root.worker_sock, &msg, ZMQ_SNDMORE));
+    SNIMPL(zmq_send(root.worker_push, &msg, ZMQ_SNDMORE));
     SNIMPL(zmq_msg_close(&msg));
     config_a_RequestField_t *contents = route->zmq_contents;
     ANIMPL(contents);
@@ -220,7 +211,7 @@ int http_request(request_t *req) {
         zmq_msg_t msg;
         REQ_INCREF(req);
         SNIMPL(zmq_msg_init_data(&msg, (void *)value, len, request_decref, req));
-        SNIMPL(zmq_send(root.worker_sock, &msg,
+        SNIMPL(zmq_send(root.worker_push, &msg,
             (item->head.next ? ZMQ_SNDMORE : 0)));
         SNIMPL(zmq_msg_close(&msg));
     }
@@ -248,8 +239,13 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
         LDEBUG("Processing. %d to go...", i);
         int statuscode = 200;
         char statusline[32] = "OK";
-        SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
-        SNIMPL(zmq_getsockopt(root.worker_sock, ZMQ_RCVMORE, &opt, &len));
+        SNIMPL(zmq_recv(root.worker_pull, &msg, 0));
+        SNIMPL(zmq_getsockopt(root.worker_pull, ZMQ_RCVMORE, &opt, &len));
+        ANIMPL(opt);
+        // first part seems to be some zeromq intimate message
+        ANIMPL(zmq_msg_size(&msg) == 0);
+        SNIMPL(zmq_recv(root.worker_pull, &msg, 0));
+        SNIMPL(zmq_getsockopt(root.worker_pull, ZMQ_RCVMORE, &opt, &len));
         ANIMPL(opt);
         ANIMPL(zmq_msg_size(&msg) == 16);
         uint64_t reqid = ((uint64_t*)zmq_msg_data(&msg))[0];
@@ -259,12 +255,12 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
             req = NULL;
         }
         if(req) {
-            SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
-            SNIMPL(zmq_getsockopt(root.worker_sock, ZMQ_RCVMORE, &opt, &len));
+            SNIMPL(zmq_recv(root.worker_pull, &msg, 0));
+            SNIMPL(zmq_getsockopt(root.worker_pull, ZMQ_RCVMORE, &opt, &len));
             if(!opt) goto skipmessage;
             ANIMPL(zmq_msg_size(&msg) == 0); // The sentinel of routing data
-            SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
-            SNIMPL(zmq_getsockopt(root.worker_sock,
+            SNIMPL(zmq_recv(root.worker_pull, &msg, 0));
+            SNIMPL(zmq_getsockopt(root.worker_pull,
                 ZMQ_RCVMORE, &opt, &len));
             if(opt) { //first is a status-line if its not last
                 char *data = zmq_msg_data(&msg);
@@ -273,8 +269,8 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
                 LDEBUG("Status line: [%d] %s", dlen, data);
                 ws_statusline(&req->ws, data);
 
-                SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
-                SNIMPL(zmq_getsockopt(root.worker_sock,
+                SNIMPL(zmq_recv(root.worker_pull, &msg, 0));
+                SNIMPL(zmq_getsockopt(root.worker_pull,
                     ZMQ_RCVMORE, &opt, &len));
                 if(opt) { //second is headers if its not last
                     char *data = zmq_msg_data(&msg);
@@ -304,8 +300,8 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
                               "Please finish each name and each value "
                               "with '\\0' character");
                     }
-                    SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
-                    SNIMPL(zmq_getsockopt(root.worker_sock,
+                    SNIMPL(zmq_recv(root.worker_pull, &msg, 0));
+                    SNIMPL(zmq_getsockopt(root.worker_pull,
                         ZMQ_RCVMORE, &opt, &len));
                     if(opt) {
                         LWARN("Too many message parts");
@@ -327,9 +323,9 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
             // else: request already abandoned, discard whole message
             skipmessage:
             while(opt) {
-                SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
+                SNIMPL(zmq_recv(root.worker_pull, &msg, 0));
                 LDEBUG("Skipped garbage: [%d] %s", zmq_msg_size(&msg), zmq_msg_data(&msg));
-                SNIMPL(zmq_getsockopt(root.worker_sock,
+                SNIMPL(zmq_getsockopt(root.worker_pull,
                     ZMQ_RCVMORE, &opt, &len));
             }
             SNIMPL(zmq_msg_close(&msg));
@@ -352,13 +348,8 @@ void worker_loop() {
             uint64_t opt;
             size_t len = sizeof(opt);
             SNIMPL(zmq_msg_init(&msg));
-            SNIMPL(zmq_recv(worker.server_sock, &msg, 0));
-            SNIMPL(zmq_getsockopt(worker.server_sock, ZMQ_RCVMORE, &opt, &len));
-            ANIMPL(opt);
-            // Need to discard empty message at start, it's some zmq magick
-            ANIMPL(zmq_msg_size(&msg) == 0);
-            SNIMPL(zmq_recv(worker.server_sock, &msg, 0));
-            SNIMPL(zmq_getsockopt(worker.server_sock, ZMQ_RCVMORE, &opt, &len));
+            SNIMPL(zmq_recv(worker.server_pull, &msg, 0));
+            SNIMPL(zmq_getsockopt(worker.server_pull, ZMQ_RCVMORE, &opt, &len));
             ANIMPL(opt);
             ANIMPL(zmq_msg_size(&msg) == 16);
             uint64_t reqid = ((uint64_t*)zmq_msg_data(&msg))[0];
@@ -371,9 +362,11 @@ void worker_loop() {
                 int sockn = req->socket;
                 ANIMPL(sockn > 1 && sockn < worker.nsockets);
                 SNIMPL(zmq_send(worker.poll[sockn].socket, &msg, ZMQ_SNDMORE));
+                // empty message, to close routing info (message cleared by zmq_send)
+                SNIMPL(zmq_send(worker.poll[sockn].socket, &msg, ZMQ_SNDMORE));
                 while(opt) {
-                    SNIMPL(zmq_recv(worker.server_sock, &msg, 0));
-                    SNIMPL(zmq_getsockopt(worker.server_sock,
+                    SNIMPL(zmq_recv(worker.server_pull, &msg, 0));
+                    SNIMPL(zmq_getsockopt(worker.server_pull,
                         ZMQ_RCVMORE, &opt, &len));
                     SNIMPL(zmq_send(worker.poll[sockn].socket, &msg,
                         opt ? ZMQ_SNDMORE : 0));
@@ -381,8 +374,8 @@ void worker_loop() {
             } else {
                 // else: request already abandoned, discard whole message
                 while(opt) {
-                    SNIMPL(zmq_recv(worker.server_sock, &msg, 0));
-                    SNIMPL(zmq_getsockopt(worker.server_sock,
+                    SNIMPL(zmq_recv(worker.server_pull, &msg, 0));
+                    SNIMPL(zmq_getsockopt(worker.server_pull,
                         ZMQ_RCVMORE, &opt, &len));
                 }
             }
@@ -403,12 +396,12 @@ void worker_loop() {
                 zmq_socket_t sock = worker.poll[i].socket;
                 zmq_msg_init(&msg);
                 // Need to send empty message at start, it's some zmq magick
-                zmq_send(worker.server_sock, &msg, ZMQ_SNDMORE);
+                zmq_send(worker.server_push, &msg, ZMQ_SNDMORE);
                 while(opt) {
                     SNIMPL(zmq_recv(sock, &msg, 0));
                     SNIMPL(zmq_getsockopt(sock, ZMQ_RCVMORE, &opt, &len));
                     LDEBUG("Message %d bytes from %d (%d)", zmq_msg_size(&msg), i, opt);
-                    SNIMPL(zmq_send(worker.server_sock, &msg,
+                    SNIMPL(zmq_send(worker.server_push, &msg,
                         opt ? ZMQ_SNDMORE : 0));
                 }
                 SNIMPL(zmq_msg_close(&msg));
@@ -421,15 +414,22 @@ void worker_loop() {
     }
 }
 
-static size_t count_sockets(config_Route_t *route) {
-    size_t res = route->zmq_forward_len ? 1 : 0;
+static void count_sockets(config_Route_t *route, worker_t *worker) {
+    if(route->zmq_forward_len) {
+        worker->http_sockets += 1;
+    }
+    if(route->websock_forward_len) {
+        worker->websock_forward += 1;
+    }
+    if(route->websock_subscribe_len) {
+        worker->websock_subscribe += 1;
+    }
     CONFIG_ROUTE_LOOP(item, route->children) {
-        res += count_sockets(&item->value);
+        count_sockets(&item->value, worker);
     }
     CONFIG_STRING_ROUTE_LOOP(item, route->map) {
-        res += count_sockets(&item->value);
+        count_sockets(&item->value, worker);
     }
-    return res;
 }
 
 int zmq_open(zmq_socket_t target, config_zmqaddr_t *addr) {
@@ -442,17 +442,36 @@ int zmq_open(zmq_socket_t target, config_zmqaddr_t *addr) {
     }
 }
 
-static int socket_visitor(config_Route_t *route, int *sock_index) {
+static int socket_visitor(config_Route_t *route,
+    int *http_index, int *websock_index) {
     if(route->zmq_forward_len) {
         zmq_socket_t sock = zmq_socket(root.zmq, ZMQ_XREQ);
         ANIMPL(sock);
         CONFIG_ZMQADDR_LOOP(item, route->zmq_forward) {
             SNIMPL(zmq_open(sock, &item->value));
         }
-        worker.poll[*sock_index].socket = sock;
-        worker.poll[*sock_index].events = ZMQ_POLLIN;
-        route->_socket_index = *sock_index;
-        *sock_index += 1;
+        worker.poll[*http_index].socket = sock;
+        worker.poll[*http_index].events = ZMQ_POLLIN;
+        route->_http_zmq_index = *http_index;
+        *http_index += 1;
+    }
+    if(route->websock_forward_len) {
+        zmq_socket_t sock = zmq_socket(root.zmq, ZMQ_PUB);
+        ANIMPL(sock);
+        CONFIG_ZMQADDR_LOOP(item, route->websock_forward) {
+            SNIMPL(zmq_open(sock, &item->value));
+        }
+    }
+    if(route->websock_subscribe_len) {
+        zmq_socket_t sock = zmq_socket(root.zmq, ZMQ_SUB);
+        ANIMPL(sock);
+        CONFIG_ZMQADDR_LOOP(item, route->websock_subscribe) {
+            SNIMPL(zmq_open(sock, &item->value));
+        }
+        worker.poll[*websock_index].socket = sock;
+        worker.poll[*websock_index].events = ZMQ_POLLIN;
+        route->_websock_zmq_index = *websock_index;
+        *websock_index += 1;
     }
     if(route->routing.kind) {
         switch(route->routing.kind) {
@@ -466,7 +485,7 @@ static int socket_visitor(config_Route_t *route, int *sock_index) {
                         LWARN("Conflicting route \"%s\"", value->value);
                     }
                 }
-                SNIMPL(socket_visitor(&item->value, sock_index));
+                SNIMPL(socket_visitor(&item->value, http_index, websock_index));
             }
             CONFIG_STRING_ROUTE_LOOP(item, route->map) {
                 void *val = (void *)ws_match_add(route->_child_match, item->key,
@@ -474,7 +493,7 @@ static int socket_visitor(config_Route_t *route, int *sock_index) {
                 if(val != &item->value) {
                     LWARN("Conflicting route \"%s\"", item->key);
                 }
-                SNIMPL(socket_visitor(&item->value, sock_index));
+                SNIMPL(socket_visitor(&item->value, http_index, websock_index));
             }
             ws_match_compile(route->_child_match);
             break;
@@ -497,7 +516,7 @@ static int socket_visitor(config_Route_t *route, int *sock_index) {
                         LWARN("Conflicting route \"%s\"", value->value);
                     }
                 }
-                SNIMPL(socket_visitor(&item->value, sock_index));
+                SNIMPL(socket_visitor(&item->value, http_index, websock_index));
             }
             CONFIG_STRING_ROUTE_LOOP(item, route->map) {
                 char *star = strchr(item->key, '*');
@@ -514,7 +533,7 @@ static int socket_visitor(config_Route_t *route, int *sock_index) {
                 if(val != &item->value) {
                     LWARN("Conflicting route \"%s\"", item->key);
                 }
-                SNIMPL(socket_visitor(&item->value, sock_index));
+                SNIMPL(socket_visitor(&item->value, http_index, websock_index));
             }
             ws_fuzzy_compile(route->_child_match);
             break;
@@ -529,7 +548,7 @@ static int socket_visitor(config_Route_t *route, int *sock_index) {
                         LWARN("Conflicting route \"%s\"", value->value);
                     }
                 }
-                SNIMPL(socket_visitor(&item->value, sock_index));
+                SNIMPL(socket_visitor(&item->value, http_index, websock_index));
             }
             CONFIG_STRING_ROUTE_LOOP(item, route->map) {
                 char *star = strchr(item->key, '*');
@@ -538,7 +557,7 @@ static int socket_visitor(config_Route_t *route, int *sock_index) {
                 if(val != &item->value) {
                     LWARN("Conflicting route \"%s\"", item->key);
                 }
-                SNIMPL(socket_visitor(&item->value, sock_index));
+                SNIMPL(socket_visitor(&item->value, http_index, websock_index));
             }
             ws_rfuzzy_compile(route->_child_match);
             break;
@@ -565,17 +584,23 @@ Must prepare in a worker, because zmq does not allow to change thread of socket
 void prepare_sockets() {
 
     // Let's count our sockets
-    worker.nsockets = count_sockets(&config.Routing);
-    worker.nsockets += 2; // server socket and status socket
+    count_sockets(&config.Routing, &worker);
+    worker.nsockets = HARDCODED_SOCKETS // server socket and status socket
+        + worker.http_sockets
+        + worker.websock_subscribe;
 
     // Ok, now lets fill them
     worker.poll = SAFE_MALLOC(sizeof(zmq_pollitem_t)*worker.nsockets);
     bzero(worker.poll, sizeof(zmq_pollitem_t)*worker.nsockets);
 
-    worker.server_sock = zmq_socket(root.zmq, ZMQ_XREP);
-    ANIMPL(worker.server_sock);
-    SNIMPL(zmq_connect(worker.server_sock, "inproc://worker"));
-    worker.poll[0].socket = worker.server_sock;
+    worker.server_push = zmq_socket(root.zmq, ZMQ_PUSH);
+    ANIMPL(worker.server_push);
+    SNIMPL(zmq_connect(worker.server_push, "inproc://server"));
+
+    worker.server_pull = zmq_socket(root.zmq, ZMQ_PULL);
+    ANIMPL(worker.server_pull);
+    SNIMPL(zmq_connect(worker.server_pull, "inproc://worker"));
+    worker.poll[0].socket = worker.server_pull;
     worker.poll[0].events = ZMQ_POLLIN;
 
     LINFO("Binding status socket: %s", config.Server.status_socket.value);
@@ -584,10 +609,13 @@ void prepare_sockets() {
     SNIMPL(zmq_open(worker.status_sock, &config.Server.status_socket));
     worker.poll[1].socket = worker.status_sock;
     worker.poll[1].events = ZMQ_POLLIN;
-    int sock_index = 2;
 
-    SNIMPL(socket_visitor(&config.Routing, &sock_index));
-    ANIMPL(sock_index == worker.nsockets);
+    int http_index = HARDCODED_SOCKETS;
+    int websock_index = HARDCODED_SOCKETS + worker.http_sockets;
+
+    SNIMPL(socket_visitor(&config.Routing, &http_index, &websock_index));
+    ANIMPL(websock_index == worker.nsockets);
+    ANIMPL(http_index = worker.http_sockets + HARDCODED_SOCKETS);
     LINFO("All connections complete");
 
     int64_t report = 1;
@@ -638,9 +666,12 @@ int main(int argc, char **argv) {
     root.worker_event = eventfd(0, 0);
     root.zmq = zmq_init(config.Server.zmq_io_threads);
     ANIMPL(root.zmq);
-    root.worker_sock = zmq_socket(root.zmq, ZMQ_XREQ);
-    SNIMPL(root.worker_sock == 0);
-    SNIMPL(zmq_bind(root.worker_sock, "inproc://worker"));
+    root.worker_pull = zmq_socket(root.zmq, ZMQ_PULL);
+    SNIMPL(root.worker_pull == 0);
+    SNIMPL(zmq_bind(root.worker_pull, "inproc://server"));
+    root.worker_push = zmq_socket(root.zmq, ZMQ_PUSH);
+    SNIMPL(root.worker_push == 0);
+    SNIMPL(zmq_bind(root.worker_push, "inproc://worker"));
     pthread_create(&worker.thread, NULL, worker_fun, NULL);
 
     sieve_prepare(&sieve, config.Server.max_requests);
