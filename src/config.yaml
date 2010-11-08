@@ -100,6 +100,10 @@ __types__:
       element: !Struct zmqaddr
     zmq-contents: !Array
       element: !Struct RequestField
+    websock-subscribe: !Array
+      element: !Struct zmqaddr
+    websock-forward: !Array
+      element: !Struct zmqaddr
 
     match: !Array
       element: !String ~

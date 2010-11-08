@@ -1,4 +1,5 @@
 #include <zmq.h>
+
 #include <ev.h>
 #include <website.h>
 #include <pthread.h>
@@ -13,6 +14,9 @@
 
 #include "log.h"
 #include "config.h"
+#include "main.h"
+#include "websocket.h"
+#include "sieve.h"
 
 #define REQ_DECREF(req) if(!--(req)->refcnt) { ws_request_free(&(req)->ws); }
 #define REQ_INCREF(req) (++(req)->refcnt)
@@ -56,20 +60,12 @@ typedef struct worker_s {
 typedef struct request_s {
     ws_request_t ws;
     uint64_t index;
-    int hole;
+    size_t hole;
     socket_t socket;
     int refcnt;
     bool has_message;
     zmq_msg_t response_msg;
 } request_t;
-
-typedef struct sieve_s {
-    uint64_t index;
-    size_t max;
-    size_t offset;
-    size_t in_progress;
-    request_t *requests[];
-} sieve_t;
 
 serverroot_t root;
 worker_t worker;
@@ -87,31 +83,6 @@ void http_static_response(request_t *req, config_StaticResponse_t *resp) {
     }
     LDEBUG("Replying with %d bytes", resp->body_len);
     ws_reply_data(&req->ws, resp->body, resp->body_len);
-}
-
-size_t find_hole() {
-    request_t **cur = sieve->requests + sieve->offset;
-    request_t **end = sieve->requests + sieve->max;
-    for(request_t **i = cur; i != end; ++i) {
-        if(!*i) {
-            sieve->offset = i+1 - sieve->requests;
-            return i - sieve->requests;
-        }
-    }
-    for(request_t **i = sieve->requests; i != cur; ++i) {
-        if(!*i) {
-            sieve->offset = i+1 - sieve->requests;
-            return i - sieve->requests;
-        }
-    }
-    LNIMPL("Not reachable code");
-}
-
-void prepare_sieve() {
-    int ssize = sizeof(sieve_t) + sizeof(request_t*)*config.Server.max_requests;
-    sieve = SAFE_MALLOC(ssize);
-    bzero(sieve, ssize);
-    sieve->max = config.Server.max_requests;
 }
 
 const char *get_field(request_t *req, config_RequestField_t*value, size_t*len) {
@@ -152,15 +123,14 @@ void request_decref(void *_data, void *request) {
     REQ_DECREF((request_t *)request);
 }
 
-/* server thread callback */
-int http_request(request_t *req) {
+config_Route_t *resolve_url(request_t *req) {
     req->refcnt = 1;
     req->has_message = FALSE;
-    if(sieve->in_progress >= sieve->max) {
+    if(sieve_full(sieve)) {
         LWARN("Too many requests");
         http_static_response(req,
            &config.Globals.responses.service_unavailable);
-        return 0;
+        return NULL;
     }
 
     config_Route_t *route = &config.Routing;
@@ -174,7 +144,7 @@ int http_request(request_t *req) {
                 route = (config_Route_t *)tmp;
             } else {
                 http_static_response(req, &route->responses.not_found);
-                return 0;
+                return NULL;
             }
             continue;
         case CONFIG_Prefix:
@@ -182,7 +152,7 @@ int http_request(request_t *req) {
                 route = (config_Route_t *)tmp;
             } else {
                 http_static_response(req, &route->responses.not_found);
-                return 0;
+                return NULL;
             }
             continue;
         case CONFIG_Suffix:
@@ -190,7 +160,7 @@ int http_request(request_t *req) {
                 route = (config_Route_t *)tmp;
             } else {
                 http_static_response(req, &route->responses.not_found);
-                return 0;
+                return NULL;
             }
             continue;
         case CONFIG_Hash:
@@ -204,6 +174,25 @@ int http_request(request_t *req) {
         }
         break;
     }
+    return route;
+}
+
+int start_websocket(request_t *req) {
+    config_Route_t *route = resolve_url(req);
+    if(!route->websock_subscribe_len || !route->websock_forward_len) {
+        return -1;
+    }
+    websock_start((connection_t *)req->ws.conn, route);
+    return 0;
+}
+
+/* server thread callback */
+int http_request(request_t *req) {
+    config_Route_t *route = resolve_url(req);
+
+    if(!route) { // already replied
+        return 0;
+    }
 
     // Let's decide whether it's static
     if(!route->zmq_forward_len) {
@@ -211,12 +200,8 @@ int http_request(request_t *req) {
         return 0;
     }
     // Ok, it's zeromq forward
-    req->index = sieve->index;
-    req->hole = find_hole();
+    sieve_find_hole(sieve, req, &req->index, &req->hole);
     req->socket = route->_socket_index;
-    sieve->requests[req->hole] = req;
-    ++sieve->index;
-    ++sieve->in_progress;
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init_size(&msg, 16));
     LDEBUG("Preparing %d bytes", zmq_msg_size(&msg));
@@ -269,9 +254,11 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
         ANIMPL(zmq_msg_size(&msg) == 16);
         uint64_t reqid = ((uint64_t*)zmq_msg_data(&msg))[0];
         uint64_t holeid = ((uint64_t*)zmq_msg_data(&msg))[1];
-        ANIMPL(holeid < sieve->max);
-        request_t *req = sieve->requests[holeid];
-        if(req && req->index == reqid) {
+        request_t *req = sieve_get(sieve, holeid);
+        if(req->index != reqid) {
+            req = NULL;
+        }
+        if(req) {
             SNIMPL(zmq_recv(root.worker_sock, &msg, 0));
             SNIMPL(zmq_getsockopt(root.worker_sock, ZMQ_RCVMORE, &opt, &len));
             if(!opt) goto skipmessage;
@@ -335,8 +322,7 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
             zmq_msg_move(&req->response_msg, &msg);
             ws_reply_data(&req->ws, zmq_msg_data(&req->response_msg),
                 zmq_msg_size(&req->response_msg));
-            -- sieve->in_progress;
-            sieve->requests[req->hole] = NULL;
+            sieve_empty(sieve, req->hole);
         } else {
             // else: request already abandoned, discard whole message
             skipmessage:
@@ -377,9 +363,11 @@ void worker_loop() {
             ANIMPL(zmq_msg_size(&msg) == 16);
             uint64_t reqid = ((uint64_t*)zmq_msg_data(&msg))[0];
             uint64_t holeid = ((uint64_t*)zmq_msg_data(&msg))[1];
-            ANIMPL(holeid < sieve->max);
-            request_t *req = sieve->requests[holeid];
-            if(req && req->index == reqid) {
+            request_t *req = sieve_get(sieve, holeid);
+            if(req->index != reqid) {
+                req = NULL;
+            }
+            if(req) {
                 int sockn = req->socket;
                 ANIMPL(sockn > 1 && sockn < worker.nsockets);
                 SNIMPL(zmq_send(worker.poll[sockn].socket, &msg, ZMQ_SNDMORE));
@@ -450,7 +438,7 @@ int zmq_open(zmq_socket_t target, config_zmqaddr_t *addr) {
     } else if(addr->kind == CONFIG_zmq_Connect) {
         return zmq_connect(target, addr->value);
     } else {
-        LNIMPL("Uknown socket type %d", addr->kind);
+        LNIMPL("Unknown socket type %d", addr->kind);
     }
 }
 
@@ -640,6 +628,10 @@ int main(int argc, char **argv) {
     ws_REQUEST_STRUCT(&root.ws, request_t);
     ws_REQUEST_CB(&root.ws, http_request);
     ws_FINISH_CB(&root.ws, http_request_finish);
+    ws_CONNECTION_STRUCT(&root.ws, connection_t);
+    ws_WEBSOCKET_CB(&root.ws, start_websocket);
+    ws_MESSAGE_CB(&root.ws, websock_message);
+    ws_MESSAGE_STRUCT(&root.ws, message_t);
 
     // Probably here is a place to fork! :)
 
@@ -651,7 +643,7 @@ int main(int argc, char **argv) {
     SNIMPL(zmq_bind(root.worker_sock, "inproc://worker"));
     pthread_create(&worker.thread, NULL, worker_fun, NULL);
 
-    prepare_sieve();
+    sieve_prepare(&sieve, config.Server.max_requests);
 
     int64_t event = 0;
     /* first event means configuration is setup */
