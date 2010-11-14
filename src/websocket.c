@@ -1,5 +1,6 @@
 #include <zmq.h>
 #include <malloc.h>
+#include <strings.h>
 
 #include "websocket.h"
 #include "log.h"
@@ -164,6 +165,7 @@ static topic_t *find_topic(zmq_msg_t *msg, bool create) {
         if(!create) return NULL;
         topic_table.hash_size = HASH_SIZE_MIN;
         topic_table.table = (topic_t **)malloc(HASH_SIZE_MIN*sizeof(topic_t*));
+        bzero(topic_table.table, HASH_SIZE_MIN*sizeof(topic_t*));
         if(!topic_table.table) return NULL;
         topic_table.ntopics = 1;
         topic_table.nsubscriptions = 0;
