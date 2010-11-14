@@ -23,6 +23,7 @@ def build(bld):
             'src/log.c',
             'src/websocket.c',
             'src/sieve.c',
+            'src/zutils.c',
             ],
         target       = 'zerogw',
         includes     = ['src'],

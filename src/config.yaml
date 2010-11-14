@@ -117,6 +117,7 @@ __types__:
 
     _http-zmq-index: !Int -1
     _websock-zmq-index: !Int -1
+    _websock-forward: !_VoidPtr ~
     _child-match: !_VoidPtr ~
 
 Server:

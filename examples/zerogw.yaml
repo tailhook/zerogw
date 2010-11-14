@@ -81,13 +81,13 @@ Routing:
                     </html>
             "/echo":
               zmq-forward:
-                - !zmq.Bind "ipc:///tmp/echo"
+                - !zmq.Bind "tcp://127.0.0.1:7001"
               zmq-contents:
                 - !Body ~
               websock-forward:
-                - !zmq.Bind "ipc:///tmp/echo-input"
+                - !zmq.Bind "tcp://127.0.0.1:7002"
               websock-subscribe:
-                - !zmq.Bind "ipc:///tmp/echo-output"
+                - !zmq.Bind "tcp://127.0.0.1:7003"
             "/crossdomain.xml":
               responses:
                 default:

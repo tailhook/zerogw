@@ -52,8 +52,8 @@ typedef enum {
 #define AERR2(cond, msg, ...) ASSERT_LOG(cond, LOG_ERR, msg, ##__VA_ARGS__)
 #define AWARN2(cond, msg, ...) ASSERT_LOG(cond, LOG_WARN, msg, ##__VA_ARGS__)
 
-#define SNIMPL(res) if(LOG_ALERT <= LOGLEVEL && res) { logstd(LOG_ALERT, __FILE__, __LINE__, #res); }
-#define SNIMPL2(res, msg, ...) if(LOG_ALERT <= LOGLEVEL && res) { logstd(LOG_ALERT, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
+#define SNIMPL(res) if((res) && LOG_ALERT <= LOGLEVEL) { logstd(LOG_ALERT, __FILE__, __LINE__, #res); }
+#define SNIMPL2(res, msg, ...) if(res && LOG_ALERT <= LOGLEVEL) { logstd(LOG_ALERT, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
 #define SWARN() if(LOG_WARN <= LOGLEVEL) { logstd(LOG_WARN, __FILE__, __LINE__, ""); }
 #define SWARN2(msg, ...) if(LOG_WARN <= LOGLEVEL) { logstd(LOG_WARN, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
 
