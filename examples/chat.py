@@ -13,9 +13,12 @@ while True:
         pub.send(b'subscribe', zmq.SNDMORE)
         pub.send(parts[0], zmq.SNDMORE)
         pub.send(parts[0])
+        pub.send(b'subscribe', zmq.SNDMORE)
+        pub.send(parts[0], zmq.SNDMORE)
+        pub.send(b'room:default')
     elif parts[1] == b'message':
         pub.send(b'publish', zmq.SNDMORE)
-        pub.send(parts[0], zmq.SNDMORE)
+        pub.send(b'room:default', zmq.SNDMORE)
         pub.send(parts[2])
     elif parts[1] == b'disconnect':
         pass # will be unsubscribed automatically

@@ -10,6 +10,7 @@ typedef struct subscriber_s {
     struct subscriber_s *topic_prev;
     struct subscriber_s *client_next;
     struct subscriber_s *client_prev;
+    struct topic_s *topic;
     struct connection_s *connection;
 } subscriber_t;
 

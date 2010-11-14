@@ -26,6 +26,63 @@ typedef struct topic_hash_s {
 
 topic_hash_t topic_table;
 
+void free_topic(topic_t *topic) {
+    // Frees both: empty/unused topics and forced free with unsubscribe
+    for(subscriber_t *sub = topic->first_sub; sub; sub = sub->topic_next) {
+        if(!sub->topic_prev) {
+            sub->topic->first_sub = sub->topic_next;
+        } else {
+            sub->topic_prev->topic_next = sub->topic_next;
+        }
+        if(!sub->topic_next) {
+            sub->topic->last_sub = sub->topic_prev;
+        } else {
+            sub->topic_next->topic_prev = sub->topic_prev;
+        }
+        if(!sub->topic->first_sub) {
+            free_topic(sub->topic);
+        }
+        free(sub);
+        topic_table.nsubscriptions -= 1;
+    }
+    if(topic->prev) {
+        topic->prev->next = topic->next;
+        if(topic->next) {
+            topic->next->prev = topic->prev;
+        }
+    } else if(topic->next) {
+        topic->next->prev = NULL;
+        topic_table.table[topic->hash % topic_table.hash_size] = topic->next;
+    } else {
+        topic_table.table[topic->hash % topic_table.hash_size] = NULL;
+    }
+    topic_table.ntopics -= 1;
+    free(topic);
+}
+
+void websock_stop(ws_connection_t *hint) {
+    connection_t *conn = (connection_t *)hint;
+    for(subscriber_t *sub = conn->first_sub; sub; sub = sub->client_next) {
+        if(!sub->topic_prev) {
+            sub->topic->first_sub = sub->topic_next;
+        } else {
+            sub->topic_prev->topic_next = sub->topic_next;
+        }
+        if(!sub->topic_next) {
+            sub->topic->last_sub = sub->topic_prev;
+        } else {
+            sub->topic_next->topic_prev = sub->topic_prev;
+        }
+        if(!sub->topic->first_sub) {
+            free_topic(sub->topic);
+        }
+        free(sub);
+        topic_table.nsubscriptions -= 1;
+    }
+    LDEBUG("Websockets stopped, topics: %d, subscriptions: %d",
+        topic_table.ntopics, topic_table.nsubscriptions);
+}
+
 int websock_start(connection_t *conn, config_Route_t *route) {
     LDEBUG("Websocket started");
     conn->route = route;
@@ -43,6 +100,7 @@ int websock_start(connection_t *conn, config_Route_t *route) {
     SNIMPL(zmq_msg_init_data(&zmsg, "connect", 7, NULL, NULL));
     SNIMPL(zmq_send(sock, &zmsg, 0));
     LDEBUG("Websocket sent hello to 0x%x", route->_websock_forward);
+    ws_DISCONNECT_CB(&conn->ws, websock_stop);
     return 0;
 }
 
@@ -118,6 +176,7 @@ static topic_t *find_topic(zmq_msg_t *msg, bool create) {
     if(!current) {
         if(!create) return NULL;
         result = mktopic(topic_name, topic_len, hash);
+        topic_table.ntopics += 1;
         topic_table.table[cell] = result;
         return result;
     }
@@ -132,6 +191,7 @@ static topic_t *find_topic(zmq_msg_t *msg, bool create) {
         }
     }
     if(!create) return NULL;
+    topic_table.ntopics += 1;
     result = mktopic(topic_name, topic_len, hash);
     result->prev = current;
     current->next = result;
@@ -143,15 +203,27 @@ static bool topic_subscribe(connection_t *conn, topic_t *topic) {
     if(!sub) {
         return FALSE;
     }
+    sub->topic = topic;
     sub->connection = conn;
     sub->topic_prev = topic->last_sub;
-    if(!topic->first_sub) topic->first_sub = sub;
+    if(!topic->first_sub) {
+        topic->first_sub = sub;
+    } else {
+        topic->last_sub->topic_next = sub;
+    }
     topic->last_sub = sub;
     sub->topic_next = NULL;
     sub->client_prev = conn->last_sub;
-    if(!conn->first_sub) conn->first_sub = sub;
+    if(!conn->first_sub) {
+        conn->first_sub = sub;
+    } else {
+        conn->last_sub->client_next = sub;
+    }
     conn->last_sub = sub;
     sub->client_next = NULL;
+    topic_table.nsubscriptions += 1;
+    LDEBUG("Subscription done, topics: %d, subscriptions: %d",
+        topic_table.ntopics, topic_table.nsubscriptions);
     return TRUE;
 }
 
@@ -218,6 +290,13 @@ void websock_process(zmq_socket_t sock) {
         LDEBUG("Publishing to 0x%x", topic);
         Z_RECV_LAST(msg);
         topic_publish(topic, &msg);
+    } else if(cmdlen == 4 && !strncmp(cmd, "drop", cmdlen)) {
+        LDEBUG("Websocket got DROP request");
+        Z_RECV_LAST(msg);
+        topic_t *topic = find_topic(&msg, FALSE);
+        if(topic) {
+            free_topic(topic);
+        }
     } else {
         LWARN("Wrong command [%d]``%s''", cmdlen, cmd);
         goto msg_error;
