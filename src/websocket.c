@@ -29,7 +29,7 @@ topic_hash_t topic_table;
 
 void free_topic(topic_t *topic) {
     // Frees both: empty/unused topics and forced free with unsubscribe
-    for(subscriber_t *sub = topic->first_sub; sub; sub = sub->topic_next) {
+    for(subscriber_t *sub = topic->first_sub; sub;) {
         if(!sub->topic_prev) {
             sub->topic->first_sub = sub->topic_next;
         } else {
@@ -40,10 +40,9 @@ void free_topic(topic_t *topic) {
         } else {
             sub->topic_next->topic_prev = sub->topic_prev;
         }
-        if(!sub->topic->first_sub) {
-            free_topic(sub->topic);
-        }
+        subscriber_t *nsub = sub->topic_next;
         free(sub);
+        sub = nsub;
         topic_table.nsubscriptions -= 1;
     }
     if(topic->prev) {
@@ -63,7 +62,7 @@ void free_topic(topic_t *topic) {
 
 void websock_stop(ws_connection_t *hint) {
     connection_t *conn = (connection_t *)hint;
-    for(subscriber_t *sub = conn->first_sub; sub; sub = sub->client_next) {
+    for(subscriber_t *sub = conn->first_sub; sub;) {
         if(!sub->topic_prev) {
             sub->topic->first_sub = sub->topic_next;
         } else {
@@ -77,7 +76,9 @@ void websock_stop(ws_connection_t *hint) {
         if(!sub->topic->first_sub) {
             free_topic(sub->topic);
         }
+        subscriber_t *nsub = sub->client_next;
         free(sub);
+        sub = nsub;
         topic_table.nsubscriptions -= 1;
     }
     LDEBUG("Websockets stopped, topics: %d, subscriptions: %d",
@@ -230,6 +231,48 @@ static bool topic_subscribe(connection_t *conn, topic_t *topic) {
 }
 
 static bool topic_unsubscribe(connection_t *conn, topic_t *topic) {
+    subscriber_t *sub = topic->first_sub;
+    ANIMPL(sub);
+    if(sub->connection == conn) {
+        if(topic->last_sub == sub) {
+            // Only one subscriber in the topic
+            // Often it's user's own channel
+            free_topic(topic);
+            return TRUE;
+        }
+    } else {
+        // It's probably faster to search user topics, because user doesn't
+        // expected to have thousands of topics. But topic can actually have
+        // thousands of subscibers (very popular news feed or chat room)
+        for(sub = conn->first_sub; sub; sub = sub->client_next)
+            if(sub->topic == topic) break;
+    }
+    if(!sub) return FALSE;
+    if(sub->client_prev) {
+        sub->client_prev->client_next = sub->client_next;
+    } else {
+        conn->first_sub = sub->client_next;
+    }
+    if(sub->client_next) {
+        sub->client_next->client_prev = sub->client_prev;
+    } else {
+        conn->last_sub = sub->client_prev;
+    }
+    if(!sub->topic_prev) {
+        sub->topic->first_sub = sub->topic_next;
+    } else {
+        sub->topic_prev->topic_next = sub->topic_next;
+    }
+    if(!sub->topic_next) {
+        sub->topic->last_sub = sub->topic_prev;
+    } else {
+        sub->topic_next->topic_prev = sub->topic_prev;
+    }
+    free(sub);
+    topic_table.nsubscriptions -= 1;
+    LDEBUG("Unsubscribing done, topics: %d, subscriptions: %d",
+        topic_table.ntopics, topic_table.nsubscriptions);
+    return TRUE;
 }
 
 static void websock_message_free(void *ws) {
