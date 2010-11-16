@@ -22,6 +22,6 @@ typedef struct message_s {
 
 int websock_start(connection_t *conn, config_Route_t *route);
 int websock_message(connection_t *conn, message_t *msg);
-void websock_process(zmq_socket_t sock);
+void websock_process(config_Route_t *route, zmq_socket_t sock);
 
 #endif // _H_WEBSOCKET

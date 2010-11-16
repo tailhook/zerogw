@@ -159,7 +159,7 @@ config_Route_t *resolve_url(request_t *req) {
 
 int start_websocket(request_t *req) {
     config_Route_t *route = resolve_url(req);
-    if(!route->websock_subscribe_len || !route->websock_forward_len) {
+    if(!route->websock.subscribe_len || !route->websock.forward_len) {
         return -1;
     }
     return websock_start((connection_t *)req->ws.conn, route);
@@ -320,8 +320,8 @@ void send_message(evloop_t loop, watch_t *watch, int revents) {
         if(*kind == 'h') {
             process_http(root.worker_pull);
         } else if(*kind == 'w') {
-            // some zeromq intimate message
-            websock_process(root.worker_pull);
+            websock_process(root.wsock_routes[*(uint64_t *)(kind+1)],
+                root.worker_pull);
         } else {
             goto msg_error;
         }
@@ -393,9 +393,12 @@ void worker_loop() {
             if(worker.poll[i].revents & ZMQ_POLLIN) {
                 --count;
                 zmq_msg_t msg;
-                SNIMPL(zmq_msg_init_size(&msg, 1));
-                if(i >= HARDCODED_SOCKETS + worker.http_sockets) {
-                    *(char *)zmq_msg_data(&msg) = 'w';
+                int wsocknum = i-HARDCODED_SOCKETS-worker.http_sockets;
+                if(wsocknum >= 0) {
+                    SNIMPL(zmq_msg_init_size(&msg, sizeof(uint64_t)+1));
+                    char *data = zmq_msg_data(&msg);
+                    *(char *)data = 'w';
+                    *(uint64_t *)(data+1) = wsocknum;
                 } else {
                     *(char *)zmq_msg_data(&msg) = 'h';
                 }
@@ -425,10 +428,10 @@ static void count_sockets(config_Route_t *route, worker_t *worker) {
     if(route->zmq_forward_len) {
         worker->http_sockets += 1;
     }
-    if(route->websock_forward_len) {
+    if(route->websock.forward_len) {
         worker->websock_forward += 1;
     }
-    if(route->websock_subscribe_len) {
+    if(route->websock.subscribe_len) {
         worker->websock_subscribe += 1;
     }
     CONFIG_ROUTE_LOOP(item, route->children) {
@@ -464,15 +467,17 @@ static int worker_socket_visitor(config_Route_t *route,
         route->_http_zmq_index = *http_index;
         *http_index += 1;
     }
-    if(route->websock_subscribe_len) {
+    if(route->websock.subscribe_len) {
         zmq_socket_t sock = zmq_socket(root.zmq, ZMQ_SUB);
         ANIMPL(sock);
-        CONFIG_ZMQADDR_LOOP(item, route->websock_subscribe) {
+        CONFIG_ZMQADDR_LOOP(item, route->websock.subscribe) {
             SNIMPL(zmq_open(sock, &item->value));
         }
         zmq_setsockopt(sock, ZMQ_SUBSCRIBE, NULL, 0);
         worker.poll[*websock_index].socket = sock;
         worker.poll[*websock_index].events = ZMQ_POLLIN;
+        int route_index = *websock_index-HARDCODED_SOCKETS-worker.http_sockets;
+        root.wsock_routes[route_index] = route;
         route->_websock_zmq_index = *websock_index;
         *websock_index += 1;
     }
@@ -588,11 +593,11 @@ static int worker_socket_visitor(config_Route_t *route,
 }
 
 static int server_socket_visitor(config_Route_t *route) {
-    if(route->websock_forward_len) {
+    if(route->websock.forward_len) {
         zmq_socket_t sock = zmq_socket(root.zmq, ZMQ_PUB);
         ANIMPL(sock);
         LDEBUG("Opening websocket forwarder 0x%x", sock);
-        CONFIG_ZMQADDR_LOOP(item, route->websock_forward) {
+        CONFIG_ZMQADDR_LOOP(item, route->websock.forward) {
             SNIMPL(zmq_open(sock, &item->value));
         }
         route->_websock_forward = sock;
@@ -640,6 +645,9 @@ void prepare_sockets() {
     int http_index = HARDCODED_SOCKETS;
     int websock_index = HARDCODED_SOCKETS + worker.http_sockets;
 
+    root.wsock_routes = (config_Route_t **)malloc(
+        sizeof(config_Route_t *)*worker.websock_subscribe);
+    ANIMPL(root.wsock_routes);
     SNIMPL(worker_socket_visitor(&config.Routing, &http_index, &websock_index));
     ANIMPL(websock_index == worker.nsockets);
     ANIMPL(http_index = worker.http_sockets + HARDCODED_SOCKETS);

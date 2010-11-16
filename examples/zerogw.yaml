@@ -91,9 +91,10 @@ Routing:
                 - !zmq.Bind "tcp://127.0.0.1:7001"
               zmq-contents:
                 - !Body ~
-              websock-forward:
+              websock:
+                forward:
                 - !zmq.Bind "tcp://127.0.0.1:7002"
-              websock-subscribe:
+                subscribe:
                 - !zmq.Bind "tcp://127.0.0.1:7003"
             "/crossdomain.xml":
               responses:

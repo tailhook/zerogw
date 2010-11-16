@@ -9,6 +9,7 @@
 #define HASH_SIZE_MIN 512
 
 typedef struct topic_s {
+    struct topic_hash_s *table;
     struct topic_s *next;
     struct topic_s *prev;
     subscriber_t *first_sub;
@@ -24,8 +25,6 @@ typedef struct topic_hash_s {
     int nsubscriptions;
     topic_t **table;
 } topic_hash_t;
-
-topic_hash_t topic_table;
 
 void free_topic(topic_t *topic) {
     // Frees both: empty/unused topics and forced free with unsubscribe
@@ -43,7 +42,7 @@ void free_topic(topic_t *topic) {
         subscriber_t *nsub = sub->topic_next;
         free(sub);
         sub = nsub;
-        topic_table.nsubscriptions -= 1;
+        topic->table->nsubscriptions -= 1;
     }
     if(topic->prev) {
         topic->prev->next = topic->next;
@@ -52,11 +51,11 @@ void free_topic(topic_t *topic) {
         }
     } else if(topic->next) {
         topic->next->prev = NULL;
-        topic_table.table[topic->hash % topic_table.hash_size] = topic->next;
+        topic->table->table[topic->hash%topic->table->hash_size] = topic->next;
     } else {
-        topic_table.table[topic->hash % topic_table.hash_size] = NULL;
+        topic->table->table[topic->hash%topic->table->hash_size] = NULL;
     }
-    topic_table.ntopics -= 1;
+    topic->table->ntopics -= 1;
     free(topic);
 }
 
@@ -73,16 +72,14 @@ void websock_stop(ws_connection_t *hint) {
         } else {
             sub->topic_next->topic_prev = sub->topic_prev;
         }
+        sub->topic->table->nsubscriptions -= 1;
         if(!sub->topic->first_sub) {
             free_topic(sub->topic);
         }
         subscriber_t *nsub = sub->client_next;
         free(sub);
         sub = nsub;
-        topic_table.nsubscriptions -= 1;
     }
-    LDEBUG("Websockets stopped, topics: %d, subscriptions: %d",
-        topic_table.ntopics, topic_table.nsubscriptions);
 }
 
 int websock_start(connection_t *conn, config_Route_t *route) {
@@ -144,9 +141,10 @@ size_t topic_hash(const char *s, size_t len) {
     return res;
 }
 
-static topic_t *mktopic(char *name, int len, size_t hash) {
+static topic_t *mktopic(topic_hash_t *table, char *name, int len, size_t hash) {
     topic_t * result = (topic_t *)malloc(sizeof(topic_t) + len);
     if(!result) return NULL;
+    result->table = table;
     result->hash = hash;
     memcpy(result->topic, name, len);
     result->length = len;
@@ -157,30 +155,38 @@ static topic_t *mktopic(char *name, int len, size_t hash) {
     return result;
 }
 
-static topic_t *find_topic(zmq_msg_t *msg, bool create) {
+static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
     char *topic_name = zmq_msg_data(msg);
     int topic_len = zmq_msg_size(msg);
     size_t hash = topic_hash(topic_name, topic_len);
     topic_t *result;
-    if(!topic_table.table) {
+    topic_hash_t *table = route->_websock_topics;
+    if(!route->_websock_topics) {
         if(!create) return NULL;
-        topic_table.hash_size = HASH_SIZE_MIN;
-        topic_table.table = (topic_t **)malloc(HASH_SIZE_MIN*sizeof(topic_t*));
-        bzero(topic_table.table, HASH_SIZE_MIN*sizeof(topic_t*));
-        if(!topic_table.table) return NULL;
-        topic_table.ntopics = 1;
-        topic_table.nsubscriptions = 0;
-        result = mktopic(topic_name, topic_len, hash);
-        topic_table.table[hash % topic_table.hash_size] = result;
+        table = malloc(sizeof(topic_hash_t));
+        if(!table) return NULL;
+        bzero(table, sizeof(topic_hash_t));
+        route->_websock_topics = table;
+    }
+    if(!table->table) {
+        if(!create) return NULL;
+        table->hash_size = HASH_SIZE_MIN;
+        table->table = (topic_t **)malloc(HASH_SIZE_MIN*sizeof(topic_t*));
+        bzero(table->table, HASH_SIZE_MIN*sizeof(topic_t*));
+        if(!table->table) return NULL;
+        table->ntopics = 1;
+        table->nsubscriptions = 0;
+        result = mktopic(table, topic_name, topic_len, hash);
+        table->table[hash % table->hash_size] = result;
         return result;
     }
-    size_t cell =  hash % topic_table.hash_size;
-    topic_t *current = topic_table.table[cell];
+    size_t cell =  hash % table->hash_size;
+    topic_t *current = table->table[cell];
     if(!current) {
         if(!create) return NULL;
-        result = mktopic(topic_name, topic_len, hash);
-        topic_table.ntopics += 1;
-        topic_table.table[cell] = result;
+        result = mktopic(table, topic_name, topic_len, hash);
+        table->ntopics += 1;
+        table->table[cell] = result;
         return result;
     }
     if(current->length == topic_len && current->hash == hash
@@ -194,8 +200,8 @@ static topic_t *find_topic(zmq_msg_t *msg, bool create) {
         }
     }
     if(!create) return NULL;
-    topic_table.ntopics += 1;
-    result = mktopic(topic_name, topic_len, hash);
+    table->ntopics += 1;
+    result = mktopic(table, topic_name, topic_len, hash);
     result->prev = current;
     current->next = result;
     return result;
@@ -224,9 +230,9 @@ static bool topic_subscribe(connection_t *conn, topic_t *topic) {
     }
     conn->last_sub = sub;
     sub->client_next = NULL;
-    topic_table.nsubscriptions += 1;
+    topic->table->nsubscriptions += 1;
     LDEBUG("Subscription done, topics: %d, subscriptions: %d",
-        topic_table.ntopics, topic_table.nsubscriptions);
+        topic->table->ntopics, topic->table->nsubscriptions);
     return TRUE;
 }
 
@@ -269,9 +275,7 @@ static bool topic_unsubscribe(connection_t *conn, topic_t *topic) {
         sub->topic_next->topic_prev = sub->topic_prev;
     }
     free(sub);
-    topic_table.nsubscriptions -= 1;
-    LDEBUG("Unsubscribing done, topics: %d, subscriptions: %d",
-        topic_table.ntopics, topic_table.nsubscriptions);
+    topic->table->nsubscriptions -= 1;
     return TRUE;
 }
 
@@ -298,7 +302,7 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
 }
 
 
-void websock_process(zmq_socket_t sock) {
+void websock_process(config_Route_t *route, zmq_socket_t sock) {
     Z_SEQ_INIT(msg, sock);
     Z_RECV_NEXT(msg);
     char *cmd = zmq_msg_data(&msg);
@@ -309,7 +313,7 @@ void websock_process(zmq_socket_t sock) {
         connection_t *conn = find_connection(&msg);
         if(!conn) goto msg_error;
         Z_RECV_LAST(msg);
-        topic_t *topic = find_topic(&msg, TRUE);
+        topic_t *topic = find_topic(conn->route, &msg, TRUE);
         if(topic) { // no topic on memory failure
             topic_subscribe(conn, topic);
         } else {
@@ -320,14 +324,18 @@ void websock_process(zmq_socket_t sock) {
         Z_RECV_NEXT(msg);
         connection_t *conn = find_connection(&msg);
         if(!conn) goto msg_error;
+        if(conn->route != route) {
+            LWARN("Connection has wrong route, skipping...");
+            goto msg_error;
+        }
         Z_RECV_LAST(msg);
-        topic_t *topic = find_topic(&msg, FALSE);
+        topic_t *topic = find_topic(route, &msg, FALSE);
         if(!topic) goto msg_error;
         topic_unsubscribe(conn, topic);
     } else if(cmdlen == 7 && !strncmp(cmd, "publish", cmdlen)) {
         LDEBUG("Websocket got PUBLISH request");
         Z_RECV_NEXT(msg);
-        topic_t *topic = find_topic(&msg, FALSE);
+        topic_t *topic = find_topic(route, &msg, FALSE);
         if(!topic) {
             LDEBUG("Couldn't find topic to publish to");
             goto msg_error;
@@ -338,7 +346,7 @@ void websock_process(zmq_socket_t sock) {
     } else if(cmdlen == 4 && !strncmp(cmd, "drop", cmdlen)) {
         LDEBUG("Websocket got DROP request");
         Z_RECV_LAST(msg);
-        topic_t *topic = find_topic(&msg, FALSE);
+        topic_t *topic = find_topic(route, &msg, FALSE);
         if(topic) {
             free_topic(topic);
         }

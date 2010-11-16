@@ -30,6 +30,7 @@ typedef struct serverroot_s {
     evloop_t loop;
     socket_t worker_event;
     watch_t worker_watch;
+    config_Route_t **wsock_routes;
 } serverroot_t;
 
 extern sieve_t *sieve;

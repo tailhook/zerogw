@@ -100,10 +100,19 @@ __types__:
       element: !Struct zmqaddr
     zmq-contents: !Array
       element: !Struct RequestField
-    websock-subscribe: !Array
-      element: !Struct zmqaddr
-    websock-forward: !Array
-      element: !Struct zmqaddr
+    websock:
+      subscribe: !Array
+        element: !Struct zmqaddr
+      forward: !Array
+        element: !Struct zmqaddr
+      topic-hash-size: !Int
+        min: 4
+        max: 1073741824
+        default: 4096
+        description: >
+            Size of hash table for topics. Keep it about twice of average
+            number of topics. It's not the limit of their number, but limits
+            performance (collisions are stored in a linked list)
 
     match: !Array
       element: !String ~
@@ -118,6 +127,7 @@ __types__:
     _http-zmq-index: !Int -1
     _websock-zmq-index: !Int -1
     _websock-forward: !_VoidPtr ~
+    _websock-topics: !_VoidPtr ~
     _child-match: !_VoidPtr ~
 
 Server:
