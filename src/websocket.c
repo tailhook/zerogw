@@ -39,6 +39,16 @@ void free_topic(topic_t *topic) {
         } else {
             sub->topic_next->topic_prev = sub->topic_prev;
         }
+        if(!sub->client_prev) {
+            sub->connection->first_sub = sub->client_next;
+        } else {
+            sub->client_prev->client_next = sub->client_next;
+        }
+        if(!sub->client_next) {
+            sub->connection->last_sub = sub->client_prev;
+        } else {
+            sub->client_next->client_prev = sub->client_prev;
+        }
         subscriber_t *nsub = sub->topic_next;
         free(sub);
         sub = nsub;
@@ -61,6 +71,15 @@ void free_topic(topic_t *topic) {
 
 void websock_stop(ws_connection_t *hint) {
     connection_t *conn = (connection_t *)hint;
+    
+    zmq_msg_t zmsg;
+    SNIMPL(zmq_msg_init_size(&zmsg, CONNECTION_ID_LEN));
+    memcpy(zmq_msg_data(&zmsg), conn->connection_id, CONNECTION_ID_LEN);
+    SNIMPL(zmq_send(conn->route->_websock_forward, &zmsg, ZMQ_SNDMORE));
+    SNIMPL(zmq_msg_init_data(&zmsg, "disconnect", 10, NULL, NULL));
+    SNIMPL(zmq_send(conn->route->_websock_forward, &zmsg, 0));
+    LDEBUG("Websocket sent disconnect to 0x%x", conn->route->_websock_forward);
+    
     for(subscriber_t *sub = conn->first_sub; sub;) {
         if(!sub->topic_prev) {
             sub->topic->first_sub = sub->topic_next;
@@ -93,8 +112,8 @@ int websock_start(connection_t *conn, config_Route_t *route) {
         (size_t *)(conn->connection_id + INSTANCE_ID_LEN + 8),
         (size_t *)(conn->connection_id + INSTANCE_ID_LEN));
     zmq_msg_t zmsg;
-    SNIMPL(zmq_msg_init_data(&zmsg, conn->connection_id,
-        sizeof(conn->connection_id), NULL, NULL));
+    SNIMPL(zmq_msg_init_size(&zmsg, CONNECTION_ID_LEN));
+    memcpy(zmq_msg_data(&zmsg), conn->connection_id, CONNECTION_ID_LEN);
     SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE));
     SNIMPL(zmq_msg_init_data(&zmsg, "connect", 7, NULL, NULL));
     SNIMPL(zmq_send(sock, &zmsg, 0));
@@ -295,7 +314,8 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
     ws_MESSAGE_DATA(&msg->ws, (char *)zmq_msg_data(&msg->zmq),
         zmq_msg_size(&msg->zmq), websock_message_free);
     for(; sub; sub = sub->topic_next) {
-        LDEBUG("SENDING");
+        LDEBUG("Sending %x [%d]``%.*s''", msg,
+            &msg->ws.length, &msg->ws.length, &msg->ws.data);
         ws_message_send(&sub->connection->ws, &msg->ws);
     }
     ws_MESSAGE_DECREF(&msg->ws); // we own a single reference
