@@ -1,10 +1,5 @@
- * Implement timeouts on requests
- * Implement reference count for request when it's used by zeromq
- * Check request method
- * Do internal communication using ZMQ_PAIR, instead XREQ/XREP
- * Serving static from file (maybe)
  * Add access logging
  * Implement status requests
  * Implement listen address conversion function
  * Add server name-version header
- * Implement websocket support
+ * Update waf
