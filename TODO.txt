@@ -1,5 +1,9 @@
+ * Timeouts
  * Add access logging
+ * Serving static
+ * Authentication and simple authorization
  * Implement status requests
- * Implement listen address conversion function
+ * Configuration reloading
+ * HTTPS
  * Add server name-version header
  * Update waf

@@ -104,8 +104,6 @@ void request_decref(void *_data, void *request) {
 }
 
 config_Route_t *resolve_url(request_t *req) {
-    req->refcnt = 1;
-    req->has_message = FALSE;
     if(sieve_full(sieve)) {
         LWARN("Too many requests");
         http_static_response(req,
@@ -158,6 +156,8 @@ config_Route_t *resolve_url(request_t *req) {
 }
 
 int start_websocket(request_t *req) {
+    req->refcnt = 1;
+    req->has_message = FALSE;
     config_Route_t *route = resolve_url(req);
     if(!route->websock.subscribe_len || !route->websock.forward_len) {
         return -1;
@@ -167,6 +167,8 @@ int start_websocket(request_t *req) {
 
 /* server thread callback */
 int http_request(request_t *req) {
+    req->refcnt = 1;
+    req->has_message = FALSE;
     config_Route_t *route = resolve_url(req);
 
     if(!route) { // already replied
