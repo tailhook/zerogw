@@ -3,7 +3,7 @@
 import yaml
 
 APPNAME='zerogw'
-VERSION='0.3.1'
+VERSION='0.4'
 
 top = '.'
 out = 'build'
@@ -24,6 +24,9 @@ def build(bld):
             'src/websocket.c',
             'src/sieve.c',
             'src/zutils.c',
+            'src/http.c',
+            'src/resolve.c',
+            'src/uidgen.c',
             ],
         target       = 'zerogw',
         includes     = ['src'],

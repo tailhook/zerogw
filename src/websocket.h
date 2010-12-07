@@ -4,6 +4,8 @@
 #include <website.h>
 #include <zmq.h>
 #include "main.h"
+#include "request.h"
+#include "config.h"
 
 typedef struct subscriber_s {
     struct subscriber_s *topic_next;
@@ -22,6 +24,7 @@ typedef struct message_s {
 
 int websock_start(connection_t *conn, config_Route_t *route);
 int websock_message(connection_t *conn, message_t *msg);
-void websock_process(config_Route_t *route, zmq_socket_t sock);
+int start_websocket(request_t *req);
+int prepare_websockets(config_main_t *config, config_Route_t *root);
 
 #endif // _H_WEBSOCKET

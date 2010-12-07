@@ -5,6 +5,9 @@ __meta__:
   description: >
     A HTTP to zeromq gateway. It's actually a web server which uses zeromq for
     communication with backends.
+  
+  c_std_include:
+  - ev.h
 
 __types__:
 
@@ -15,14 +18,52 @@ __types__:
       zmq.Bind: 1
       zmq.Connect: 2
     __value__: !String ""
-
-  stat_group:
-      interval: !Int
-        min: 1
-      snapshots: !Int
-        type: int
-        min: 1
-        default: 2
+  
+  zmqsocket:
+    __tags__:
+      __property__: kind
+      __default__: auto
+      auto: 0
+      zmq.Req: 1
+      zmq.Rep: 2
+      zmq.Push: 3
+      zmq.Pull: 4
+      zmq.Pub: 5
+      zmq.Sub: 6
+    __value__: !Array
+        element: !Struct zmqaddr
+    hwm: !UInt
+      =: 0
+      description: >
+        Zeromq high water mark for socket. Zero means no limit. Refer to zeromq
+        documentation for details
+    identity: !String
+      =: ""
+      description: >
+        Zeromq identity for the socket. Refer to zeromq documentation for
+        details
+    swap: !UInt
+      =: 0
+      description: >
+        Size of swap size for messages that exceed high water mark. Refer to
+        zeromq documentation for details
+    affinity: !UInt
+      =: 0
+      description: >
+        Thread affinity bitmap for this socket. Refer to zeromq documentation
+        for details
+    sndbuf: !UInt
+      =: 0
+      description: >
+        Underlying kernel transmit buffer size. Refer to operating system
+        documentation for the SO_SNDBUF socket option
+    rcvbuf: !UInt
+      =: 0
+      description: >
+        Underlying kernel transmit buffer size. Refer to operating system
+        documentation for the SO_RCVBUF socket option
+    _sock: !_VoidPtr ~
+    _watch: !CStruct ev_io
 
   listenaddr:
     host: !String ""
@@ -96,23 +137,27 @@ __types__:
       service-unavailable: !Struct StaticResponse
     maintainance: !Int 0
 
-    zmq-forward: !Array
-      element: !Struct zmqaddr
+    zmq-forward: !Struct zmqsocket
     zmq-contents: !Array
       element: !Struct RequestField
     websock:
-      subscribe: !Array
-        element: !Struct zmqaddr
-      forward: !Array
-        element: !Struct zmqaddr
+      subscribe: !Struct zmqsocket
+      forward: !Struct zmqsocket
+      heartbeat-interval: !UInt
+        default: 5
+        max: 86400
+        description: >
+          Server will send `heartbeat` messages at this interval. This is
+          intended to detect gateway crashes
       topic-hash-size: !Int
         min: 4
         max: 1073741824
         default: 4096
         description: >
-            Size of hash table for topics. Keep it about twice of average
-            number of topics. It's not the limit of their number, but limits
-            performance (collisions are stored in a linked list)
+          Size of hash table for topics. Keep it about twice of average
+          number of topics. It's not the limit of their number, but limits
+          performance (collisions are stored in a linked list)
+      _heartbeat-timer: !CStruct ev_timer
 
     match: !Array
       element: !String ~
@@ -124,50 +169,11 @@ __types__:
     children: !Array
       element: !Struct Route
 
-    _http-zmq-index: !Int -1
-    _websock-zmq-index: !Int -1
-    _websock-forward: !_VoidPtr ~
-    _websock-topics: !_VoidPtr ~
     _child-match: !_VoidPtr ~
-
-Server:
-  zmq-io-threads: !Int
-    min: 1
-    max: 65535
-    default: 1
-    description: >
-      ZMQ IO threads to use. See zmq_init(3) for more information
-    command-line: [-z, --zmq-io-threads]
-  status-socket: !Struct
-    type: zmqaddr
-    default: tcp://127.0.0.1:9376
-    description: >
-      Zeromq REP-type socket, which will respond with status messages
-  statuses: !Array
-    element: !Struct stat_group
-    description: >
-      Intervals at which to do status snapshots. Please don't do too much,
-      because for each of interval snapshots status structure is copied
-      a each interval `snapshot` times. And for each of them, the snapshot
-      data will be sent in response to status command.
-  max-requests: !Int
-    min: 4
-    max: 1073741824
-    default: 4096
-    command-line: [-m, --limit-requests]
-    description: >
-      Limits maximum of concurrent requests at any given time.  Don't make too
-      much because it allocates static buffer with 2 words for each request
-      (An you also need some memory for requests itself). When buffer is full
-      all requests will be rejected with "service-unavailable" error (usually
-      503 status code) without parsing request.
-  listen: !Array
-    element: !Struct listenaddr
-  header: !String zerogw
-  default-host: !String "localhost"
-
-Globals: &settings
+    _websock-topics: !_VoidPtr ~
+    
   logging:
+  
     level: !Int
       min: 0
       max: 7
@@ -189,20 +195,54 @@ Globals: &settings
         and a minute or so on overloaded server, unless
         you know truth by some other means)
       command-line: [-w, --warning-timeout]
-    access: !File
-      default: "/var/applog/zerogw/access.log"
-      check-existence: no
-      check-dir: yes
-      description: >
-        Where to write access log messages. Use "-" for stderr.
-      command-line: [-l, --access-log]
     error: !File
-      default: "/var/applog/zerogw/error.log"
+      default: "/var/log/zerogw/error.log"
       check-existence: no
       check-dir: yes
       description: >
         Where to write error log messages. Use "-" for stderr.
       command-line: [-e, --error-log]
+
+Server:
+  ident: !Int
+    min: 1
+    default: 1
+    description: >
+      Instance identifier. Use unique one across all your machines (and started
+      processes).
+  zmq-io-threads: !Int
+    min: 1
+    max: 65535
+    default: 1
+    description: >
+      ZMQ IO threads to use. See zmq_init(3) for more information
+    command-line: [-z, --zmq-io-threads]
+  status-socket: !Struct
+    type: zmqsocket
+    description: >
+      Zeromq PUB-type socket, which zerogw will publish status messages to
+  status-interval: !Int
+    default: 60
+    description: >
+      Interval at which status messages will be published
+  max-requests: !Int
+    min: 4
+    max: 1073741824
+    default: 4096
+    command-line: [-m, --limit-requests]
+    description: >
+      Limits maximum of concurrent requests at any given time.  Don't make too
+      much because it allocates static buffer with 2 words for each request
+      (An you also need some memory for requests itself). When buffer is full
+      all requests will be rejected with "service-unavailable" error (usually
+      503 status code) without parsing request.
+  listen: !Array
+    element: !Struct listenaddr
+  header: !String zerogw
+  default-host: !String "localhost"
+
+Globals: &settings
+  error-log: !Struct logging
   limits: *limits
   responses: *responses
 

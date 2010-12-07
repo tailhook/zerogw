@@ -17,6 +17,7 @@
 #define STDIN   0
 #define STDOUT  1
 #define STDERR  2
+#define ERRLEVEL 2
 
 static char *levels[] = {
     "EMRG",
@@ -31,8 +32,7 @@ static char *levels[] = {
 static char source_path[] = LOG_STRIP_PATH;
 static int path_strip_chars = sizeof(source_path)-1;
 static int logfile = 1;
-int loglevel = LOG_WARN;
-int errlevel = LOG_CRIT;
+config_logging_t *logconfig;
 
 void logmsg(int level, char *file, int line, char *msg, ...) {
     char buf[4096];
@@ -87,7 +87,7 @@ void timedwarn(time_t *tt, char *file, int line, char *msg, ...) {
     time_t tm;
     time(&tm);
     tt[WT_COUNTER] ++;
-    if(tt[WT_LASTPRINT] < tm - config.Globals.logging.warning_timeout) {
+    if(tt[WT_LASTPRINT] < tm - logconfig->warning_timeout) {
         char buf[4096];
         struct tm ts;
         va_list args;
@@ -97,7 +97,7 @@ void timedwarn(time_t *tt, char *file, int line, char *msg, ...) {
         va_start(args, msg);
         idx += vsnprintf(buf + idx, 4096 - idx, msg, args);
         idx = min(idx, 4094);
-        if(tt[WT_LASTCALL] > tm - config.Globals.logging.warning_timeout) {
+        if(tt[WT_LASTCALL] > tm - logconfig->warning_timeout) {
             idx += snprintf(buf + idx, 4096 - idx, " (repeated %d times)", tt[WT_COUNTER]);
         }
         buf[idx++] = '\n';
@@ -118,9 +118,9 @@ void setcloexec(int fd) {
 }
 
 void openlogs() {
-    if(config.Globals.logging.error) {
+    if(logconfig->error) {
         int oldlogfile = logfile;
-        logfile = open(config.Globals.logging.error, O_APPEND|O_WRONLY|O_CREAT, 0666);
+        logfile = open(logconfig->error, O_APPEND|O_WRONLY|O_CREAT, 0666);
         if(logfile <= 0) {
             logfile = oldlogfile;
             LWARN("Can't open logfile. Continuing writing to stdout");
@@ -134,9 +134,9 @@ void openlogs() {
 }
 
 void reopenlogs() {
-    if(config.Globals.logging.error) {
+    if(logconfig->error) {
         int oldlogfile = logfile;
-        logfile = open(config.Globals.logging.error, O_APPEND|O_WRONLY|O_CREAT, 0666);
+        logfile = open(logconfig->error, O_APPEND|O_WRONLY|O_CREAT, 0666);
         if(logfile <= 0) {
             logfile = oldlogfile;
             SWARN2("Can't open logfile. Continuing writing old file");

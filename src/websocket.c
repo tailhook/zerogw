@@ -5,8 +5,8 @@
 #include "websocket.h"
 #include "log.h"
 #include "zutils.h"
-
-#define HASH_SIZE_MIN 512
+#include "resolve.h"
+#include "uidgen.h"
 
 typedef struct topic_s {
     struct topic_hash_s *table;
@@ -73,12 +73,13 @@ void websock_stop(ws_connection_t *hint) {
     connection_t *conn = (connection_t *)hint;
     
     zmq_msg_t zmsg;
-    SNIMPL(zmq_msg_init_size(&zmsg, CONNECTION_ID_LEN));
-    memcpy(zmq_msg_data(&zmsg), conn->connection_id, CONNECTION_ID_LEN);
-    SNIMPL(zmq_send(conn->route->_websock_forward, &zmsg, ZMQ_SNDMORE));
+    SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
+    memcpy(zmq_msg_data(&zmsg), conn->uid, UID_LEN);
+    SNIMPL(zmq_send(conn->route->websock.forward._sock, &zmsg, ZMQ_SNDMORE));
     SNIMPL(zmq_msg_init_data(&zmsg, "disconnect", 10, NULL, NULL));
-    SNIMPL(zmq_send(conn->route->_websock_forward, &zmsg, 0));
-    LDEBUG("Websocket sent disconnect to 0x%x", conn->route->_websock_forward);
+    SNIMPL(zmq_send(conn->route->websock.forward._sock, &zmsg, 0));
+    LDEBUG("Websocket sent disconnect to 0x%x",
+        conn->route->websock.forward._sock);
     
     for(subscriber_t *sub = conn->first_sub; sub;) {
         if(!sub->topic_prev) {
@@ -104,20 +105,17 @@ void websock_stop(ws_connection_t *hint) {
 int websock_start(connection_t *conn, config_Route_t *route) {
     LDEBUG("Websocket started");
     conn->route = route;
-    void *sock = route->_websock_forward;
-    memcpy(conn->connection_id, instance_id, INSTANCE_ID_LEN);
+    void *sock = route->websock.forward._sock;
+    SNIMPL(make_hole_uid(conn, conn->uid, root.sieve));
     conn->first_sub = NULL;
     conn->last_sub = NULL;
-    sieve_find_hole(sieve, conn,
-        (size_t *)(conn->connection_id + INSTANCE_ID_LEN + 8),
-        (size_t *)(conn->connection_id + INSTANCE_ID_LEN));
     zmq_msg_t zmsg;
-    SNIMPL(zmq_msg_init_size(&zmsg, CONNECTION_ID_LEN));
-    memcpy(zmq_msg_data(&zmsg), conn->connection_id, CONNECTION_ID_LEN);
+    SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
+    memcpy(zmq_msg_data(&zmsg), conn->uid, UID_LEN);
     SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE));
     SNIMPL(zmq_msg_init_data(&zmsg, "connect", 7, NULL, NULL));
     SNIMPL(zmq_send(sock, &zmsg, 0));
-    LDEBUG("Websocket sent hello to 0x%x", route->_websock_forward);
+    LDEBUG("Websocket sent hello to 0x%x", sock);
     ws_DISCONNECT_CB(&conn->ws, websock_stop);
     return 0;
 }
@@ -129,10 +127,9 @@ void websock_free_message(void *data, void *hint) {
 
 int websock_message(connection_t *conn, message_t *msg) {
     ws_MESSAGE_INCREF(&msg->ws);
-    void *sock = conn->route->_websock_forward;
+    void *sock = conn->route->websock.forward._sock;
     zmq_msg_t zmsg;
-    SNIMPL(zmq_msg_init_data(&zmsg, conn->connection_id,
-        sizeof(conn->connection_id), NULL, NULL));
+    SNIMPL(zmq_msg_init_data(&zmsg, conn->uid, UID_LEN, NULL, NULL));
     SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE));
     SNIMPL(zmq_msg_init_data(&zmsg, "message", 7, NULL, NULL));
     SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE));
@@ -142,12 +139,12 @@ int websock_message(connection_t *conn, message_t *msg) {
 }
 
 static connection_t *find_connection(zmq_msg_t *msg) {
-    if(zmq_msg_size(msg) != CONNECTION_ID_LEN) return NULL;
+    if(zmq_msg_size(msg) != UID_LEN) return NULL;
     void *data = zmq_msg_data(msg);
-    connection_t *conn = (connection_t *)sieve_get(sieve,
-        *(uint64_t *)(data + INSTANCE_ID_LEN));
+    connection_t *conn = (connection_t *)sieve_get(root.sieve,
+        *(uint64_t *)(data + IID_LEN));
     if(!conn) return NULL;
-    if(memcmp(conn->connection_id, data, CONNECTION_ID_LEN)) return NULL;
+    if(!UID_EQ(conn->uid, data)) return NULL;
     return conn;
 }
 
@@ -189,9 +186,10 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
     }
     if(!table->table) {
         if(!create) return NULL;
-        table->hash_size = HASH_SIZE_MIN;
-        table->table = (topic_t **)malloc(HASH_SIZE_MIN*sizeof(topic_t*));
-        bzero(table->table, HASH_SIZE_MIN*sizeof(topic_t*));
+        table->hash_size = route->websock.topic_hash_size;
+        table->table = (topic_t **)malloc(
+            route->websock.topic_hash_size*sizeof(topic_t*));
+        bzero(table->table, route->websock.topic_hash_size*sizeof(topic_t*));
         if(!table->table) return NULL;
         table->ntopics = 1;
         table->nsubscriptions = 0;
@@ -310,73 +308,150 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
     // determine size of message, but reusing message for each subscriber
     message_t *msg = (message_t*)ws_message_new(&sub->connection->ws);
     zmq_msg_init(&msg->zmq);
+    LDEBUG("Sending %x [%d]``%.*s''", omsg,
+        zmq_msg_size(omsg), zmq_msg_size(omsg), zmq_msg_data(omsg));
     zmq_msg_move(&msg->zmq, omsg);
     ws_MESSAGE_DATA(&msg->ws, (char *)zmq_msg_data(&msg->zmq),
         zmq_msg_size(&msg->zmq), websock_message_free);
+    LDEBUG("Sending %x [%d]``%.*s''", msg,
+        msg->ws.length, msg->ws.length, msg->ws.data);
     for(; sub; sub = sub->topic_next) {
-        LDEBUG("Sending %x [%d]``%.*s''", msg,
-            &msg->ws.length, &msg->ws.length, &msg->ws.data);
         ws_message_send(&sub->connection->ws, &msg->ws);
     }
     ws_MESSAGE_DECREF(&msg->ws); // we own a single reference
 }
 
 
-void websock_process(config_Route_t *route, zmq_socket_t sock) {
-    Z_SEQ_INIT(msg, sock);
-    Z_RECV_NEXT(msg);
-    char *cmd = zmq_msg_data(&msg);
-    int cmdlen = zmq_msg_size(&msg);
-    if(cmdlen == 9 && !strncmp(cmd, "subscribe", cmdlen)) {
-        LDEBUG("Websocket got SUBSCRIBE request");
-        Z_RECV_NEXT(msg);
-        connection_t *conn = find_connection(&msg);
-        if(!conn) goto msg_error;
-        Z_RECV_LAST(msg);
-        topic_t *topic = find_topic(conn->route, &msg, TRUE);
-        if(topic) { // no topic on memory failure
-            topic_subscribe(conn, topic);
+void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
+    ANIMPL(!(revents & EV_ERROR));
+    config_Route_t *route = (config_Route_t *)((char *)watch
+        - offsetof(config_Route_t, websock.subscribe._watch));
+    size_t opt, optlen = sizeof(opt);
+    SNIMPL(zmq_getsockopt(route->websock.subscribe._sock, ZMQ_EVENTS, &opt, &optlen));
+    while(TRUE) {
+        Z_SEQ_INIT(msg, route->websock.subscribe._sock);
+        Z_RECV_START(msg, break);
+        char *cmd = zmq_msg_data(&msg);
+        int cmdlen = zmq_msg_size(&msg);
+        if(cmdlen == 9 && !strncmp(cmd, "subscribe", cmdlen)) {
+            LDEBUG("Websocket got SUBSCRIBE request");
+            Z_RECV_NEXT(msg);
+            connection_t *conn = find_connection(&msg);
+            if(!conn) goto msg_error;
+            Z_RECV_LAST(msg);
+            topic_t *topic = find_topic(conn->route, &msg, TRUE);
+            if(topic) { // no topic on memory failure
+                topic_subscribe(conn, topic);
+            } else {
+                LDEBUG("Couldn't make topic");
+            }
+        } else if(cmdlen == 11 && !strncmp(cmd, "unsubscribe", cmdlen)) {
+            LDEBUG("Websocket got UNSUBSCRIBE request");
+            Z_RECV_NEXT(msg);
+            connection_t *conn = find_connection(&msg);
+            if(!conn) goto msg_error;
+            if(conn->route != route) {
+                LWARN("Connection has wrong route, skipping...");
+                goto msg_error;
+            }
+            Z_RECV_LAST(msg);
+            topic_t *topic = find_topic(route, &msg, FALSE);
+            if(!topic) goto msg_error;
+            topic_unsubscribe(conn, topic);
+        } else if(cmdlen == 7 && !strncmp(cmd, "publish", cmdlen)) {
+            LDEBUG("Websocket got PUBLISH request");
+            Z_RECV_NEXT(msg);
+            topic_t *topic = find_topic(route, &msg, FALSE);
+            if(!topic) {
+                LDEBUG("Couldn't find topic to publish to");
+                goto msg_error;
+            }
+            LDEBUG("Publishing to 0x%x", topic);
+            Z_RECV_LAST(msg);
+            topic_publish(topic, &msg);
+        } else if(cmdlen == 4 && !strncmp(cmd, "drop", cmdlen)) {
+            LDEBUG("Websocket got DROP request");
+            Z_RECV_LAST(msg);
+            topic_t *topic = find_topic(route, &msg, FALSE);
+            if(topic) {
+                free_topic(topic);
+            }
         } else {
-            LDEBUG("Couldn't make topic");
-        }
-    } else if(cmdlen == 11 && !strncmp(cmd, "unsubscribe", cmdlen)) {
-        LDEBUG("Websocket got UNSUBSCRIBE request");
-        Z_RECV_NEXT(msg);
-        connection_t *conn = find_connection(&msg);
-        if(!conn) goto msg_error;
-        if(conn->route != route) {
-            LWARN("Connection has wrong route, skipping...");
+            LWARN("Wrong command [%d]``%s''", cmdlen, cmd);
             goto msg_error;
         }
-        Z_RECV_LAST(msg);
-        topic_t *topic = find_topic(route, &msg, FALSE);
-        if(!topic) goto msg_error;
-        topic_unsubscribe(conn, topic);
-    } else if(cmdlen == 7 && !strncmp(cmd, "publish", cmdlen)) {
-        LDEBUG("Websocket got PUBLISH request");
-        Z_RECV_NEXT(msg);
-        topic_t *topic = find_topic(route, &msg, FALSE);
-        if(!topic) {
-            LDEBUG("Couldn't find topic to publish to");
-            goto msg_error;
-        }
-        LDEBUG("Publishing to 0x%x", topic);
-        Z_RECV_LAST(msg);
-        topic_publish(topic, &msg);
-    } else if(cmdlen == 4 && !strncmp(cmd, "drop", cmdlen)) {
-        LDEBUG("Websocket got DROP request");
-        Z_RECV_LAST(msg);
-        topic_t *topic = find_topic(route, &msg, FALSE);
-        if(topic) {
-            free_topic(topic);
-        }
-    } else {
-        LWARN("Wrong command [%d]``%s''", cmdlen, cmd);
-        goto msg_error;
+    msg_finish:
+        Z_SEQ_FINISH(msg);
+        continue;
+    msg_error:
+        Z_SEQ_ERROR(msg);
+        continue;
     }
-    Z_SEQ_FINISH(msg);
-    return;
-msg_error:
-    Z_SEQ_ERROR(msg);
-    return;
 }
+
+int start_websocket(request_t *req) {
+    req->refcnt = 1;
+    req->has_message = FALSE;
+    req->route = NULL;
+    config_Route_t *route = resolve_url(req);
+    if(!route->websock.subscribe.value_len
+        || !route->websock.forward.value_len) {
+        return -1;
+    }
+    return websock_start((connection_t *)req->ws.conn, route);
+}
+
+static void heartbeat(struct ev_loop *loop,
+    struct ev_timer *watch, int revents) {
+    ANIMPL(!(revents & EV_ERROR));
+    config_Route_t *route = (config_Route_t *)((char *)watch
+        - offsetof(config_Route_t, websock._heartbeat_timer));
+    zmq_msg_t msg;
+    SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
+    SNIMPL(zmq_send(route->websock.forward._sock, &msg, ZMQ_SNDMORE));
+    SNIMPL(zmq_msg_init_data(&msg, "heartbeat", 9, NULL, NULL));
+    SNIMPL(zmq_send(route->websock.forward._sock, &msg, 0));
+    SNIMPL(zmq_msg_close(&msg));
+}
+
+static int socket_visitor(config_Route_t *route) {
+    if(route->websock.subscribe.value_len) {
+        SNIMPL(zmq_open(&route->websock.subscribe,
+            ZMASK_PULL|ZMASK_SUB, ZMQ_SUB, websock_process, root.loop));
+        if(route->websock.subscribe.kind == CONFIG_zmq_Sub
+            || route->websock.subscribe.kind == CONFIG_auto) {
+            SNIMPL(zmq_setsockopt(route->websock.subscribe._sock,
+                ZMQ_SUBSCRIBE, NULL, 0));
+        }
+    }
+    if(route->websock.forward.value_len) {
+        SNIMPL(zmq_open(&route->websock.forward,
+            ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, NULL, NULL));
+        zmq_msg_t msg;
+        SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
+        SNIMPL(zmq_send(route->websock.forward._sock, &msg, ZMQ_SNDMORE));
+        SNIMPL(zmq_msg_init_data(&msg, "ready", 5, NULL, NULL));
+        SNIMPL(zmq_send(route->websock.forward._sock, &msg, 0));
+        SNIMPL(zmq_msg_close(&msg));
+        if(route->websock.heartbeat_interval) {
+            ev_timer_init(&route->websock._heartbeat_timer, heartbeat,
+                route->websock.heartbeat_interval,
+                route->websock.heartbeat_interval);
+            ev_timer_start(root.loop, &route->websock._heartbeat_timer);
+        }
+    }
+    CONFIG_ROUTE_LOOP(item, route->children) {
+        SNIMPL(socket_visitor(&item->value));
+    }
+    CONFIG_STRING_ROUTE_LOOP(item, route->map) {
+        SNIMPL(socket_visitor(&item->value));
+    }
+    return 0;
+}
+
+int prepare_websockets(config_main_t *config, config_Route_t *root) {
+    SNIMPL(socket_visitor(&config->Routing));
+    LINFO("Websocket connections complete");
+    return 0;
+}
+

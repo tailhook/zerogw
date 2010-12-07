@@ -4,16 +4,16 @@
 #include <time.h>
 #include "config.h"
 
-extern config_main_t config;
-
-#define LOG_EMERG   0
-#define LOG_ALERT   1
-#define LOG_CRIT    2
-#define LOG_ERR     3
-#define LOG_WARN    4
-#define LOG_NOTICE  5
-#define LOG_INFO    6
-#define LOG_DEBUG   7
+typedef enum {
+    LOG_EMERG,
+    LOG_ALERT,
+    LOG_CRIT,
+    LOG_ERR,
+    LOG_WARN,
+    LOG_NOTICE,
+    LOG_INFO,
+    LOG_DEBUG,
+} loglevel_t;
 
 typedef enum {
     WT_LASTPRINT,
@@ -22,8 +22,7 @@ typedef enum {
     WT_COUNT
 } wt_index_t;
 
-#define LOGLEVEL loglevel
-#define ERRLEVEL errlevel
+#define LOGLEVEL logconfig->level
 #define LOG(level, msg, ...) if(level <= LOGLEVEL) { logmsg(level, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
 #define ASSERT_LOG(cond, level, msg, ...) if(level <= LOGLEVEL && !(cond)) { logmsg(level, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
 
@@ -78,8 +77,7 @@ typedef enum {
 #define ADEBUG2(cond, msg, ...)
 #endif
 
-extern int loglevel;
-extern int errlevel;
+extern config_logging_t *logconfig;
 
 void logmsg(int level, char *file, int line, char *msg, ...);
 void logstd(int level, char *file, int line, char *msg, ...);
