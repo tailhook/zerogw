@@ -53,6 +53,7 @@ void free_topic(topic_t *topic) {
         free(sub);
         sub = nsub;
         topic->table->nsubscriptions -= 1;
+        root.stat.websock_unsubscribed += 1;
     }
     if(topic->prev) {
         topic->prev->next = topic->next;
@@ -66,11 +67,13 @@ void free_topic(topic_t *topic) {
         topic->table->table[topic->hash%topic->table->hash_size] = NULL;
     }
     topic->table->ntopics -= 1;
+    root.stat.topics_removed += 1;
     free(topic);
 }
 
 void websock_stop(ws_connection_t *hint) {
     connection_t *conn = (connection_t *)hint;
+    root.stat.websock_disconnects += 1;
     
     zmq_msg_t zmsg;
     SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
@@ -93,6 +96,7 @@ void websock_stop(ws_connection_t *hint) {
             sub->topic_next->topic_prev = sub->topic_prev;
         }
         sub->topic->table->nsubscriptions -= 1;
+        root.stat.websock_unsubscribed += 1;
         if(!sub->topic->first_sub) {
             free_topic(sub->topic);
         }
@@ -104,6 +108,7 @@ void websock_stop(ws_connection_t *hint) {
 
 int websock_start(connection_t *conn, config_Route_t *route) {
     LDEBUG("Websocket started");
+    root.stat.websock_connects += 1;
     conn->route = route;
     void *sock = route->websock.forward._sock;
     SNIMPL(make_hole_uid(conn, conn->uid, root.sieve));
@@ -162,6 +167,7 @@ static topic_t *mktopic(topic_hash_t *table, char *name, int len, size_t hash) {
     if(!result) return NULL;
     result->table = table;
     result->hash = hash;
+    root.stat.websock_connects += 1;
     memcpy(result->topic, name, len);
     result->length = len;
     result->prev = NULL;
@@ -193,6 +199,7 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
         if(!table->table) return NULL;
         table->ntopics = 1;
         table->nsubscriptions = 0;
+        root.stat.topics_created += 1;
         result = mktopic(table, topic_name, topic_len, hash);
         table->table[hash % table->hash_size] = result;
         return result;
@@ -203,6 +210,7 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
         if(!create) return NULL;
         result = mktopic(table, topic_name, topic_len, hash);
         table->ntopics += 1;
+        root.stat.topics_created += 1;
         table->table[cell] = result;
         return result;
     }
@@ -218,6 +226,7 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
     }
     if(!create) return NULL;
     table->ntopics += 1;
+    root.stat.topics_created += 1;
     result = mktopic(table, topic_name, topic_len, hash);
     result->prev = current;
     current->next = result;
@@ -248,6 +257,7 @@ static bool topic_subscribe(connection_t *conn, topic_t *topic) {
     conn->last_sub = sub;
     sub->client_next = NULL;
     topic->table->nsubscriptions += 1;
+    root.stat.websock_subscribed += 1;
     LDEBUG("Subscription done, topics: %d, subscriptions: %d",
         topic->table->ntopics, topic->table->nsubscriptions);
     return TRUE;
@@ -293,6 +303,7 @@ static bool topic_unsubscribe(connection_t *conn, topic_t *topic) {
     }
     free(sub);
     topic->table->nsubscriptions -= 1;
+    root.stat.websock_unsubscribed += 1;
     return TRUE;
 }
 
@@ -315,7 +326,9 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
         zmq_msg_size(&msg->zmq), websock_message_free);
     LDEBUG("Sending %x [%d]``%.*s''", msg,
         msg->ws.length, msg->ws.length, msg->ws.data);
+    root.stat.websock_published += 1;
     for(; sub; sub = sub->topic_next) {
+        root.stat.websock_sent += 1;
         ws_message_send(&sub->connection->ws, &msg->ws);
     }
     ws_MESSAGE_DECREF(&msg->ws); // we own a single reference

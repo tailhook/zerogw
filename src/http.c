@@ -56,6 +56,7 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 goto msg_error;
             }
         }
+        root.stat.zmq_replies += 1;
         Z_RECV(msg);
         if(msg_opt) { //first is a status-line if its not last
             char *data = zmq_msg_data(&msg);
@@ -96,6 +97,7 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 Z_RECV(msg);
                 if(msg_opt) {
                     LWARN("Too many message parts");
+                    root.stat.http_replies += 1;
                     http_static_response(req,
                         &REQRCONFIG(req)->responses.internal_error);
                     goto msg_error;
@@ -107,6 +109,7 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         SNIMPL(zmq_msg_init(&req->response_msg));
         req->has_message = TRUE;
         SNIMPL(zmq_msg_move(&req->response_msg, &msg));
+        root.stat.http_replies += 1;
         SNIMPL(ws_reply_data(&req->ws, zmq_msg_data(&req->response_msg),
             zmq_msg_size(&req->response_msg)));
         sieve_empty(root.sieve, UID_HOLE(req->uid));
@@ -230,22 +233,26 @@ static int socket_visitor(config_Route_t *route) {
 }
 
 int http_request(request_t *req) {
+    root.stat.http_requests += 1;
     req->refcnt = 1;
     req->has_message = FALSE;
     req->route = NULL;
     config_Route_t *route = resolve_url(req);
 
-    if(!route) { // already replied
+    if(!route) { // already replied with error
+        root.stat.http_replies += 1;
         return 0;
     }
 
     // Let's decide whether it's static
     if(!route->zmq_forward.value_len) {
+        root.stat.http_replies += 1;
         http_static_response(req, &route->responses.default_);
         return 0;
     }
     // Ok, it's zeromq forward
     make_hole_uid(req, req->uid, root.sieve);
+    root.stat.zmq_requests += 1;
     req->socket = route->zmq_forward._sock;
     zmq_msg_t msg;
     REQ_INCREF(req);

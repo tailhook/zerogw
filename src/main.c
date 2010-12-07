@@ -13,6 +13,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <sys/time.h>
 
 #include "log.h"
 #include "config.h"
@@ -23,6 +24,55 @@
 #include "http.h"
 
 serverroot_t root;
+
+void init_statistics() {
+    // quick and dirty
+    memset(&root.stat, 0, sizeof(root.stat));
+}
+
+void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
+    ANIMPL(!(rev & EV_ERROR));
+    config_main_t *config = (config_main_t *)watch->data;
+    char buf[1024];
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    size_t len = snprintf(buf, sizeof(buf),
+        "%lu.%06d\n"
+        "http_requests: %lu\n"
+        "http_replies: %lu\n"
+        "zmq_requests: %lu\n"
+        "zmq_replies: %lu\n"
+        "websock_connects: %lu\n"
+        "websock_disconnects: %lu\n"
+        "topics_created: %lu\n"
+        "topics_removed: %lu\n"
+        "websock_subscribed: %lu\n"
+        "websock_unsubscribed: %lu\n"
+        "websock_published: %lu\n"
+        "websock_sent: %lu\n"
+        ,
+        tv.tv_sec, tv.tv_usec,
+        root.stat.http_requests,
+        root.stat.http_replies,
+        root.stat.zmq_requests,
+        root.stat.zmq_replies,
+        root.stat.websock_connects,
+        root.stat.websock_disconnects,
+        root.stat.topics_created,
+        root.stat.topics_removed,
+        root.stat.websock_subscribed,
+        root.stat.websock_unsubscribed,
+        root.stat.websock_published,
+        root.stat.websock_sent
+        );
+    zmq_msg_t msg;
+    SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
+    SNIMPL(zmq_send(config->Server.status_socket._sock, &msg, ZMQ_SNDMORE));
+    SNIMPL(zmq_msg_init_size(&msg, len));
+    memcpy(zmq_msg_data(&msg), buf, len);
+    SNIMPL(zmq_send(config->Server.status_socket._sock, &msg, 0));
+    LDEBUG("STATISTICS ``%s''", buf);
+}
 
 int main(int argc, char **argv) {
     config_main_t config;
@@ -62,9 +112,18 @@ int main(int argc, char **argv) {
     // Probably here is a place to fork! :)
     
     init_uid();
+    init_statistics();
     root.zmq = zmq_init(config.Server.zmq_io_threads);
-    SNIMPL(zmq_open(&config.Server.status_socket,
-        ZMASK_PUB|ZMASK_PUSH, ZMQ_PUB, NULL, NULL));
+    
+    struct ev_timer status_timer;
+    if(config.Server.status_socket.value_len) {
+        SNIMPL(zmq_open(&config.Server.status_socket,
+            ZMASK_PUB|ZMASK_PUSH, ZMQ_PUB, NULL, NULL));
+        status_timer.data = &config;
+        ev_timer_init(&status_timer, flush_statistics,
+            config.Server.status_interval, config.Server.status_interval);
+        ev_timer_start(root.loop, &status_timer);
+    }
 
     sieve_prepare(&root.sieve, config.Server.max_requests);
     SNIMPL(prepare_http(&config, &config.Routing));
