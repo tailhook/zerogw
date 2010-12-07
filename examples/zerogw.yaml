@@ -3,11 +3,12 @@ Server:
   listen:
     - host: 0.0.0.0
       port: 8000
-  status-socket: !zmq.Bind ipc:///tmp/zerogw
+  status-socket:
+    - !zmq.Bind ipc:///tmp/zerogw
 
 Globals:
-  logging:
-    level: 5
+  error-log:
+    level: 7
 
 Routing:
   routing: !Suffix ~
@@ -86,10 +87,11 @@ Routing:
                         <input type="button" id="sendbtn" value="SEND">
                     <div id="output"></div>
                     </html>
-            "/echo":
+            "/echo*":
               zmq-forward:
                 - !zmq.Bind "tcp://127.0.0.1:7001"
               zmq-contents:
+                - !Uri ~
                 - !Body ~
               websock:
                 forward:

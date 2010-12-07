@@ -38,12 +38,24 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     while(TRUE) {
         Z_SEQ_INIT(msg, route->zmq_forward._sock);
         Z_RECV_START(msg, break);
-        request_t *req = sieve_get(root.sieve, UID_HOLE(zmq_msg_data(&msg)));
-        if(!req || !UID_EQ(req->uid, zmq_msg_data(&msg))) {
+        if(zmq_msg_size(&msg) != UID_LEN) {
+            LWARN("Wrong uid length %d", zmq_msg_size(&msg));
             goto msg_error;
         }
-        Z_RECV_NEXT(msg);
-        ANIMPL(zmq_msg_size(&msg) == 0); // The sentinel of routing data
+        request_t *req = sieve_get(root.sieve, UID_HOLE(zmq_msg_data(&msg)));
+        if(!req || !UID_EQ(req->uid, zmq_msg_data(&msg))) {
+            LWARN("Wrong uid [%d]``%.*s'' (%x)", zmq_msg_size(&msg),
+                zmq_msg_size(&msg), zmq_msg_data(&msg),
+                UID_HOLE(zmq_msg_data(&msg)));
+            goto msg_error;
+        }
+        if(route->zmq_forward.kind == CONFIG_zmq_Req
+            || route->zmq_forward.kind == CONFIG_auto) {
+            Z_RECV_NEXT(msg);
+            if(zmq_msg_size(&msg)) { // The sentinel of routing data
+                goto msg_error;
+            }
+        }
         Z_RECV(msg);
         if(msg_opt) { //first is a status-line if its not last
             char *data = zmq_msg_data(&msg);
@@ -236,11 +248,13 @@ int http_request(request_t *req) {
     make_hole_uid(req, req->uid, root.sieve);
     req->socket = route->zmq_forward._sock;
     zmq_msg_t msg;
-    SNIMPL(zmq_msg_init_size(&msg, 16));
-    LDEBUG("Preparing %d bytes", zmq_msg_size(&msg));
-    memcpy(zmq_msg_data(&msg), req->uid, UID_LEN);
+    REQ_INCREF(req);
+    SNIMPL(zmq_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
     SNIMPL(zmq_send(req->socket, &msg, ZMQ_SNDMORE));
-    SNIMPL(zmq_msg_close(&msg));
+    if(route->zmq_forward.kind == CONFIG_zmq_Req
+        || route->zmq_forward.kind == CONFIG_auto) {
+        SNIMPL(zmq_send(req->socket, &msg, ZMQ_SNDMORE)); // empty sentinel
+    }
     config_a_RequestField_t *contents = route->zmq_contents;
     ANIMPL(contents);
     for(config_a_RequestField_t *item=contents; item; item = item->head.next) {
