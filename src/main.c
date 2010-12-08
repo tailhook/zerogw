@@ -41,7 +41,9 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         "http_requests: %lu\n"
         "http_replies: %lu\n"
         "zmq_requests: %lu\n"
+        "zmq_retries: %lu\n"
         "zmq_replies: %lu\n"
+        "zmq_orphan_replies: %lu\n"
         "websock_connects: %lu\n"
         "websock_disconnects: %lu\n"
         "topics_created: %lu\n"
@@ -55,7 +57,9 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.http_requests,
         root.stat.http_replies,
         root.stat.zmq_requests,
+        root.stat.zmq_retries,
         root.stat.zmq_replies,
+        root.stat.zmq_orphan_replies,
         root.stat.websock_connects,
         root.stat.websock_disconnects,
         root.stat.topics_created,
@@ -67,10 +71,11 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         );
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-    SNIMPL(zmq_send(config->Server.status_socket._sock, &msg, ZMQ_SNDMORE));
+    SNIMPL(zmq_send(config->Server.status_socket._sock, &msg,
+        ZMQ_SNDMORE|ZMQ_NOBLOCK));
     SNIMPL(zmq_msg_init_size(&msg, len));
     memcpy(zmq_msg_data(&msg), buf, len);
-    SNIMPL(zmq_send(config->Server.status_socket._sock, &msg, 0));
+    SNIMPL(zmq_send(config->Server.status_socket._sock, &msg, ZMQ_NOBLOCK));
     LDEBUG("STATISTICS ``%s''", buf);
 }
 

@@ -11,6 +11,24 @@ __meta__:
 
 __types__:
 
+  retrymode:
+    __tags__:
+      __property__: mode
+      __default__: NoRetry
+      NoRetry: 0
+      RetryFirst: 1
+      RetryLast: 2
+    __value__: !Int
+      min: 0
+      default: 0
+      max: 100
+      description: >
+        Maximum number of times request will be retried. RetryFirst tag means
+        first response that will reply on the request will be used. RetryLast
+        means that if response is timed out it will not be used, even if it will
+        be answered before the second attempt is answered. Technically latter
+        works by changing request id when the response is timed out.
+
   zmqaddr:
     __tags__:
       __property__: kind
@@ -128,6 +146,13 @@ __types__:
       max-body-size: !Int
         min: 0
         default: 65536 # 64k
+    timeout: !Int
+      min: 0
+      default: 0
+      description: >
+        Max number of seconds request can be served, before retrying or
+        sending `gateway-timeout` error
+    retry: !Struct retrymode
     responses: &responses
       default: !Struct StaticResponse
       maintainance: !Struct StaticResponse
@@ -135,6 +160,7 @@ __types__:
       method-not-allowed: !Struct StaticResponse
       internal-error: !Struct StaticResponse
       service-unavailable: !Struct StaticResponse
+      gateway-timeout: !Struct StaticResponse
     maintainance: !Int 0
 
     zmq-forward: !Struct zmqsocket

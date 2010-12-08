@@ -8,9 +8,9 @@
 
 typedef struct request_s {
     ws_request_t ws;
+    struct ev_timer timeout;
     config_Route_t *route;
     char uid[UID_LEN];
-    void *socket;
     int refcnt;
     bool has_message;
     zmq_msg_t response_msg;

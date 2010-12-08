@@ -26,7 +26,9 @@ typedef struct statistics_s {
     size_t http_requests;
     size_t http_replies;
     size_t zmq_requests;
+    size_t zmq_retries;
     size_t zmq_replies;
+    size_t zmq_orphan_replies;
     size_t websock_connects;
     size_t websock_disconnects;
     size_t topics_created;

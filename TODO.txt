@@ -1,4 +1,6 @@
  * Timeouts
+ * Maintainance page
+ * Allowed methods
  * Add access logging
  * Serving static
  * Authentication and simple authorization

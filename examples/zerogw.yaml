@@ -88,6 +88,7 @@ Routing:
                     <div id="output"></div>
                     </html>
             "/echo*":
+              timeout: 5
               zmq-forward:
                 - !zmq.Bind "tcp://127.0.0.1:7001"
               zmq-contents:
