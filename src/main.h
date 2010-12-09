@@ -8,9 +8,6 @@
 #include "zutils.h"
 #include "uidgen.h"
 
-#define REQ_DECREF(req) if(!--(req)->refcnt) { ws_request_free(&(req)->ws); }
-#define REQ_INCREF(req) (++(req)->refcnt)
-
 typedef struct ev_loop *evloop_t;
 typedef struct ev_io watch_t;
 

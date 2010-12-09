@@ -88,7 +88,9 @@ Routing:
                     <div id="output"></div>
                     </html>
             "/echo*":
-              timeout: 5
+              timeout: 2
+              retry: !RetryFirst
+                count: 3
               zmq-forward:
                 - !zmq.Bind "tcp://127.0.0.1:7001"
               zmq-contents:

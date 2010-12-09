@@ -23,9 +23,6 @@ void request_decref(void *_data, void *request) {
 }
 
 int http_request_finish(request_t *req) {
-    if(req->has_message) {
-        zmq_msg_close(&req->response_msg);
-    }
     REQ_DECREF(req);
     return 1;
 }
@@ -44,6 +41,7 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         }
         request_t *req = sieve_get(root.sieve, UID_HOLE(zmq_msg_data(&msg)));
         if(!req || !UID_EQ(req->uid, zmq_msg_data(&msg))) {
+            root.stat.zmq_orphan_replies += 1;
             LWARN("Wrong uid [%d]``%.*s'' (%x)", zmq_msg_size(&msg),
                 zmq_msg_size(&msg), zmq_msg_data(&msg),
                 UID_HOLE(zmq_msg_data(&msg)));
@@ -97,25 +95,25 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 Z_RECV(msg);
                 if(msg_opt) {
                     LWARN("Too many message parts");
-                    root.stat.http_replies += 1;
                     http_static_response(req,
                         &REQRCONFIG(req)->responses.internal_error);
+                    request_finish(req);
                     goto msg_error;
                 }
             }
+        } else {
+            ws_statusline(&req->ws, "200 OK");
         }
+        ws_finish_headers(&req->ws);
         // the last part is always a body
-        if(req->timeout.active) {
-            ev_timer_stop(root.loop, &req->timeout);
-        }
-        ANIMPL(!req->has_message);
+        ANIMPL(!(req->flags & REQ_HAS_MESSAGE));
         SNIMPL(zmq_msg_init(&req->response_msg));
-        req->has_message = TRUE;
+        req->flags |= REQ_HAS_MESSAGE;
         SNIMPL(zmq_msg_move(&req->response_msg, &msg));
-        root.stat.http_replies += 1;
         SNIMPL(ws_reply_data(&req->ws, zmq_msg_data(&req->response_msg),
             zmq_msg_size(&req->response_msg)));
-        sieve_empty(root.sieve, UID_HOLE(req->uid));
+        req->flags |= REQ_REPLIED;
+        request_finish(req);
     msg_finish:
         Z_SEQ_FINISH(msg);
         continue;
@@ -235,42 +233,8 @@ static int socket_visitor(config_Route_t *route) {
     return 0;
 }
 
-static void request_timeout(struct ev_loop *_, struct ev_timer *tm, int rev) {
-    ANIMPL(!(rev & EV_ERROR));
-    LWARN("Response timed out");
-    request_t *req = (request_t *)((char *)tm - offsetof(request_t, timeout));
-    if(req->route->retry.mode == CONFIG_NoRetry) {
-        sieve_empty(root.sieve, UID_HOLE(req->uid));
-        root.stat.http_replies += 1;
-        http_static_response(req, &req->route->responses.gateway_timeout);
-        return;
-    }
-    LNIMPL("Retrying request is not implemented");
-}
-
-int http_request(request_t *req) {
-    root.stat.http_requests += 1;
-    req->refcnt = 1;
-    req->has_message = FALSE;
-    req->route = NULL;
-    req->timeout.active = 0;
-    config_Route_t *route = resolve_url(req);
-
-    if(!route) { // already replied with error
-        root.stat.http_replies += 1;
-        return 0;
-    }
-
-    // Let's decide whether it's static
-    if(!route->zmq_forward.value_len) {
-        root.stat.http_replies += 1;
-        http_static_response(req, &route->responses.default_);
-        return 0;
-    }
-    // Ok, it's zeromq forward
-    make_hole_uid(req, req->uid, root.sieve);
-    root.stat.zmq_requests += 1;
-    req->route = route;
+static int do_forward(request_t *req) {
+    config_Route_t *route = req->route;
     void *sock = route->zmq_forward._sock;
     zmq_msg_t msg;
     REQ_INCREF(req);
@@ -279,11 +243,14 @@ int http_request(request_t *req) {
         root.stat.http_replies += 1;
         if(errno == EAGAIN) {
             http_static_response(req, &route->responses.service_unavailable);
-            return 0;
+            request_finish(req);
+            return -1;
         } else {
+            LDEBUG("Can't forward request");
             SWARN2("Can't forward request");
             http_static_response(req, &route->responses.internal_error);
-            return 0;
+            request_finish(req);
+            return -1;
         }
     }
     if(route->zmq_forward.kind == CONFIG_zmq_Req
@@ -302,10 +269,69 @@ int http_request(request_t *req) {
             (item->head.next ? ZMQ_SNDMORE : 0)|ZMQ_NOBLOCK));
         SNIMPL(zmq_msg_close(&msg));
     }
-    if(route->timeout) {
-        ev_timer_init(&req->timeout, request_timeout,
-            route->timeout, 0);
-        ev_timer_start(root.loop, &req->timeout);
+    return 0;
+}
+
+static void request_timeout(struct ev_loop *loop, struct ev_timer *tm, int rev){
+    ANIMPL(!(rev & EV_ERROR));
+    request_t *req = (request_t *)((char *)tm - offsetof(request_t, timeout));
+    int mode = req->route->retry.mode;
+    if(++req->retries >= req->route->retry.count) {
+        mode = CONFIG_NoRetry;
+    }
+    switch(mode) {
+        case CONFIG_NoRetry:
+            http_static_response(req, &req->route->responses.gateway_timeout);
+            request_finish(req);
+            return;
+        case CONFIG_RetryFirst:
+            ANIMPL(req->flags & REQ_IN_SIEVE);
+            root.stat.zmq_retries += 1;
+            if(!do_forward(req)) {
+                ev_timer_again(loop, &req->timeout);
+            }
+            return;
+        case CONFIG_RetryLast:
+            ANIMPL(req->flags & REQ_IN_SIEVE);
+            sieve_empty(root.sieve, UID_HOLE(req->uid));
+            make_hole_uid(req, req->uid, root.sieve);
+            root.stat.zmq_retries += 1;
+            if(!do_forward(req)) {
+                ev_timer_again(loop, &req->timeout);
+            }
+            return;
+        default:
+            LNIMPL("Wrong retry mode");
+    }
+}
+
+int http_request(request_t *req) {
+    request_init(req);
+    root.stat.http_requests += 1;
+    config_Route_t *route = resolve_url(req);
+
+    if(!route) { // already replied with error
+        request_finish(req);
+        return 0;
+    }
+
+    // Let's decide whether it's static
+    if(!route->zmq_forward.value_len) {
+        http_static_response(req, &route->responses.default_);
+        request_finish(req);
+        return 0;
+    }
+    // Ok, it's zeromq forward
+    make_hole_uid(req, req->uid, root.sieve);
+    req->flags |= REQ_IN_SIEVE;
+    root.stat.zmq_requests += 1;
+    req->route = route;
+    if(!do_forward(req)) {
+        if(route->timeout) {
+            ev_timer_init(&req->timeout, request_timeout,
+                route->timeout, route->timeout);
+            ev_timer_start(root.loop, &req->timeout);
+        }
     }
     return 0;
 }

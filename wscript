@@ -27,6 +27,7 @@ def build(bld):
             'src/http.c',
             'src/resolve.c',
             'src/uidgen.c',
+            'src/request.c',
             ],
         target       = 'zerogw',
         includes     = ['src'],

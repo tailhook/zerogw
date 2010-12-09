@@ -33,7 +33,7 @@ void init_statistics() {
 void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     ANIMPL(!(rev & EV_ERROR));
     config_main_t *config = (config_main_t *)watch->data;
-    char buf[1024];
+    char buf[4096];
     struct timeval tv;
     gettimeofday(&tv, NULL);
     size_t len = snprintf(buf, sizeof(buf),

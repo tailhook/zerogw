@@ -18,7 +18,7 @@ __types__:
       NoRetry: 0
       RetryFirst: 1
       RetryLast: 2
-    __value__: !Int
+    count: !Int
       min: 0
       default: 0
       max: 100

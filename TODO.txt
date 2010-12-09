@@ -9,3 +9,4 @@
  * HTTPS
  * Add server name-version header
  * Update waf
+ * Check server in low memory, and requests > max conditions

@@ -404,10 +404,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
 }
 
 int start_websocket(request_t *req) {
-    req->refcnt = 1;
-    req->has_message = FALSE;
-    req->route = NULL;
-    req->timeout.active = 0;
+    request_init(req);
     config_Route_t *route = resolve_url(req);
     if(!route->websock.subscribe.value_len
         || !route->websock.forward.value_len) {
