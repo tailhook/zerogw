@@ -8,7 +8,8 @@ Server:
 
 Globals:
   error-log:
-    level: 7
+    level: 5
+    warning-timeout: 300
 
 Routing:
   routing: !Suffix ~

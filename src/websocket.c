@@ -365,7 +365,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             connection_t *conn = find_connection(&msg);
             if(!conn) goto msg_error;
             if(conn->route != route) {
-                LWARN("Connection has wrong route, skipping...");
+                TWARN("Connection has wrong route, skipping...");
                 goto msg_error;
             }
             Z_RECV_LAST(msg);
@@ -391,7 +391,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 free_topic(topic);
             }
         } else {
-            LWARN("Wrong command [%d]``%s''", cmdlen, cmd);
+            TWARN("Wrong command [%d]``%s''", cmdlen, cmd);
             goto msg_error;
         }
     msg_finish:

@@ -36,13 +36,13 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         Z_SEQ_INIT(msg, route->zmq_forward._sock);
         Z_RECV_START(msg, break);
         if(zmq_msg_size(&msg) != UID_LEN) {
-            LWARN("Wrong uid length %d", zmq_msg_size(&msg));
+            TWARN("Wrong uid length %d", zmq_msg_size(&msg));
             goto msg_error;
         }
         request_t *req = sieve_get(root.sieve, UID_HOLE(zmq_msg_data(&msg)));
         if(!req || !UID_EQ(req->uid, zmq_msg_data(&msg))) {
             root.stat.zmq_orphan_replies += 1;
-            LWARN("Wrong uid [%d]``%.*s'' (%x)", zmq_msg_size(&msg),
+            TWARN("Wrong uid [%d]``%.*s'' (%x)", zmq_msg_size(&msg),
                 zmq_msg_size(&msg), zmq_msg_data(&msg),
                 UID_HOLE(zmq_msg_data(&msg)));
             goto msg_error;
@@ -88,13 +88,13 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                     }
                 }
                 if(name < end) {
-                    LWARN("Some garbage at end of headers. "
+                    TWARN("Some garbage at end of headers. "
                           "Please finish each name and each value "
                           "with '\\0' character");
                 }
                 Z_RECV(msg);
                 if(msg_opt) {
-                    LWARN("Too many message parts");
+                    TWARN("Too many message parts");
                     http_static_response(req,
                         &REQRCONFIG(req)->responses.internal_error);
                     request_finish(req);

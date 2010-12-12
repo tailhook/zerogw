@@ -1,4 +1,3 @@
- * Timeouts
  * Maintainance page
  * Allowed methods
  * Add access logging
