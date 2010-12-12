@@ -3,7 +3,6 @@
  * Add access logging
  * Serving static
  * Authentication and simple authorization
- * Implement status requests
  * Configuration reloading
  * HTTPS
  * Add server name-version header
