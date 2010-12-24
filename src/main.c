@@ -52,6 +52,8 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         "websock_unsubscribed: %lu\n"
         "websock_published: %lu\n"
         "websock_sent: %lu\n"
+        "disk_reads: %lu\n"
+        "disk_bytes_read: %lu\n"
         ,
         tv.tv_sec, tv.tv_usec,
         root.stat.http_requests,
@@ -67,22 +69,24 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_subscribed,
         root.stat.websock_unsubscribed,
         root.stat.websock_published,
-        root.stat.websock_sent
+        root.stat.websock_sent,
+        root.stat.disk_reads,
+        root.stat.disk_bytes_read
         );
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-    SNIMPL(zmq_send(config->Server.status_socket._sock, &msg,
+    SNIMPL(zmq_send(config->Server.status.socket._sock, &msg,
         ZMQ_SNDMORE|ZMQ_NOBLOCK));
     SNIMPL(zmq_msg_init_size(&msg, len));
     memcpy(zmq_msg_data(&msg), buf, len);
-    SNIMPL(zmq_send(config->Server.status_socket._sock, &msg, ZMQ_NOBLOCK));
+    SNIMPL(zmq_send(config->Server.status.socket._sock, &msg, ZMQ_NOBLOCK));
     LDEBUG("STATISTICS ``%s''", buf);
 }
 
 int main(int argc, char **argv) {
     config_main_t config;
     config_load(&config, argc, argv);
-    logconfig = &config.Globals.error_log;
+    logconfig = (config_logging_t *)&config.Server.error_log;
 
     signal(SIGHUP, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
@@ -121,16 +125,16 @@ int main(int argc, char **argv) {
     root.zmq = zmq_init(config.Server.zmq_io_threads);
     
     struct ev_timer status_timer;
-    if(config.Server.status_socket.value_len) {
-        SNIMPL(zmq_open(&config.Server.status_socket,
+    if(config.Server.status.socket.value_len) {
+        SNIMPL(zmq_open(&config.Server.status.socket,
             ZMASK_PUB|ZMASK_PUSH, ZMQ_PUB, NULL, NULL));
         status_timer.data = &config;
         ev_timer_init(&status_timer, flush_statistics,
-            config.Server.status_interval, config.Server.status_interval);
+            config.Server.status.interval, config.Server.status.interval);
         ev_timer_start(root.loop, &status_timer);
     }
 
-    sieve_prepare(&root.sieve, config.Server.max_requests);
+    sieve_prepare(&root.sieve, config.Server.max_connections);
     SNIMPL(prepare_http(&config, &config.Routing));
     SNIMPL(prepare_websockets(&config, &config.Routing));
 

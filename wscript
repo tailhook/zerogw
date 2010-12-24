@@ -3,7 +3,7 @@
 import yaml
 
 APPNAME='zerogw'
-VERSION='0.4'
+VERSION='0.5'
 
 top = '.'
 out = 'build'

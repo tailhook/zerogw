@@ -3,10 +3,9 @@ Server:
   listen:
     - host: 0.0.0.0
       port: 8000
-  status-socket:
+  status:
+    socket:
     - !zmq.Bind ipc:///tmp/zerogw
-
-Globals:
   error-log:
     level: 5
     warning-timeout: 300
@@ -89,15 +88,16 @@ Routing:
                     <div id="output"></div>
                     </html>
             "/echo*":
-              timeout: 2
-              retry: !RetryFirst
-                count: 3
               zmq-forward:
+                socket:
                 - !zmq.Bind "tcp://127.0.0.1:7001"
-              zmq-contents:
+                contents:
                 - !Uri ~
                 - !Body ~
-              websock:
+                timeout: 2
+                retry: !RetryFirst
+                  count: 3
+              websocket:
                 forward:
                 - !zmq.Bind "tcp://127.0.0.1:7002"
                 subscribe:

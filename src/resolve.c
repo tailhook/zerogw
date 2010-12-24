@@ -49,7 +49,7 @@ config_Route_t *resolve_url(request_t *req) {
     }
 
     config_Route_t *route = &REQCONFIG(req)->Routing;
-    while(route->routing.kind != CONFIG_Leaf) {
+    while(route->_child_match) {
         const char *data = get_field(req, &route->routing_by, NULL);
         LDEBUG("Matching ``%s'' by %d", data, route->routing.kind);
         size_t tmp;

@@ -1,5 +1,5 @@
  * Maintainance page
- * Allowed methods
+ * Allowed methods, and max-body-size
  * Add access logging
  * Serving static
  * Authentication and simple authorization

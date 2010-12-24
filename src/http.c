@@ -31,9 +31,9 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     ANIMPL(!(revents & EV_ERROR));
     
     config_Route_t *route = (config_Route_t *)((char *)watch
-        - offsetof(config_Route_t, zmq_forward._watch));
+        - offsetof(config_Route_t, zmq_forward.socket._watch));
     while(TRUE) {
-        Z_SEQ_INIT(msg, route->zmq_forward._sock);
+        Z_SEQ_INIT(msg, route->zmq_forward.socket._sock);
         Z_RECV_START(msg, break);
         if(zmq_msg_size(&msg) != UID_LEN) {
             TWARN("Wrong uid length %d", zmq_msg_size(&msg));
@@ -47,8 +47,8 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 UID_HOLE(zmq_msg_data(&msg)));
             goto msg_error;
         }
-        if(route->zmq_forward.kind == CONFIG_zmq_Req
-            || route->zmq_forward.kind == CONFIG_auto) {
+        if(route->zmq_forward.socket.kind == CONFIG_zmq_Req
+            || route->zmq_forward.socket.kind == CONFIG_auto) {
             Z_RECV_NEXT(msg);
             if(zmq_msg_size(&msg)) { // The sentinel of routing data
                 goto msg_error;
@@ -124,11 +124,12 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
 }
 
 static int socket_visitor(config_Route_t *route) {
-    if(route->zmq_forward.value_len) {
-        SNIMPL(zmq_open(&route->zmq_forward, ZMASK_REQ, ZMQ_XREQ,
+    if(route->zmq_forward.socket.value_len) {
+        SNIMPL(zmq_open(&route->zmq_forward.socket, ZMASK_REQ, ZMQ_XREQ,
             http_process, root.loop));
     }
-    if(route->routing.kind) {
+    route->_child_match = NULL;
+    if(route->routing.kind && (route->map_len || route->children_len)) {
         switch(route->routing.kind) {
         case CONFIG_Exact:
             route->_child_match = ws_match_new();
@@ -235,7 +236,7 @@ static int socket_visitor(config_Route_t *route) {
 
 static int do_forward(request_t *req) {
     config_Route_t *route = req->route;
-    void *sock = route->zmq_forward._sock;
+    void *sock = route->zmq_forward.socket._sock;
     zmq_msg_t msg;
     REQ_INCREF(req);
     SNIMPL(zmq_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
@@ -253,11 +254,11 @@ static int do_forward(request_t *req) {
             return -1;
         }
     }
-    if(route->zmq_forward.kind == CONFIG_zmq_Req
-        || route->zmq_forward.kind == CONFIG_auto) {
+    if(route->zmq_forward.socket.kind == CONFIG_zmq_Req
+        || route->zmq_forward.socket.kind == CONFIG_auto) {
         SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK)); // empty sentinel
     }
-    config_a_RequestField_t *contents = route->zmq_contents;
+    config_a_RequestField_t *contents = route->zmq_forward.contents;
     ANIMPL(contents);
     for(config_a_RequestField_t *item=contents; item; item = item->head.next) {
         size_t len;
@@ -275,8 +276,8 @@ static int do_forward(request_t *req) {
 static void request_timeout(struct ev_loop *loop, struct ev_timer *tm, int rev){
     ANIMPL(!(rev & EV_ERROR));
     request_t *req = (request_t *)((char *)tm - offsetof(request_t, timeout));
-    int mode = req->route->retry.mode;
-    if(++req->retries >= req->route->retry.count) {
+    int mode = req->route->zmq_forward.retry.mode;
+    if(++req->retries >= req->route->zmq_forward.retry.count) {
         mode = CONFIG_NoRetry;
     }
     switch(mode) {
@@ -316,7 +317,7 @@ int http_request(request_t *req) {
     }
 
     // Let's decide whether it's static
-    if(!route->zmq_forward.value_len) {
+    if(!route->zmq_forward.socket.value_len) {
         http_static_response(req, &route->responses.default_);
         request_finish(req);
         return 0;
@@ -327,9 +328,9 @@ int http_request(request_t *req) {
     root.stat.zmq_requests += 1;
     req->route = route;
     if(!do_forward(req)) {
-        if(route->timeout) {
+        if(route->zmq_forward.timeout) {
             ev_timer_init(&req->timeout, request_timeout,
-                route->timeout, route->timeout);
+                route->zmq_forward.timeout, route->zmq_forward.timeout);
             ev_timer_start(root.loop, &req->timeout);
         }
     }

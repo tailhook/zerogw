@@ -78,12 +78,12 @@ void websock_stop(ws_connection_t *hint) {
     zmq_msg_t zmsg;
     SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
     memcpy(zmq_msg_data(&zmsg), conn->uid, UID_LEN);
-    SNIMPL(zmq_send(conn->route->websock.forward._sock, &zmsg,
+    SNIMPL(zmq_send(conn->route->websocket.forward._sock, &zmsg,
         ZMQ_SNDMORE|ZMQ_NOBLOCK));
     SNIMPL(zmq_msg_init_data(&zmsg, "disconnect", 10, NULL, NULL));
-    SNIMPL(zmq_send(conn->route->websock.forward._sock, &zmsg, ZMQ_NOBLOCK));
+    SNIMPL(zmq_send(conn->route->websocket.forward._sock, &zmsg, ZMQ_NOBLOCK));
     LDEBUG("Websocket sent disconnect to 0x%x",
-        conn->route->websock.forward._sock);
+        conn->route->websocket.forward._sock);
     
     for(subscriber_t *sub = conn->first_sub; sub;) {
         if(!sub->topic_prev) {
@@ -111,7 +111,7 @@ int websock_start(connection_t *conn, config_Route_t *route) {
     LDEBUG("Websocket started");
     root.stat.websock_connects += 1;
     conn->route = route;
-    void *sock = route->websock.forward._sock;
+    void *sock = route->websocket.forward._sock;
     SNIMPL(make_hole_uid(conn, conn->uid, root.sieve));
     conn->first_sub = NULL;
     conn->last_sub = NULL;
@@ -133,7 +133,7 @@ void websock_free_message(void *data, void *hint) {
 
 int websock_message(connection_t *conn, message_t *msg) {
     ws_MESSAGE_INCREF(&msg->ws);
-    void *sock = conn->route->websock.forward._sock;
+    void *sock = conn->route->websocket.forward._sock;
     zmq_msg_t zmsg;
     SNIMPL(zmq_msg_init_data(&zmsg, conn->uid, UID_LEN, NULL, NULL));
     SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK));
@@ -183,20 +183,20 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
     int topic_len = zmq_msg_size(msg);
     size_t hash = topic_hash(topic_name, topic_len);
     topic_t *result;
-    topic_hash_t *table = route->_websock_topics;
-    if(!route->_websock_topics) {
+    topic_hash_t *table = route->websocket._topics;
+    if(!route->websocket._topics) {
         if(!create) return NULL;
         table = malloc(sizeof(topic_hash_t));
         if(!table) return NULL;
         bzero(table, sizeof(topic_hash_t));
-        route->_websock_topics = table;
+        route->websocket._topics = table;
     }
     if(!table->table) {
         if(!create) return NULL;
-        table->hash_size = route->websock.topic_hash_size;
+        table->hash_size = route->websocket.topic_hash_size;
         table->table = (topic_t **)malloc(
-            route->websock.topic_hash_size*sizeof(topic_t*));
-        bzero(table->table, route->websock.topic_hash_size*sizeof(topic_t*));
+            route->websocket.topic_hash_size*sizeof(topic_t*));
+        bzero(table->table, route->websocket.topic_hash_size*sizeof(topic_t*));
         if(!table->table) return NULL;
         table->ntopics = 1;
         table->nsubscriptions = 0;
@@ -339,11 +339,11 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
 void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     ANIMPL(!(revents & EV_ERROR));
     config_Route_t *route = (config_Route_t *)((char *)watch
-        - offsetof(config_Route_t, websock.subscribe._watch));
+        - offsetof(config_Route_t, websocket.subscribe._watch));
     size_t opt, optlen = sizeof(opt);
-    SNIMPL(zmq_getsockopt(route->websock.subscribe._sock, ZMQ_EVENTS, &opt, &optlen));
+    SNIMPL(zmq_getsockopt(route->websocket.subscribe._sock, ZMQ_EVENTS, &opt, &optlen));
     while(TRUE) {
-        Z_SEQ_INIT(msg, route->websock.subscribe._sock);
+        Z_SEQ_INIT(msg, route->websocket.subscribe._sock);
         Z_RECV_START(msg, break);
         char *cmd = zmq_msg_data(&msg);
         int cmdlen = zmq_msg_size(&msg);
@@ -406,8 +406,8 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
 int start_websocket(request_t *req) {
     request_init(req);
     config_Route_t *route = resolve_url(req);
-    if(!route->websock.subscribe.value_len
-        || !route->websock.forward.value_len) {
+    if(!route->websocket.subscribe.value_len
+        || !route->websocket.forward.value_len) {
         return -1;
     }
     return websock_start((connection_t *)req->ws.conn, route);
@@ -417,41 +417,41 @@ static void heartbeat(struct ev_loop *loop,
     struct ev_timer *watch, int revents) {
     ANIMPL(!(revents & EV_ERROR));
     config_Route_t *route = (config_Route_t *)((char *)watch
-        - offsetof(config_Route_t, websock._heartbeat_timer));
+        - offsetof(config_Route_t, websocket._heartbeat_timer));
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-    SNIMPL(zmq_send(route->websock.forward._sock, &msg,
+    SNIMPL(zmq_send(route->websocket.forward._sock, &msg,
         ZMQ_SNDMORE|ZMQ_NOBLOCK));
     SNIMPL(zmq_msg_init_data(&msg, "heartbeat", 9, NULL, NULL));
-    SNIMPL(zmq_send(route->websock.forward._sock, &msg, ZMQ_NOBLOCK));
+    SNIMPL(zmq_send(route->websocket.forward._sock, &msg, ZMQ_NOBLOCK));
     SNIMPL(zmq_msg_close(&msg));
 }
 
 static int socket_visitor(config_Route_t *route) {
-    if(route->websock.subscribe.value_len) {
-        SNIMPL(zmq_open(&route->websock.subscribe,
+    if(route->websocket.subscribe.value_len) {
+        SNIMPL(zmq_open(&route->websocket.subscribe,
             ZMASK_PULL|ZMASK_SUB, ZMQ_SUB, websock_process, root.loop));
-        if(route->websock.subscribe.kind == CONFIG_zmq_Sub
-            || route->websock.subscribe.kind == CONFIG_auto) {
-            SNIMPL(zmq_setsockopt(route->websock.subscribe._sock,
+        if(route->websocket.subscribe.kind == CONFIG_zmq_Sub
+            || route->websocket.subscribe.kind == CONFIG_auto) {
+            SNIMPL(zmq_setsockopt(route->websocket.subscribe._sock,
                 ZMQ_SUBSCRIBE, NULL, 0));
         }
     }
-    if(route->websock.forward.value_len) {
-        SNIMPL(zmq_open(&route->websock.forward,
+    if(route->websocket.forward.value_len) {
+        SNIMPL(zmq_open(&route->websocket.forward,
             ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, NULL, NULL));
         zmq_msg_t msg;
         SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-        SNIMPL(zmq_send(route->websock.forward._sock, &msg,
+        SNIMPL(zmq_send(route->websocket.forward._sock, &msg,
             ZMQ_SNDMORE|ZMQ_NOBLOCK));
         SNIMPL(zmq_msg_init_data(&msg, "ready", 5, NULL, NULL));
-        SNIMPL(zmq_send(route->websock.forward._sock, &msg, ZMQ_NOBLOCK));
+        SNIMPL(zmq_send(route->websocket.forward._sock, &msg, ZMQ_NOBLOCK));
         SNIMPL(zmq_msg_close(&msg));
-        if(route->websock.heartbeat_interval) {
-            ev_timer_init(&route->websock._heartbeat_timer, heartbeat,
-                route->websock.heartbeat_interval,
-                route->websock.heartbeat_interval);
-            ev_timer_start(root.loop, &route->websock._heartbeat_timer);
+        if(route->websocket.heartbeat_interval) {
+            ev_timer_init(&route->websocket._heartbeat_timer, heartbeat,
+                route->websocket.heartbeat_interval,
+                route->websocket.heartbeat_interval);
+            ev_timer_start(root.loop, &route->websocket._heartbeat_timer);
         }
     }
     CONFIG_ROUTE_LOOP(item, route->children) {

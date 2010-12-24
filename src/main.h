@@ -34,6 +34,8 @@ typedef struct statistics_s {
     size_t websock_unsubscribed;
     size_t websock_published;
     size_t websock_sent;
+    size_t disk_reads;
+    size_t disk_bytes_read;
 } statistics_t;
 
 typedef struct serverroot_s {
