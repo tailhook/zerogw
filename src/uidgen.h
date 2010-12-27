@@ -3,12 +3,14 @@
 
 #include "sieve.h"
 
-#define IID_LEN (sizeof(unsigned long) + 8)
-#define UID_LEN (IID_LEN + sizeof(unsigned long)*2)
+#define UID_NRANDOM 8
+#define IID_LEN (sizeof(unsigned long) + 2*sizeof(uint32_t))
+#define UID_LEN (IID_LEN + sizeof(unsigned long)*2 + UID_NRANDOM)
 #define UID_HOLE(data) (*(unsigned long *)((char *)(data) + IID_LEN))
 #define UID_EQ(a, b) (!memcmp((a), (b), UID_LEN))
 
 int init_uid();
-int make_hole_uid(void *object, char data[UID_LEN], sieve_t *sieve);
+int make_hole_uid(void *object, char data[UID_LEN], sieve_t *sieve,
+    bool secure);
 
 #endif // _H_UIDGEN

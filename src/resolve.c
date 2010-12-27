@@ -41,7 +41,7 @@ const char *get_field(request_t *req, config_RequestField_t*value, size_t*len) {
 
 
 config_Route_t *resolve_url(request_t *req) {
-    if(sieve_full(root.sieve)) {
+    if(sieve_full(root.request_sieve)) {
         LWARN("Too many requests");
         http_static_response(req,
             &REQRCONFIG(req)->responses.service_unavailable);

@@ -38,6 +38,8 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     gettimeofday(&tv, NULL);
     size_t len = snprintf(buf, sizeof(buf),
         "%lu.%06d\n"
+        "connects: %lu\n"
+        "disconnects: %lu\n"
         "http_requests: %lu\n"
         "http_replies: %lu\n"
         "zmq_requests: %lu\n"
@@ -46,6 +48,8 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         "zmq_orphan_replies: %lu\n"
         "websock_connects: %lu\n"
         "websock_disconnects: %lu\n"
+        "comet_connects: %lu\n"
+        "comet_disconnects: %lu\n"
         "topics_created: %lu\n"
         "topics_removed: %lu\n"
         "websock_subscribed: %lu\n"
@@ -56,6 +60,8 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         "disk_bytes_read: %lu\n"
         ,
         tv.tv_sec, tv.tv_usec,
+        root.stat.connects,
+        root.stat.disconnects,
         root.stat.http_requests,
         root.stat.http_replies,
         root.stat.zmq_requests,
@@ -64,6 +70,8 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.zmq_orphan_replies,
         root.stat.websock_connects,
         root.stat.websock_disconnects,
+        root.stat.comet_connects,
+        root.stat.comet_disconnects,
         root.stat.topics_created,
         root.stat.topics_removed,
         root.stat.websock_subscribed,
@@ -81,6 +89,15 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     memcpy(zmq_msg_data(&msg), buf, len);
     SNIMPL(zmq_send(config->Server.status.socket._sock, &msg, ZMQ_NOBLOCK));
     LDEBUG("STATISTICS ``%s''", buf);
+}
+
+int on_connect(connection_t *conn) {
+    conn->hybi = NULL;
+    root.stat.connects += 1;
+}
+
+int on_disconnect(connection_t *conn) {
+    root.stat.disconnects += 1;
 }
 
 int main(int argc, char **argv) {
@@ -114,6 +131,8 @@ int main(int argc, char **argv) {
     ws_REQUEST_CB(&root.ws, http_request);
     ws_FINISH_CB(&root.ws, http_request_finish);
     ws_CONNECTION_STRUCT(&root.ws, connection_t);
+    ws_CONNECT_CB(&root.ws, on_connect);
+    ws_DISCONNECT_CB(&root.ws, on_disconnect);
     ws_WEBSOCKET_CB(&root.ws, start_websocket);
     ws_MESSAGE_CB(&root.ws, websock_message);
     ws_MESSAGE_STRUCT(&root.ws, message_t);
@@ -134,7 +153,8 @@ int main(int argc, char **argv) {
         ev_timer_start(root.loop, &status_timer);
     }
 
-    sieve_prepare(&root.sieve, config.Server.max_connections);
+    sieve_prepare(&root.request_sieve, config.Server.max_requests);
+    sieve_prepare(&root.hybi_sieve, config.Server.max_websockets);
     SNIMPL(prepare_http(&config, &config.Routing));
     SNIMPL(prepare_websockets(&config, &config.Routing));
 

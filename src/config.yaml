@@ -199,7 +199,8 @@ __types__:
     
     # Static response
     static:
-      enabled: !Bool no
+      enabled: !Bool
+        =: no
       root: !Dir
         check-existence: yes
         description: >
@@ -247,7 +248,8 @@ __types__:
           
     # Server Side Templates
     templates:
-      enabled: !Bool no
+      enabled: !Bool
+        =: no
       routes: !Mapping
         key-element: !String
         value-element: !Struct zmqsocket
@@ -284,7 +286,8 @@ __types__:
 
     # zeromq forwarding
     zmq-forward:
-      enabled: !Bool no
+      enabled: !Bool
+        =: no
       socket: !Struct
         =: zmqsocket
         inheritance: no
@@ -305,7 +308,8 @@ __types__:
     # websocket forwarding
     # does not collide with everything else
     websocket:
-      enabled: !Bool no
+      enabled: !Bool
+        =: no
       subscribe: !Struct
         =: zmqsocket
         inheritance: no
@@ -353,7 +357,8 @@ __types__:
         inheritance: yes
         
       polling-fallback:
-        enabled: !Bool no
+        enabled: !Bool
+          =: yes
         queue-limit: !UInt
           default: 100
           min: 2
@@ -479,17 +484,29 @@ Server:
       default: 60
       description: >
         Interval at which status messages will be published
-  max-connections: !Int
+  max-requests: !Int
     min: 4
     max: 1Gi
     default: 4ki
     command-line: [-m, --limit-requests]
     description: >
       Limits maximum of concurrent requests at any given time.  Don't make too
-      much because it allocates static buffer with 2 words for each request
-      (An you also need some memory for requests itself). When buffer is full
+      much because it allocates static buffer with word for each request
+      (And you also need some memory for requests itself). When buffer is full
       all requests will be rejected with "service-unavailable" error (usually
       503 status code) without parsing request.
+  max-websockets: !Int
+    min: 4
+    max: 1Gi
+    default: 4ki
+    command-line: [-M, --limit-websockets]
+    description: >
+      Limits maximum of concurrent websockets at any given time. Including
+      comet websocket-like connections. Don't make too much because it allocates
+      static buffer with word for each connection (And you also need some memory
+      for connections and queues itself). When buffer is full all connections
+      will be rejected with "service-unavailable" error (usually 503 status
+      code) without parsing handshake.
   listen: !Array
     element: !Struct listenaddr
   mime-types: !File

@@ -13,7 +13,7 @@ typedef struct subscriber_s {
     struct subscriber_s *client_next;
     struct subscriber_s *client_prev;
     struct topic_s *topic;
-    struct connection_s *connection;
+    struct hybi_s *connection;
 } subscriber_t;
 
 
@@ -26,5 +26,8 @@ int websock_start(connection_t *conn, config_Route_t *route);
 int websock_message(connection_t *conn, message_t *msg);
 int start_websocket(request_t *req);
 int prepare_websockets(config_main_t *config, config_Route_t *root);
+hybi_t *hybi_start(config_Route_t *route, hybi_enum type);
+void hybi_stop(hybi_t *hybi);
+hybi_t *hybi_find(char *data);
 
 #endif // _H_WEBSOCKET

@@ -28,6 +28,7 @@ def build(bld):
             'src/resolve.c',
             'src/uidgen.c',
             'src/request.c',
+            'src/polling.c',
             ],
         target       = 'zerogw',
         includes     = ['src'],

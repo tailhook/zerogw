@@ -14,7 +14,7 @@ void request_init(request_t *req) {
 void request_finish(request_t *req) {
     root.stat.http_replies += 1;
     if(req->flags & REQ_IN_SIEVE) {
-        sieve_empty(root.sieve, UID_HOLE(req->uid));
+        sieve_empty(root.request_sieve, UID_HOLE(req->uid));
         req->flags &= ~REQ_IN_SIEVE;
     }
     if(req->timeout.active) {
