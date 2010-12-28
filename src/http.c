@@ -235,6 +235,32 @@ static int socket_visitor(config_Route_t *route) {
     return 0;
 }
 
+static int socket_unvisitor(config_Route_t *route) {
+    if(route->zmq_forward.socket.value_len) {
+        SNIMPL(z_close(route->zmq_forward.socket._sock, root.loop));
+    }
+    if(route->routing.kind && (route->map_len || route->children_len)) {
+        switch(route->routing.kind) {
+        case CONFIG_Exact:
+            ws_match_free(route->_child_match);
+            break;
+        case CONFIG_Prefix:
+        case CONFIG_Suffix:
+            ws_fuzzy_free(route->_child_match);
+            break;
+        default:
+            LNIMPL("Routing tag ", route->routing.kind);
+        }
+    }
+    CONFIG_ROUTE_LOOP(item, route->children) {
+        SNIMPL(socket_unvisitor(&item->value));
+    }
+    CONFIG_STRING_ROUTE_LOOP(item, route->map) {
+        SNIMPL(socket_unvisitor(&item->value));
+    }
+    return 0;
+}
+
 static int do_forward(request_t *req) {
     config_Route_t *route = req->route;
     void *sock = route->zmq_forward.socket._sock;
@@ -345,6 +371,11 @@ int http_request(request_t *req) {
 int prepare_http(config_main_t *config, config_Route_t *root) {
     SNIMPL(socket_visitor(&config->Routing));
     LINFO("Http backend connections complete");
+    return 0;
+}
+
+int release_http(config_main_t *config, config_Route_t *root) {
+    SNIMPL(socket_unvisitor(&config->Routing));
     return 0;
 }
 

@@ -100,6 +100,12 @@ int on_disconnect(connection_t *conn) {
     root.stat.disconnects += 1;
 }
 
+static void sigint_cb (struct ev_loop *loop, ev_signal *w, int revents)
+{
+    LWARN("Received SIGINT, terminating main loop");
+    ev_break (loop, EVBREAK_ALL);
+}
+
 int main(int argc, char **argv) {
     config_main_t config;
     config_load(&config, argc, argv);
@@ -158,6 +164,25 @@ int main(int argc, char **argv) {
     SNIMPL(prepare_http(&config, &config.Routing));
     SNIMPL(prepare_websockets(&config, &config.Routing));
 
+    ev_signal signal_watcher;
+    ev_signal_init(&signal_watcher, sigint_cb, SIGINT);
+    ev_signal_start(root.loop, &signal_watcher);
+
     ws_server_start(&root.ws);
     ev_run(root.loop, 0);
+    ws_server_destroy(&root.ws);
+    
+    sieve_free(root.request_sieve);
+    sieve_free(root.hybi_sieve);
+    
+    SNIMPL(release_http(&config, &config.Routing));
+    SNIMPL(release_websockets(&config, &config.Routing));
+    if(config.Server.status.socket.value_len) {
+        SNIMPL(z_close(config.Server.status.socket._sock, root.loop));
+    }
+    config_free(&config);
+    ev_loop_destroy(root.loop);
+    
+    zmq_term(root.zmq);
+    LWARN("Terminated.");
 }

@@ -8,6 +8,7 @@ typedef void (*sock_callback)(struct ev_loop *ev, struct ev_io *io, int revents)
 void skip_message(void * sock);
 int zmq_open(config_zmqsocket_t *sock, int kinds, int defkind,
     sock_callback callback, struct ev_loop *loop);
+int z_close(config_zmqsocket_t *sock, struct ev_loop *loop);
 
 typedef enum {
     ZMASK_REQ = 1,

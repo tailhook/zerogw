@@ -1,4 +1,5 @@
 #include <strings.h>
+#include <malloc.h>
 
 #include "sieve.h"
 #include "log.h"
@@ -35,6 +36,10 @@ void sieve_prepare(sieve_t **sieve, int size) {
     *sieve = SAFE_MALLOC(ssize);
     bzero(*sieve, ssize);
     (*sieve)->max = size;
+}
+
+void sieve_free(sieve_t *sieve) {
+    free(sieve);
 }
 
 bool sieve_full(sieve_t *sieve) {

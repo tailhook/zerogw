@@ -16,6 +16,7 @@ typedef struct sieve_s {
 
 
 void sieve_prepare(sieve_t **sieve, int size);
+void sieve_free(sieve_t *sieve);
 int sieve_find_hole(sieve_t *, void *item, size_t *index, size_t *hole);
 bool sieve_full(sieve_t *sieve);
 void *sieve_get(sieve_t *sieve, size_t holeid);

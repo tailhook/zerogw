@@ -119,3 +119,11 @@ void skip_message(void * sock) {
     SNIMPL(zmq_msg_close(&msg));
     return;
 }
+
+int z_close(config_zmqsocket_t *sock, struct ev_loop *loop) {
+    if(sock->_watch.active) {
+        ev_io_stop(loop, &sock->_watch);
+    }
+    SNIMPL(zmq_close(sock));
+    return 0;
+}

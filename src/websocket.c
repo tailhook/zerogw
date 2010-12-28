@@ -493,9 +493,33 @@ static int socket_visitor(config_Route_t *route) {
     return 0;
 }
 
+static int socket_unvisitor(config_Route_t *route) {
+    if(route->websocket.subscribe.value_len) {
+        SNIMPL(z_close(route->websocket.subscribe._sock, root.loop));
+    }
+    if(route->websocket.forward.value_len) {
+        SNIMPL(z_close(route->websocket.forward._sock, root.loop));
+        if(route->websocket.heartbeat_interval) {
+            ev_timer_stop(root.loop, &route->websocket._heartbeat_timer);
+        }
+    }
+    CONFIG_ROUTE_LOOP(item, route->children) {
+        SNIMPL(socket_unvisitor(&item->value));
+    }
+    CONFIG_STRING_ROUTE_LOOP(item, route->map) {
+        SNIMPL(socket_unvisitor(&item->value));
+    }
+    return 0;
+}
+
 int prepare_websockets(config_main_t *config, config_Route_t *root) {
     SNIMPL(socket_visitor(&config->Routing));
     LINFO("Websocket connections complete");
+    return 0;
+}
+
+int release_websockets(config_main_t *config, config_Route_t *root) {
+    SNIMPL(socket_unvisitor(&config->Routing));
     return 0;
 }
 
