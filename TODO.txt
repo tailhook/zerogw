@@ -1,3 +1,9 @@
+ * Check http, and http-polling statistics
+ * Find out rare startup failure (probably related to already opened connections after restart)
+ * Add error pages for http polling 
+ * Implement or disable more output and input formats for polling
+ * Review ws.js, limit number of requests, introduce queue, data batching
+
  * Maintainance page
  * Allowed methods, and max-body-size
  * Add access logging
