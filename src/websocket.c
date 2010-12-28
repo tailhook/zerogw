@@ -494,6 +494,12 @@ static int socket_visitor(config_Route_t *route) {
 }
 
 static int socket_unvisitor(config_Route_t *route) {
+    if(route->websocket._topics) {
+        if(((topic_hash_t *)route->websocket._topics)->table) {
+            free(((topic_hash_t *)route->websocket._topics)->table);
+        }
+        free(route->websocket._topics);
+    }
     if(route->websocket.subscribe.value_len) {
         SNIMPL(z_close(route->websocket.subscribe._sock, root.loop));
     }

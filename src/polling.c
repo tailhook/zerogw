@@ -179,11 +179,15 @@ static void nocache_headers(ws_request_t *req) {
 }
 
 static void empty_reply(hybi_t *hybi) {
+    if(hybi->comet->cur_request->timeout.active) {
+        ev_timer_stop(root.loop, &hybi->comet->cur_request->timeout);
+    }
     ws_request_t *req = &hybi->comet->cur_request->ws;
     ws_statusline(req, "200 OK");
     ws_add_header(req, "X-Messages", "0");
     nocache_headers(req);
     ws_reply_data(req, "", 0);
+    REQ_DECREF(hybi->comet->cur_request);
     hybi->comet->cur_request = NULL;
 }
 
@@ -240,6 +244,7 @@ static void inactivity_timeout(struct ev_loop *loop, struct ev_timer *timer,
     int rev)
 {
     ANIMPL(!(rev & EV_ERROR));
+    ev_timer_stop(loop, timer);
     hybi_t *hybi = (hybi_t *)((char *)timer
         - offsetof(hybi_t,comet[0].inactivity));
     free_comet(hybi);
@@ -279,6 +284,9 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
     ws_request_t *req = &mreq->ws;
     ANIMPL(req);
     ANIMPL(comet->current_queue);
+    if(mreq->timeout.active) {
+        ev_timer_stop(loop, &mreq->timeout);
+    }
     if(comet->cur_format == FMT_SINGLE) {
         char buf[24];
         sprintf(buf, "%lu", comet->first_index);
@@ -333,6 +341,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
     } else {
         LNIMPL("Response format %d not implemented", comet->cur_format);
     }
+    REQ_DECREF(mreq);
     ev_idle_stop(loop, &comet->sendlater);
 }
 
@@ -440,6 +449,7 @@ int comet_request(request_t *req) {
         hybi->comet->cur_limit = limit;
         req->hybi = hybi;
         if(hybi->comet->current_queue) {
+            req->timeout.active = FALSE;
             ev_idle_start(root.loop, &hybi->comet->sendlater);
         } else {
             double timeout = hybi->route->websocket.polling_fallback.max_timeout;
