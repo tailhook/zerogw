@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import yaml
+from waflib import Utils, Options
+from waflib.Build import BuildContext
 
 APPNAME='zerogw'
-VERSION='0.5'
+VERSION='0.5.1'
 
 top = '.'
 out = 'build'
 
-def set_options(opt):
-    opt.tool_options('compiler_cc')
+def options(opt):
+    opt.load('compiler_c')
 
 def configure(conf):
-    conf.check_tool('compiler_cc')
+    conf.load('compiler_c')
 
 def build(bld):
     import coyaml.waf
     bld(
-        features     = ['cc', 'cprogram', 'coyaml'],
+        features     = ['c', 'cprogram', 'coyaml'],
         source       = [
+            'src/config.yaml',
             'src/main.c',
             'src/log.c',
             'src/websocket.c',
@@ -35,9 +37,8 @@ def build(bld):
         defines      = [
             'LOG_STRIP_PATH="../src/"',
             ],
-        ccflags      = ['-std=c99'],
+        cflags      = ['-std=c99'],
         lib          = ['yaml', 'zmq', 'ev', 'coyaml', 'website', 'ssl'],
-        config       = 'src/config.yaml',
         )
 
     if bld.env['PREFIX'] == '/usr':
@@ -45,26 +46,34 @@ def build(bld):
     else:
         bld.install_files('${PREFIX}/etc', ['examples/zerogw.yaml'])
 
-def makeheader(task):
-    import coyaml.cgen, coyaml.hgen, coyaml.core, coyaml.load
-    src = task.inputs[0].srcpath(task.env)
-    tgt = task.outputs[0].bldpath(task.env)
-    cfg = coyaml.core.Config('cfg', os.path.splitext(os.path.basename(tgt))[0])
-    with open(src, 'rb') as f:
-        coyaml.load.load(f, cfg)
-    with open(tgt, 'wt', encoding='utf-8') as f:
-        with coyaml.textast.Ast() as ast:
-            coyaml.hgen.GenHCode(cfg).make(ast)
-        f.write(str(ast))
-
-def makecode(task):
-    import coyaml.cgen, coyaml.hgen, coyaml.core, coyaml.load
-    src = task.inputs[0].srcpath(task.env)
-    tgt = task.outputs[0].bldpath(task.env)
-    cfg = coyaml.core.Config('cfg', os.path.splitext(os.path.basename(tgt))[0])
-    with open(src, 'rb') as f:
-        coyaml.load.load(f, cfg)
-    with open(tgt, 'wt', encoding='utf-8') as f:
-        with coyaml.textast.Ast() as ast:
-            coyaml.cgen.GenCCode(cfg).make(ast)
-        f.write(str(ast))
+def dist(ctx):
+    ctx.excl = ['.waf*', '*.tar.bz2', '*.zip', 'build',
+        '.git*', '.lock*', '**/*.pyc']
+    ctx.algo = 'tar.bz2'
+    
+def make_pkgbuild(task):
+    import hashlib
+    task.outputs[0].write(Utils.subst_vars(task.inputs[0].read(), {
+        'VERSION': VERSION,
+        'DIST_MD5': hashlib.md5(task.inputs[1].read('rb')).hexdigest(),
+        }))
+        
+def archpkg(ctx):
+    from waflib import Options
+    Options.commands = ['dist', 'makepkg'] + Options.commands
+        
+def build_package(bld):
+    distfile = APPNAME + '-' + VERSION + '.tar.bz2'
+    bld(rule=make_pkgbuild,
+        source=['PKGBUILD.tpl', distfile, 'wscript'],
+        target='PKGBUILD')
+    bld(rule='cp ${SRC} ${TGT}', source=distfile, target='.')
+    bld.add_group()
+    bld(rule='makepkg -f', source=distfile)
+    bld.add_group()
+    bld(rule='makepkg -f --source', source=distfile)
+    
+class makepkg(BuildContext):
+    cmd = 'makepkg'
+    fun = 'build_package'
+    variant = 'archpkg'
