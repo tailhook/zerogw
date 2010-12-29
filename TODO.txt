@@ -11,5 +11,5 @@
  * Configuration reloading
  * HTTPS
  * Add server name-version header
- * Update waf
  * Check server in low memory, and requests > max conditions
+ * Figure out how to implement SDCH
