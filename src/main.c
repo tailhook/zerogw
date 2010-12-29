@@ -50,12 +50,19 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         "websock_disconnects: %lu\n"
         "comet_connects: %lu\n"
         "comet_disconnects: %lu\n"
+        "comet_acks: %lu\n"
+        "comet_empty_replies: %lu\n"
+        "comet_received_messages: %lu\n"
+        "comet_received_batches: %lu\n"
+        "comet_sent_messages: %lu\n"
+        "comet_sent_batches: %lu\n"
         "topics_created: %lu\n"
         "topics_removed: %lu\n"
         "websock_subscribed: %lu\n"
         "websock_unsubscribed: %lu\n"
         "websock_published: %lu\n"
         "websock_sent: %lu\n"
+        "websock_received: %lu\n"
         "disk_reads: %lu\n"
         "disk_bytes_read: %lu\n"
         ,
@@ -72,12 +79,19 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_disconnects,
         root.stat.comet_connects,
         root.stat.comet_disconnects,
+        root.stat.comet_acks,
+        root.stat.comet_empty_replies,
+        root.stat.comet_received_messages,
+        root.stat.comet_received_batches,
+        root.stat.comet_sent_messages,
+        root.stat.comet_sent_batches,
         root.stat.topics_created,
         root.stat.topics_removed,
         root.stat.websock_subscribed,
         root.stat.websock_unsubscribed,
         root.stat.websock_published,
         root.stat.websock_sent,
+        root.stat.websock_received,
         root.stat.disk_reads,
         root.stat.disk_bytes_read
         );

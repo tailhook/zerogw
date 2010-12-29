@@ -156,6 +156,7 @@ void websock_free_message(void *data, void *hint) {
 
 int websock_message(connection_t *conn, message_t *msg) {
     ws_MESSAGE_INCREF(&msg->ws);
+    root.stat.websock_received += 1;
     void *sock = conn->hybi->route->websocket.forward._sock;
     zmq_msg_t zmsg;
     SNIMPL(zmq_msg_init_data(&zmsg, conn->hybi->uid, UID_LEN, NULL, NULL));

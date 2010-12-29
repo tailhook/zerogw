@@ -179,6 +179,7 @@ static void nocache_headers(ws_request_t *req) {
 }
 
 static void empty_reply(hybi_t *hybi) {
+    root.stat.comet_empty_replies += 1;
     if(hybi->comet->cur_request->timeout.active) {
         ev_timer_stop(root.loop, &hybi->comet->cur_request->timeout);
     }
@@ -192,6 +193,7 @@ static void empty_reply(hybi_t *hybi) {
 }
 
 static void free_comet(hybi_t *hybi) {
+    root.stat.comet_disconnects += 1;
     ANIMPL(!hybi->comet->cur_request);
     if(hybi->comet->sendlater.active) {
         ev_idle_stop(root.loop, &hybi->comet->sendlater);
@@ -218,6 +220,8 @@ static void close_reply(hybi_t *hybi) {
 }
 
 static void send_message(hybi_t *hybi, request_t *req) {
+    root.stat.comet_received_batches += 1;
+    root.stat.comet_received_messages += 1;
     void *sock = hybi->route->websocket.forward._sock;
     zmq_msg_t zmsg;
     REQ_INCREF(req);
@@ -255,6 +259,7 @@ static void move_queue(hybi_t *hybi, size_t msgid) {
     size_t amount = msgid - hybi->comet->first_index + 1;
     ANIMPL(amount <= hybi->comet->current_queue);
     if(amount) {
+        root.stat.comet_acks += amount;
         for(int i = 0; i < amount; ++i) {
             ws_MESSAGE_DECREF(&hybi->comet->queue[i]->ws);
         }
@@ -287,7 +292,9 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
     if(mreq->timeout.active) {
         ev_timer_stop(loop, &mreq->timeout);
     }
+    root.stat.comet_sent_batches += 1;
     if(comet->cur_format == FMT_SINGLE) {
+        root.stat.comet_sent_messages += 1;
         char buf[24];
         sprintf(buf, "%lu", comet->first_index);
         ws_statusline(req, "200 OK");
@@ -323,6 +330,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             "Parts following\r\n", strlen("Parts following\r\n"));
         obstack_grow(&req->pieces, boundary, sizeof(boundary));
         for(int i = 0; i < num; ++i) {
+            root.stat.comet_sent_messages += 1;
             obstack_grow(&req->pieces,
                 "\r\nContent-Type: application/octed-stream\r\n"
                     "X-Message-ID: ",
@@ -350,6 +358,7 @@ static int comet_connect(request_t *req) {
     if(!hybi) {
         return -1; // FIXME: send meaningfull reply
     }
+    root.stat.comet_connects += 1;
     hybi->comet->cur_request = NULL;
     hybi->comet->cur_format = FMT_SINGLE;
     hybi->comet->current_queue = 0;

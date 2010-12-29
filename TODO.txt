@@ -1,4 +1,3 @@
- * Check http, and http-polling statistics
  * Find out rare startup failure (probably related to already opened connections after restart)
  * Add error pages for http polling 
  * Implement or disable more output and input formats for polling
