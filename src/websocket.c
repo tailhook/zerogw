@@ -188,7 +188,7 @@ static topic_t *mktopic(topic_hash_t *table, char *name, int len, size_t hash) {
     if(!result) return NULL;
     result->table = table;
     result->hash = hash;
-    root.stat.websock_connects += 1;
+    root.stat.topics_created += 1;
     memcpy(result->topic, name, len);
     result->length = len;
     result->prev = NULL;
@@ -220,7 +220,6 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
         if(!table->table) return NULL;
         table->ntopics = 1;
         table->nsubscriptions = 0;
-        root.stat.topics_created += 1;
         result = mktopic(table, topic_name, topic_len, hash);
         table->table[hash % table->hash_size] = result;
         return result;
@@ -231,7 +230,6 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
         if(!create) return NULL;
         result = mktopic(table, topic_name, topic_len, hash);
         table->ntopics += 1;
-        root.stat.topics_created += 1;
         table->table[cell] = result;
         return result;
     }
@@ -247,7 +245,6 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
     }
     if(!create) return NULL;
     table->ntopics += 1;
-    root.stat.topics_created += 1;
     result = mktopic(table, topic_name, topic_len, hash);
     result->prev = current;
     current->next = result;

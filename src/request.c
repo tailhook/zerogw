@@ -12,7 +12,6 @@ void request_init(request_t *req) {
 }
 
 void request_finish(request_t *req) {
-    root.stat.http_replies += 1;
     if(req->flags & REQ_IN_SIEVE) {
         sieve_empty(root.request_sieve, UID_HOLE(req->uid));
         req->flags &= ~REQ_IN_SIEVE;
@@ -27,5 +26,8 @@ void request_free(request_t *req) {
         zmq_msg_close(&req->response_msg);
     }
     request_finish(req);
+    if(!req->ws.websocket) {
+        root.stat.http_replies += 1;
+    }
     ws_request_free(&(req)->ws);
 }
