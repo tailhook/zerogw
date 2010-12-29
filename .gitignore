@@ -1,4 +1,5 @@
 build
 .waf*
-.lock-wscript
+.lock-*
 *.pyc
+zerogw-*.tar.bz2
