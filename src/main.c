@@ -6,10 +6,6 @@
 #include <strings.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/eventfd.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
@@ -22,6 +18,7 @@
 #include "sieve.h"
 #include "resolve.h"
 #include "http.h"
+#include "disk.h"
 
 serverroot_t root;
 
@@ -63,6 +60,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         "websock_published: %lu\n"
         "websock_sent: %lu\n"
         "websock_received: %lu\n"
+        "disk_requests: %lu\n"
         "disk_reads: %lu\n"
         "disk_bytes_read: %lu\n"
         ,
@@ -92,6 +90,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_published,
         root.stat.websock_sent,
         root.stat.websock_received,
+        root.stat.disk_requests,
         root.stat.disk_reads,
         root.stat.disk_bytes_read
         );
@@ -177,6 +176,7 @@ int main(int argc, char **argv) {
     sieve_prepare(&root.hybi_sieve, config.Server.max_websockets);
     SNIMPL(prepare_http(&config, &config.Routing));
     SNIMPL(prepare_websockets(&config, &config.Routing));
+    SNIMPL(prepare_disk(&config));
 
     ev_signal signal_watcher;
     ev_signal_init(&signal_watcher, sigint_cb, SIGINT);

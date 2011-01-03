@@ -37,6 +37,14 @@ typedef enum {
     SNIMPL(zmq_getsockopt((name##_sock), ZMQ_RCVMORE, &name##_opt, &name##_len)); \
     if(!name##_opt) goto name##_error;
     
+#define Z_RECV_BLOCK(name) \
+    if(zmq_recv((name##_sock), (&name), ZMQ_NOBLOCK) < 0) { \
+        if(errno == EINTR || errno == EAGAIN) goto name##_finish; \
+        else SNIMPL(-1); \
+    } \
+    SNIMPL(zmq_getsockopt((name##_sock), ZMQ_RCVMORE, &name##_opt, &name##_len)); \
+    if(!name##_opt) goto name##_error;
+    
 #define Z_RECV(name) \
     SNIMPL(zmq_recv((name##_sock), (&name), ZMQ_NOBLOCK)); \
     SNIMPL(zmq_getsockopt((name##_sock), ZMQ_RCVMORE, &name##_opt, &name##_len));

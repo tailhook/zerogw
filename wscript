@@ -31,9 +31,10 @@ def build(bld):
             'src/uidgen.c',
             'src/request.c',
             'src/polling.c',
+            'src/disk.c',
             ],
         target       = 'zerogw',
-        includes     = ['src'],
+        includes     = ['src', 'uthash/src'],
         defines      = [
             'LOG_STRIP_PATH="../src/"',
             ],

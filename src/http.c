@@ -5,6 +5,7 @@
 #include "log.h"
 #include "main.h"
 #include "resolve.h"
+#include "disk.h"
 
 void http_static_response(request_t *req, config_StaticResponse_t *resp) {
     char status[resp->status_len + 5];
@@ -340,10 +341,10 @@ int http_request(request_t *req) {
         request_finish(req);
         return 0;
     }
+    req->route = route;
 
     if(route->websocket.enabled && route->websocket.polling_fallback.enabled
         && strchr(req->ws.uri, '?')) {
-        req->route = route;
         return comet_request(req);
     }
     if(route->zmq_forward.enabled) {
@@ -351,7 +352,6 @@ int http_request(request_t *req) {
         make_hole_uid(req, req->uid, root.request_sieve, FALSE);
         req->flags |= REQ_IN_SIEVE;
         root.stat.zmq_requests += 1;
-        req->route = route;
         if(!do_forward(req)) {
             if(route->zmq_forward.timeout) {
                 ev_timer_init(&req->timeout, request_timeout,
@@ -360,6 +360,9 @@ int http_request(request_t *req) {
             }
         }
         return 0;
+    }
+    if(route->static_.enabled) {
+        return disk_request(req);
     }
     // Probably it's static response
     http_static_response(req, &route->responses.default_);

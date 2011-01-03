@@ -219,9 +219,19 @@ __types__:
       dir-index: !Bool
         =: no
         inheritance: yes
-      follow-symlinks: !Bool
-        =: no
+      restrict-root: !Bool
+        =: yes
         inheritance: yes
+        description: >
+          Restrict file accesses to root directory (including symlinks). Turn
+          this of only in trusted environment
+      restrict-dirs: !Array
+        element: !Dir
+          check-existence: warn
+        inheritance: replace-default
+        description: >
+          Restrict static to specified set of directories. In case you want
+          symlinks outside of document root but restricted to few directories
       deny-suffixes: !Array
         element: !String ~
         inheritance: append-default
@@ -245,6 +255,7 @@ __types__:
           loaded into memory before being sent. So set this value low and don't
           use zerogw for serving big static files.
         inheritance: yes
+      # _cache: !CType url_cache_t
           
     # Server Side Templates
     templates:
@@ -470,8 +481,8 @@ Server:
     command-line: [-z, --zmq-io-threads]
   disk-io-threads: !Int
     min: 0
-    max: 1ki
-    default: 4
+    max: 1
+    default: 1
     description: >
       Threads for reading from disk. You need them if you want to serve static.
     command-line: [-d, --disk-io-threads]

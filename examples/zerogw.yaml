@@ -24,12 +24,14 @@ Routing:
                   headers:
                     Content-Type: text/html; charset="utf-8"
                   body: !FromFile websocket.html
-            "/ws.js":
-              responses:
-                default:
-                  headers:
-                    Content-Type: application/javascript
-                  body: !FromFile ws.js
+            "/*":
+              static:
+                enabled: yes
+                root: examples
+                deny-suffixes:
+                - .py
+                deny-prefixes:
+                - "."
             "/echo*":
               zmq-forward:
                 enabled: yes

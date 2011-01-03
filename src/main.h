@@ -5,6 +5,7 @@
 #define RANDOM_LENGTH 16
 
 #include <website.h>
+#include <pthread.h>
 
 #include "config.h"
 #include "sieve.h"
@@ -61,6 +62,7 @@ typedef struct statistics_s {
     size_t websock_published;
     size_t websock_sent;
     size_t websock_received;
+    size_t disk_requests;
     size_t disk_reads;
     size_t disk_bytes_read;
 } statistics_t;
@@ -68,7 +70,10 @@ typedef struct statistics_s {
 typedef struct serverroot_s {
     ws_server_t ws;
     void *zmq;
+    void *disk_socket;
     evloop_t loop;
+    struct ev_io disk_watch;
+    pthread_t *disk_threads;
     char instance_id[IID_LEN];
     char random_data[RANDOM_LENGTH];
     config_main_t *config;
