@@ -446,6 +446,7 @@ int release_disk(config_main_t *config) {
     ev_io_stop(root.loop, &root.disk_watch);
     SNIMPL(zmq_close(root.disk_socket));
     free(root.disk_threads);
+    ws_match_free(config->Server.mime_types._match);
     return 0;
 }
 
