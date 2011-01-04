@@ -23,6 +23,7 @@ Routing:
               static:
                 enabled: yes
                 root: examples
+                restrict-root: no
                 index-file: websocket.html
                 deny-suffixes:
                 - .py

@@ -15,7 +15,7 @@
 #include "http.h"
 #include "resolve.h"
 
-bool check_path(disk_request_t *req) {
+bool check_base(disk_request_t *req) {
     char *path = req->path;
     char *pathend = strchrnul(req->path, '?');
     int pathlen = pathend - path;
@@ -39,6 +39,28 @@ bool check_path(disk_request_t *req) {
         }
     }
     return TRUE;
+}
+
+bool check_path(disk_request_t *req, char *realpath) {
+    int plen = strlen(realpath);
+    config_Route_t *route = req->route;
+    if(route->static_.restrict_root) {
+        if(plen < route->static_.root_len+1)
+            return FALSE;
+        if(memcmp(realpath, route->static_.root, route->static_.root_len))
+            return FALSE;
+        if(realpath[route->static_.root_len] != '/')
+            return FALSE;
+    }
+    if(!route->static_.restrict_dirs_len)
+        return TRUE;
+    CONFIG_DIR_LOOP(dir, route->static_.restrict_dirs) {
+        if(plen >= dir->value_len+1
+            && !memcmp(realpath, dir->value, dir->value_len)
+            && realpath[dir->value_len] == '/')
+            return TRUE;
+    }
+    return FALSE;
 }
 
 char *join_paths(disk_request_t *req) {
@@ -133,7 +155,7 @@ void *disk_loop(void *_) {
         size_t reqlen = zmq_msg_size(&msg);
         if(reqlen == 8 && !memcmp(req, "shutdown", 8)) break;
         LDEBUG("Got disk request for ``%s''", req->path);
-        if(!check_path(req)) {
+        if(!check_base(req)) {
             LDEBUG("Path ``%s'' denied", req->path);
             SNIMPL(zmq_msg_init_data(&msg, "402", 4, NULL, NULL));
             SNIMPL(zmq_send(sock, &msg, 0));
@@ -147,6 +169,13 @@ void *disk_loop(void *_) {
             continue;
         }
         LDEBUG("Resolved ``%s'' -> ``%s''", req->path, realpath);
+        if(!check_path(req, realpath)) {
+            LDEBUG("Path ``%s''(``%s'') denied", req->path, realpath);
+            free(realpath);
+            SNIMPL(zmq_msg_init_data(&msg, "402", 4, NULL, NULL));
+            SNIMPL(zmq_send(sock, &msg, 0));
+            continue;
+        }
         zmq_msg_close(&msg);
         zmq_msg_t result;
         zmq_msg_init(&result);

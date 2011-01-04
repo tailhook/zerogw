@@ -8,7 +8,6 @@
  Static:
  * implement directory index
  * implement cache
- * implement restrict-root/restrict-dirs
  * implement mime-types
 
  * Maintainance page
