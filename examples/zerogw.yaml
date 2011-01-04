@@ -34,6 +34,12 @@ Routing:
                 - .yaml
                 deny-prefixes:
                 - "."
+            "/ws/*":
+              static:
+                enabled: yes
+                root: examples
+                restrict-root: no
+                single-uri: /websocket.html
             "/echo*":
               zmq-forward:
                 enabled: yes

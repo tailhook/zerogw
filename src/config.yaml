@@ -232,6 +232,13 @@ __types__:
           specified and not-exists 404 page will be sent, even if `dir-index`
           is true.
         inheritance: yes
+      single-uri: !String
+        =: ""
+        description: >
+          Send single file on every request, no matter what uri is requested.
+          Useful for dynamic/javascript-full sites. This value is served by
+          replacing uri of request. So it's relative to `root` and must start
+          with slash.
       restrict-root: !Bool
         =: yes
         inheritance: yes

@@ -11,10 +11,10 @@
  * implement gzip
  * implement expires (cache-age)
 
+ * Setuid, chroot, etc.
  * Maintainance page
  * Allowed methods, and max-body-size
  * Add access logging
- * Serving static
  * Authentication and simple authorization
  * Configuration reloading
  * HTTPS

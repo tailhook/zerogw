@@ -128,6 +128,11 @@ static int get_file(char *path, zmq_msg_t *msg) {
         SNIMPL(close(fd));
         return -1;
     }
+    if(S_ISDIR(statinfo.st_mode)) {
+        TWARN("Path ``%s'' is a directory", path);
+        SNIMPL(close(fd));
+        return -1;
+    }
     size_t to_read = statinfo.st_size;
     if(zmq_msg_init_size(msg, to_read)) {
         TWARN("Can't allocate buffer for file");
@@ -251,7 +256,11 @@ int disk_request(request_t *req) {
     SNIMPL(zmq_msg_init_size(&msg, sizeof(disk_request_t)));
     disk_request_t *dreq = zmq_msg_data(&msg);
     dreq->route = req->route;
-    dreq->path = req->ws.uri;
+    if(req->route->static_.single_uri_len) {
+        dreq->path = req->route->static_.single_uri;
+    } else {
+        dreq->path = req->ws.uri;
+    }
     dreq->gzipped = FALSE; //TODO
     SNIMPL(zmq_send(root.disk_socket, &msg, 0));
     return 0;
