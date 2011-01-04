@@ -15,6 +15,32 @@
 #include "http.h"
 #include "resolve.h"
 
+bool check_path(disk_request_t *req) {
+    char *path = req->path;
+    char *pathend = strchrnul(req->path, '?');
+    int pathlen = pathend - path;
+    config_Route_t *route = req->route;
+    CONFIG_STRING_LOOP(suffix, route->static_.deny_suffixes) {
+        if(pathlen >= suffix->value_len
+            && !memcmp(pathend - suffix->value_len,
+                suffix->value, suffix->value_len)) {
+            return FALSE;
+        }
+    }
+    char *base = pathend;
+    for(;base != path && *base != '/'; --base);
+    ++base; // need part right after the slash
+    int baselen = pathend - base;
+    LDEBUG("Basename ``%.*s''", pathend - base, base);
+    CONFIG_STRING_LOOP(prefix, route->static_.deny_prefixes) {
+        if(baselen >= prefix->value_len
+            && !memcmp(base, prefix->value, prefix->value_len)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
 char *join_paths(disk_request_t *req) {
     char *path = req->path;
     char *pathend = strchrnul(path, '?');
@@ -26,12 +52,22 @@ char *join_paths(disk_request_t *req) {
             if(!nstrip) break;
         }
     }
-    if(!*path) return NULL;
-    char fullpath[req->route->static_.root_len + pathend - path + 2];
+    int fulllen = req->route->static_.root_len + pathend - path + 1;
+    bool index = FALSE;
+    if((!*path || *(pathend-1) == '/') && req->route->static_.index_file) {
+        fulllen += req->route->static_.index_file_len;
+        index = TRUE;
+    }
+    char fullpath[fulllen];
     memcpy(fullpath, req->route->static_.root, req->route->static_.root_len);
     fullpath[req->route->static_.root_len] = '/';
     memcpy(fullpath + req->route->static_.root_len + 1, path, pathend - path);
-    fullpath[req->route->static_.root_len + 1 + pathend - path] = 0;
+    if(index) {
+        memcpy(fullpath + req->route->static_.root_len + (pathend - path) + 1,
+            req->route->static_.index_file, req->route->static_.index_file_len);
+    }
+    fullpath[fulllen] = 0;
+    LDEBUG("Fullpath ``%s''", fullpath);
     return realpath(fullpath, NULL);
 }
 
@@ -97,9 +133,15 @@ void *disk_loop(void *_) {
         size_t reqlen = zmq_msg_size(&msg);
         if(reqlen == 8 && !memcmp(req, "shutdown", 8)) break;
         LDEBUG("Got disk request for ``%s''", req->path);
+        if(!check_path(req)) {
+            LDEBUG("Path ``%s'' denied", req->path);
+            SNIMPL(zmq_msg_init_data(&msg, "402", 4, NULL, NULL));
+            SNIMPL(zmq_send(sock, &msg, 0));
+            continue;
+        }
         char *realpath = join_paths(req);
         if(!realpath) {
-            SWARN();
+            SWARN2("Can't resolve ``%s''", req->path);
             SNIMPL(zmq_msg_init_data(&msg, "404", 4, NULL, NULL));
             SNIMPL(zmq_send(sock, &msg, 0));
             continue;
@@ -195,6 +237,9 @@ void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             if(code == 404) {
                 http_static_response(req,
                     &REQRCONFIG(req)->responses.not_found);
+            } else if(code == 402) {
+                http_static_response(req,
+                    &REQRCONFIG(req)->responses.forbidden);
             } else {
                 http_static_response(req,
                     &REQRCONFIG(req)->responses.internal_error);
@@ -277,7 +322,7 @@ int prepare_disk(config_main_t *config) {
     SNIMPL(zmq_getsockopt(root.disk_socket, ZMQ_FD, &fd, &fdsize));
     ev_io_init(&root.disk_watch, disk_process, fd, EV_READ);
     ev_io_start(root.loop, &root.disk_watch);
-    ev_async_init(&root.disk_async, disk_process);
+    ev_async_init(&root.disk_async, (void *)disk_process);
     ev_async_start(root.loop, &root.disk_async);
     root.disk_threads =malloc(sizeof(pthread_t)*config->Server.disk_io_threads);
     ANIMPL(root.disk_threads);

@@ -111,7 +111,7 @@ __types__:
     body: !String |
       <html>
         <head>
-          <title>Utitled</title>
+          <title>Untitled</title>
         </head>
         <body>
           <h1>No Content Here</h1>
@@ -182,6 +182,9 @@ __types__:
       method-not-allowed: !Struct
         =: StaticResponse
         inheritance: yes
+      forbidden: !Struct
+        =: StaticResponse
+        inheritance: yes
       internal-error: !Struct
         =: StaticResponse
         inheritance: yes
@@ -219,19 +222,31 @@ __types__:
       dir-index: !Bool
         =: no
         inheritance: yes
+        description: >
+          Whether to render directory listing page, when path ends with slash
+      index-file: !String
+        =: ""
+        description: >
+          File which will be sent when path ends with slash. Including the case
+          when there are less path components than `strip-dirs`. If it's
+          specified and not-exists 404 page will be sent, even if `dir-index`
+          is true.
+        inheritance: yes
       restrict-root: !Bool
         =: yes
         inheritance: yes
         description: >
           Restrict file accesses to root directory (including symlinks). Turn
-          this of only in trusted environment
+          this off only in trusted environment. `root` directory must not
+          contain symbolic links when this option is enabled.
       restrict-dirs: !Array
         element: !Dir
           check-existence: warn
         inheritance: replace-default
         description: >
           Restrict static to specified set of directories. In case you want
-          symlinks outside of document root but restricted to few directories
+          symlinks outside of document root but restricted to few directories.
+          Restrict dirs must not contain symbolic links
       deny-suffixes: !Array
         element: !String ~
         inheritance: append-default

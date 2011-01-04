@@ -19,18 +19,14 @@ Routing:
         routing: !Prefix ~
         routing-by: !Uri ~
         map:
-            "/": # Fallback page
-              responses:
-                default:
-                  headers:
-                    Content-Type: text/html; charset="utf-8"
-                  body: !FromFile websocket.html
             "/*":
               static:
                 enabled: yes
                 root: examples
+                index-file: websocket.html
                 deny-suffixes:
                 - .py
+                - .yaml
                 deny-prefixes:
                 - "."
             "/echo*":

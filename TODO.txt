@@ -1,7 +1,15 @@
  * Find out rare startup failure (probably related to already opened connections after restart)
+ 
+ Websockets:
  * Add error pages for http polling 
  * Implement or disable more output and input formats for polling
  * Review ws.js, limit number of requests, introduce queue, data batching
+ 
+ Static:
+ * implement directory index
+ * implement cache
+ * implement restrict-root/restrict-dirs
+ * implement mime-types
 
  * Maintainance page
  * Allowed methods, and max-body-size
