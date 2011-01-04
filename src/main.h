@@ -73,6 +73,7 @@ typedef struct serverroot_s {
     void *disk_socket;
     evloop_t loop;
     struct ev_io disk_watch;
+    struct ev_async disk_async;
     pthread_t *disk_threads;
     char instance_id[IID_LEN];
     char random_data[RANDOM_LENGTH];

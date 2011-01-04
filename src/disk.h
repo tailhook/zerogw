@@ -57,5 +57,6 @@ typedef struct disk_request_s {
 void *disk_loop(void *);
 int disk_request(request_t *req);
 int prepare_disk(config_main_t *config);
+int release_disk(config_main_t *config);
 
 #endif // _H_DISK

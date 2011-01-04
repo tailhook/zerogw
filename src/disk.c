@@ -32,7 +32,6 @@ char *join_paths(disk_request_t *req) {
     fullpath[req->route->static_.root_len] = '/';
     memcpy(fullpath + req->route->static_.root_len + 1, path, pathend - path);
     fullpath[req->route->static_.root_len + 1 + pathend - path] = 0;
-    LDEBUG("Full path ``%s''", fullpath);
     return realpath(fullpath, NULL);
 }
 
@@ -95,6 +94,8 @@ void *disk_loop(void *_) {
         SNIMPL(zmq_getsockopt(sock, ZMQ_RCVMORE, &opt, &optlen));
         ANIMPL(optlen == sizeof(opt) && !opt);
         req = zmq_msg_data(&msg);
+        size_t reqlen = zmq_msg_size(&msg);
+        if(reqlen == 8 && !memcmp(req, "shutdown", 8)) break;
         LDEBUG("Got disk request for ``%s''", req->path);
         char *realpath = join_paths(req);
         if(!realpath) {
@@ -121,8 +122,11 @@ void *disk_loop(void *_) {
         SNIMPL(zmq_send(sock, &result, 0));
         LDEBUG("Replied for ``%s''", req->path);
         free(realpath);
+        ev_async_send(root.loop, &root.disk_async);
         continue;
     }
+    SNIMPL(zmq_close(sock));
+    LDEBUG("Disk thread shut down");
 }
 
 int disk_request(request_t *req) {
@@ -167,7 +171,9 @@ void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     ANIMPL(!(revents & EV_ERROR));
     while(TRUE) {
         Z_SEQ_INIT(msg, root.disk_socket);
+        LDEBUG("Checking disk...");
         Z_RECV_START(msg, break);
+        LDEBUG("Got something from disk");
         if(zmq_msg_size(&msg) != UID_LEN) {
             TWARN("Wrong uid length %d", zmq_msg_size(&msg));
             goto msg_error;
@@ -255,6 +261,7 @@ void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         Z_SEQ_ERROR(msg);
         continue;
     }
+    LDEBUG("Out of disk...");
 }
 
 int prepare_disk(config_main_t *config) {
@@ -270,6 +277,8 @@ int prepare_disk(config_main_t *config) {
     SNIMPL(zmq_getsockopt(root.disk_socket, ZMQ_FD, &fd, &fdsize));
     ev_io_init(&root.disk_watch, disk_process, fd, EV_READ);
     ev_io_start(root.loop, &root.disk_watch);
+    ev_async_init(&root.disk_async, disk_process);
+    ev_async_start(root.loop, &root.disk_async);
     root.disk_threads =malloc(sizeof(pthread_t)*config->Server.disk_io_threads);
     ANIMPL(root.disk_threads);
     
@@ -279,6 +288,27 @@ int prepare_disk(config_main_t *config) {
     
     LWARN("%d disk threads ready", config->Server.disk_io_threads);
     
+    return 0;
+}
+
+int release_disk(config_main_t *config) {
+    while(TRUE) {
+        zmq_msg_t msg;
+        SNIMPL(zmq_msg_init(&msg));
+        if(zmq_send(root.disk_socket, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE) < 0) {
+            if(errno == EAGAIN) break;
+            SNIMPL(-1);
+        }
+        SNIMPL(zmq_msg_init_size(&msg, 8));
+        memcpy(zmq_msg_data(&msg), "shutdown", 8);
+        zmq_send(root.disk_socket, &msg, ZMQ_NOBLOCK); // don't care if fails
+    }
+    for(int i = 0; i < config->Server.disk_io_threads; ++i) {
+        SNIMPL(pthread_join(root.disk_threads[i], NULL));
+    }
+    ev_io_stop(root.loop, &root.disk_watch);
+    SNIMPL(zmq_close(root.disk_socket));
+    free(root.disk_threads);
     return 0;
 }
 

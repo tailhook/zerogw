@@ -191,6 +191,7 @@ int main(int argc, char **argv) {
     
     SNIMPL(release_http(&config, &config.Routing));
     SNIMPL(release_websockets(&config, &config.Routing));
+    SNIMPL(release_disk(&config));
     if(config.Server.status.socket.value_len) {
         SNIMPL(z_close(config.Server.status.socket._sock, root.loop));
     }
