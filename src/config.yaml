@@ -535,11 +535,28 @@ Server:
       code) without parsing handshake.
   listen: !Array
     element: !Struct listenaddr
-  mime-types: !File
-    default: /etc/mime.types
-    check-existence: yes
-    description: >
-      File which has suffix to mime type mapping
+    
+  mime-types:
+    file: !File
+      default: /etc/mime.types
+      check-existence: yes
+      description: >
+        File which has suffix to mime type mapping
+    extra: !Mapping
+      key-element: !String ~
+      value-element: !String ~
+      description: >
+        Additional mime types, which override mappings from a file
+    no-extension: !String
+      =: "text/plain"
+      description: >
+        Default mime type for files which has no extension
+    default-type: !String
+      =: "application/octed-stream"
+      description: >
+        Default mime type for files which has extension not found in mapping
+    _match: !_VoidPtr ~
+    
   error-log: *errorlog # not struct because command-line
 
 Routing: !Struct Route

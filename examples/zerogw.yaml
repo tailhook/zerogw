@@ -10,6 +10,10 @@ Server:
   error-log:
     level: 5
     warning-timeout: 300
+  mime-types:
+    extra:
+      yaml: text/x-yaml
+      mov: application/x-movable
 
 Routing:
   routing: !Suffix ~

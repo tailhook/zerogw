@@ -15,7 +15,7 @@
 #include "http.h"
 #include "resolve.h"
 
-bool check_base(disk_request_t *req) {
+static char *check_base(disk_request_t *req) {
     char *path = req->path;
     char *pathend = strchrnul(req->path, '?');
     int pathlen = pathend - path;
@@ -24,24 +24,42 @@ bool check_base(disk_request_t *req) {
         if(pathlen >= suffix->value_len
             && !memcmp(pathend - suffix->value_len,
                 suffix->value, suffix->value_len)) {
-            return FALSE;
+            return NULL;
         }
     }
     char *base = pathend;
     for(;base != path && *base != '/'; --base);
     ++base; // need part right after the slash
     int baselen = pathend - base;
-    LDEBUG("Basename ``%.*s''", pathend - base, base);
     CONFIG_STRING_LOOP(prefix, route->static_.deny_prefixes) {
         if(baselen >= prefix->value_len
             && !memcmp(base, prefix->value, prefix->value_len)) {
-            return FALSE;
+            return NULL;
         }
     }
-    return TRUE;
+    config_main_t *config = root.config;
+    char *ext;
+    if(!*base || pathend[-1] == '/') {
+        if(route->static_.index_file) {
+            ext = strrchr(route->static_.index_file, '.');
+        } else if(route->static_.dir_index) {
+            return "text/html";
+        } else {
+            ext = NULL;
+        }
+    } else {
+        ext = strrchr(base, '.');
+    }
+    if(!ext)
+        return config->Server.mime_types.no_extension;
+    ++ext; // need next after '.' character
+    char *mime;
+    if(ws_imatch(config->Server.mime_types._match, ext, (size_t *)&mime))
+        return mime;
+    return config->Server.mime_types.default_type;
 }
 
-bool check_path(disk_request_t *req, char *realpath) {
+static bool check_path(disk_request_t *req, char *realpath) {
     int plen = strlen(realpath);
     config_Route_t *route = req->route;
     if(route->static_.restrict_root) {
@@ -63,7 +81,7 @@ bool check_path(disk_request_t *req, char *realpath) {
     return FALSE;
 }
 
-char *join_paths(disk_request_t *req) {
+static char *join_paths(disk_request_t *req) {
     char *path = req->path;
     char *pathend = strchrnul(path, '?');
     int nstrip = req->route->static_.strip_dirs+1; // always strip first slash
@@ -93,7 +111,7 @@ char *join_paths(disk_request_t *req) {
     return realpath(fullpath, NULL);
 }
 
-int get_file(char *path, zmq_msg_t *msg) {
+static int get_file(char *path, zmq_msg_t *msg) {
     int fd;
     do {
         fd = open(path, O_RDONLY);
@@ -155,7 +173,8 @@ void *disk_loop(void *_) {
         size_t reqlen = zmq_msg_size(&msg);
         if(reqlen == 8 && !memcmp(req, "shutdown", 8)) break;
         LDEBUG("Got disk request for ``%s''", req->path);
-        if(!check_base(req)) {
+        char *mime = check_base(req);
+        if(!mime) {
             LDEBUG("Path ``%s'' denied", req->path);
             SNIMPL(zmq_msg_init_data(&msg, "402", 4, NULL, NULL));
             SNIMPL(zmq_send(sock, &msg, 0));
@@ -187,11 +206,12 @@ void *disk_loop(void *_) {
         }
         SNIMPL(zmq_msg_init_data(&msg, "200 OK", 6, NULL, NULL));
         SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE));
-        SNIMPL(zmq_msg_init_data(&msg,
-            "Content-Type\0text/html\0", 23, NULL, NULL));
+        SNIMPL(zmq_msg_init_size(&msg, strlen("Content-Type")+strlen(mime)+2));
+        void *data = zmq_msg_data(&msg);
+        memcpy(data, "Content-Type", strlen("Content-Type")+1);
+        strcpy(data + strlen("Content-Type")+1, mime);
         SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE));
         SNIMPL(zmq_send(sock, &result, 0));
-        LDEBUG("Replied for ``%s''", req->path);
         free(realpath);
         ev_async_send(root.loop, &root.disk_async);
         continue;
@@ -238,7 +258,7 @@ int disk_request(request_t *req) {
 }
 
 
-void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
+static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     ANIMPL(!(revents & EV_ERROR));
     while(TRUE) {
         Z_SEQ_INIT(msg, root.disk_socket);
@@ -338,6 +358,37 @@ void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     LDEBUG("Out of disk...");
 }
 
+static int read_mime_types(struct obstack *buf, void *matcher, char *filename) {
+    FILE *file = fopen(filename, "r");
+    if(!file) return -1;
+    
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    while ((read = getline(&line, &len, file)) != -1) {
+        char *tokptr = NULL;
+        char *tok = strtok_r(line, " \t\r\n", &tokptr);
+        if(!tok || tok[0] == '#')
+            continue;
+        char *mtype = tok;
+        tok = strtok_r(NULL, " \t\r\n", &tokptr);
+        if(!tok) continue;
+        mtype = obstack_copy0(buf, mtype, strlen(mtype));
+        do {
+            LDEBUG("Adding mime ``%s'' -> ``%s''", tok, mtype);
+            char *res = (char*)ws_match_iadd(matcher, tok, (size_t)mtype);
+            if(res != mtype) {
+                LWARN("Conflicting mime for ``%s'' using ``%s''", tok, res);
+            }
+            tok = strtok_r(NULL, " \t\r\n", &tokptr);
+        } while(tok);
+    }
+
+    free(line);
+    fclose(file);
+    return 0;
+}
+
 int prepare_disk(config_main_t *config) {
     if(config->Server.disk_io_threads <= 0) {
         root.disk_socket = NULL;
@@ -355,13 +406,25 @@ int prepare_disk(config_main_t *config) {
     ev_async_start(root.loop, &root.disk_async);
     root.disk_threads =malloc(sizeof(pthread_t)*config->Server.disk_io_threads);
     ANIMPL(root.disk_threads);
-    
     for(int i = 0; i < config->Server.disk_io_threads; ++i) {
         SNIMPL(pthread_create(&root.disk_threads[i], NULL, disk_loop, NULL));
     }
-    
     LWARN("%d disk threads ready", config->Server.disk_io_threads);
     
+    void *matcher = ws_match_new();
+    // User-specified values override mime.types
+    CONFIG_STRING_STRING_LOOP(item, config->Server.mime_types.extra) {
+        LDEBUG("Adding mime ``%s'' -> ``%s''", item->key, item->value);
+        char *r = (char*)ws_match_iadd(matcher, item->key, (size_t)item->value);
+        if(r != item->value) {
+            LWARN("Conflicting mime for ``%s'' using ``%s''", item->key, r);
+        }
+    }
+    SNIMPL(read_mime_types(&config->head.pieces,
+        matcher, config->Server.mime_types.file));
+    
+    ws_match_compile(matcher);
+    config->Server.mime_types._match = matcher;
     return 0;
 }
 
