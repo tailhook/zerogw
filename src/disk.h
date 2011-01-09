@@ -4,7 +4,6 @@
 #include <zmq.h>
 
 #include "config.h"
-#include "uthash.h"
 #include "main.h"
 
 /*

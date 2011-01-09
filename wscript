@@ -34,7 +34,7 @@ def build(bld):
             'src/disk.c',
             ],
         target       = 'zerogw',
-        includes     = ['src', 'uthash/src'],
+        includes     = ['src'],
         defines      = [
             'LOG_STRIP_PATH="../src/"',
             ],
