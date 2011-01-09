@@ -4,7 +4,7 @@ from waflib import Utils, Options
 from waflib.Build import BuildContext
 
 APPNAME='zerogw'
-VERSION='0.5.1'
+VERSION='0.5.2'
 
 top = '.'
 out = 'build'
@@ -51,18 +51,18 @@ def dist(ctx):
     ctx.excl = ['.waf*', '*.tar.bz2', '*.zip', 'build',
         '.git*', '.lock*', '**/*.pyc']
     ctx.algo = 'tar.bz2'
-    
+
 def make_pkgbuild(task):
     import hashlib
     task.outputs[0].write(Utils.subst_vars(task.inputs[0].read(), {
         'VERSION': VERSION,
         'DIST_MD5': hashlib.md5(task.inputs[1].read('rb')).hexdigest(),
         }))
-        
+
 def archpkg(ctx):
     from waflib import Options
     Options.commands = ['dist', 'makepkg'] + Options.commands
-        
+
 def build_package(bld):
     distfile = APPNAME + '-' + VERSION + '.tar.bz2'
     bld(rule=make_pkgbuild,
@@ -73,7 +73,7 @@ def build_package(bld):
     bld(rule='makepkg -f', source=distfile)
     bld.add_group()
     bld(rule='makepkg -f --source', source=distfile)
-    
+
 class makepkg(BuildContext):
     cmd = 'makepkg'
     fun = 'build_package'
