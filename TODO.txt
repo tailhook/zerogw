@@ -11,6 +11,8 @@
  * implement gzip
  * implement expires (cache-age)
 
+ * Strip `?` from uri before matching
+ * Implement fallback routes
  * Setuid, chroot, etc.
  * Maintainance page
  * Allowed methods, and max-body-size
@@ -20,4 +22,5 @@
  * HTTPS
  * Add server name-version header
  * Check server in low memory, and requests > max conditions
+ * Configuration of zeromq devices in zerogw config
  * Figure out how to implement SDCH
