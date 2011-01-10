@@ -1,10 +1,12 @@
  * Find out rare startup failure (probably related to already opened connections after restart)
- 
+ * Setup defaults for error pages (works with coyaml v0.3.5)
+
  Websockets:
- * Add error pages for http polling 
+ * Add error pages for http polling
  * Implement or disable more output and input formats for polling
  * Review ws.js, limit number of requests, introduce queue, data batching
- 
+ * Implement pseudo peer-to-peer communication support
+
  Static:
  * implement directory index
  * implement cache
@@ -24,3 +26,4 @@
  * Check server in low memory, and requests > max conditions
  * Configuration of zeromq devices in zerogw config
  * Figure out how to implement SDCH
+ * Replace ugly offsetof's to SHIFT macro
