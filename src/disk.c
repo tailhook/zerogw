@@ -218,7 +218,6 @@ void *disk_loop(void *_) {
         SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE));
         SNIMPL(zmq_send(sock, &result, 0));
         free(realpath);
-        ev_async_send(root.loop, &root.disk_async);
         continue;
     }
     SNIMPL(zmq_close(sock));
@@ -232,6 +231,8 @@ int disk_request(request_t *req) {
             &req->route->responses.internal_error);
         return 0;
     }
+    // Must wake up reading and on each send, because the way zmq sockets work
+    ev_feed_event(root.loop, &root.disk_watch, EV_READ);
     zmq_msg_t msg;
     REQ_INCREF(req);
     make_hole_uid(req, req->uid, root.request_sieve, FALSE);
@@ -411,8 +412,6 @@ int prepare_disk(config_main_t *config) {
     SNIMPL(zmq_getsockopt(root.disk_socket, ZMQ_FD, &fd, &fdsize));
     ev_io_init(&root.disk_watch, disk_process, fd, EV_READ);
     ev_io_start(root.loop, &root.disk_watch);
-    ev_async_init(&root.disk_async, (void *)disk_process);
-    ev_async_start(root.loop, &root.disk_async);
     root.disk_threads =malloc(sizeof(pthread_t)*config->Server.disk_io_threads);
     ANIMPL(root.disk_threads);
     for(int i = 0; i < config->Server.disk_io_threads; ++i) {

@@ -265,6 +265,8 @@ static int socket_unvisitor(config_Route_t *route) {
 static int do_forward(request_t *req) {
     config_Route_t *route = req->route;
     void *sock = route->zmq_forward.socket._sock;
+    // Must wake up reading and on each send, because the way zmq sockets work
+    ev_feed_event(root.loop, &route->zmq_forward.socket._watch, EV_READ);
     zmq_msg_t msg;
     REQ_INCREF(req);
     SNIMPL(zmq_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
