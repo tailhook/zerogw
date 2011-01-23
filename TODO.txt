@@ -1,5 +1,4 @@
  * Find out rare startup failure (probably related to already opened connections after restart)
- * Setup defaults for error pages (works with coyaml v0.3.5)
 
  Websockets:
  * Add error pages for http polling

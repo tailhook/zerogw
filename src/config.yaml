@@ -5,7 +5,7 @@ __meta__:
   description: >
     A HTTP to zeromq gateway. It's actually a web server which uses zeromq for
     communication with backends.
-  
+
   c_std_include:
   - ev.h
 
@@ -36,7 +36,7 @@ __types__:
       zmq.Bind: 1
       zmq.Connect: 2
     __value__: !String ""
-  
+
   zmqsocket:
     __tags__:
       __property__: kind
@@ -167,39 +167,151 @@ __types__:
         check-exists: no
         check-dir: yes
         inheritance: yes
-        
+
     # Static/error responses
     responses: &responses
       default: !Struct
         =: StaticResponse
         inheritance: yes
+        default:
+          code: 404
+          status: Not Found
+          headers:
+            Content-Type: text/html; charset=utf-8
+          body:
+            <html>
+              <head>
+                <title>404 Page Not Found</title>
+              </head>
+              <body>
+                <h1>404 Page Not Found</h1>
+              </body>
+            </html>
       maintainance: !Struct
         =: StaticResponse
         inheritance: yes
+        default:
+          code: 503
+          status: Service Unavailable
+          headers:
+            Content-Type: text/html; charset=utf-8
+          body:
+            <html>
+              <head>
+                <title>Maintainance</title>
+              </head>
+              <body>
+                <h1>Service is in maintainance mode</h1>
+              </body>
+            </html>
       not-found: !Struct
         =: StaticResponse
         inheritance: yes
+        default:
+          code: 404
+          status: Not Found
+          headers:
+            Content-Type: text/html; charset=utf-8
+          body:
+            <html>
+              <head>
+                <title>404 Page Not Found</title>
+              </head>
+              <body>
+                <h1>404 Page Not Found</h1>
+              </body>
+            </html>
       method-not-allowed: !Struct
         =: StaticResponse
         inheritance: yes
+        default:
+          code: 405
+          status: Method Not Allowed
+          headers:
+            Content-Type: text/html; charset=utf-8
+          body:
+            <html>
+              <head>
+                <title>405 Method Not Allowed</title>
+              </head>
+              <body>
+                <h1>405 Method Not Allowed</h1>
+              </body>
+            </html>
       forbidden: !Struct
         =: StaticResponse
         inheritance: yes
+        default:
+          code: 403
+          status: Forbidden
+          headers:
+            Content-Type: text/html; charset=utf-8
+          body:
+            <html>
+              <head>
+                <title>403 Forbidden</title>
+              </head>
+              <body>
+                <h1>403 Forbidden</h1>
+              </body>
+            </html>
       internal-error: !Struct
         =: StaticResponse
         inheritance: yes
+        default:
+          code: 500
+          status: Internal Server Error
+          headers:
+            Content-Type: text/html; charset=utf-8
+          body:
+            <html>
+              <head>
+                <title>500 Internal Server Error</title>
+              </head>
+              <body>
+                <h1>500 Internal Server Error</h1>
+              </body>
+            </html>
       service-unavailable: !Struct
         =: StaticResponse
         inheritance: yes
+        default:
+          code: 503
+          status: Service Unavailable
+          headers:
+            Content-Type: text/html; charset=utf-8
+          body:
+            <html>
+              <head>
+                <title>503 Service Unavailable</title>
+              </head>
+              <body>
+                <h1>503 Service Temporarily Unavailable</h1>
+              </body>
+            </html>
       gateway-timeout: !Struct
         =: StaticResponse
         inheritance: yes
-      
+        default:
+          code: 504
+          status: Gateway Timeout
+          headers:
+            Content-Type: text/html; charset=utf-8
+          body:
+            <html>
+              <head>
+                <title>504 Gateway Timeout</title>
+              </head>
+              <body>
+                <h1>504 Gateway Timeout</h1>
+              </body>
+            </html>
+
     # Dumb maintainance page response
     maintainance: !Bool
       =: no
       inheritance: yes
-    
+
     # Static response
     static:
       enabled: !Bool
@@ -278,7 +390,7 @@ __types__:
           use zerogw for serving big static files.
         inheritance: yes
       # _cache: !CType url_cache_t
-          
+
     # Server Side Templates
     templates:
       enabled: !Bool
@@ -337,7 +449,7 @@ __types__:
       retry: !Struct
         =: retrymode
         inheritance: yes
-      
+
     # websocket forwarding
     # does not collide with everything else
     websocket:
@@ -388,7 +500,7 @@ __types__:
         description: >
           Disable real websockets and use http polling fallback always.
         inheritance: yes
-        
+
       polling-fallback:
         enabled: !Bool
           =: yes
@@ -453,10 +565,10 @@ __types__:
       element: !Struct Route
       inheritance: no
     _child-match: !_VoidPtr ~
-    
+
     __inheritance__:
       group: routing
-  
+
   logging: &errorlog
     level: !Int
       min: 0
@@ -542,7 +654,7 @@ Server:
       code) without parsing handshake.
   listen: !Array
     element: !Struct listenaddr
-    
+
   mime-types:
     file: !File
       default: /etc/mime.types
@@ -563,7 +675,7 @@ Server:
       description: >
         Default mime type for files which has extension not found in mapping
     _match: !_VoidPtr ~
-    
+
   error-log: *errorlog # not struct because command-line
 
 Routing: !Struct Route
