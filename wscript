@@ -4,7 +4,7 @@ from waflib import Utils, Options
 from waflib.Build import BuildContext
 
 APPNAME='zerogw'
-VERSION='0.5.2'
+VERSION='0.5.3'
 
 top = '.'
 out = 'build'
