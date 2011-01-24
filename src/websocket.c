@@ -89,7 +89,7 @@ void hybi_stop(hybi_t *hybi) {
     SNIMPL(zmq_msg_init_data(&zmsg, "disconnect", 10, NULL, NULL));
     SNIMPL(zmq_send(sock, &zmsg, ZMQ_NOBLOCK));
     LDEBUG("Websocket sent disconnect to 0x%x", sock);
-    
+
     for(subscriber_t *sub = hybi->first_sub; sub;) {
         if(!sub->topic_prev) {
             sub->topic->first_sub = sub->topic_next;
@@ -137,7 +137,7 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
     hybi->first_sub = NULL;
     hybi->last_sub = NULL;
     hybi->route = route;
-    
+
     void *sock = route->websocket.forward._sock;
     zmq_msg_t zmsg;
     SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
@@ -411,6 +411,29 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             LDEBUG("Publishing to 0x%x", topic);
             Z_RECV_LAST(msg);
             topic_publish(topic, &msg);
+        } else if(cmdlen == 4 && !strncmp(cmd, "send", cmdlen)) {
+            LDEBUG("Websocket got SEND request");
+            Z_RECV_NEXT(msg);
+            hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
+            if(!hybi) goto msg_error;
+            Z_RECV_LAST(msg);
+            message_t *mm = (message_t*)malloc(sizeof(message_t));
+            ANIMPL(mm);
+            SNIMPL(ws_message_init(&mm->ws));
+            zmq_msg_init(&mm->zmq);
+            LDEBUG("Sending %x [%d]``%.*s''", &msg,
+                zmq_msg_size(&msg), zmq_msg_size(&msg), zmq_msg_data(&msg));
+            zmq_msg_move(&mm->zmq, &msg);
+            ws_MESSAGE_DATA(&mm->ws, (char *)zmq_msg_data(&mm->zmq),
+                zmq_msg_size(&mm->zmq), websock_message_free);
+            root.stat.websock_sent += 1;
+            if(hybi->type == HYBI_WEBSOCKET) {
+                ws_message_send(&hybi->conn->ws, &mm->ws);
+            } else if(hybi->type == HYBI_COMET) {
+                comet_send(hybi, mm);
+            } else {
+                LNIMPL("Uknown connection type");
+            }
         } else if(cmdlen == 4 && !strncmp(cmd, "drop", cmdlen)) {
             LDEBUG("Websocket got DROP request");
             Z_RECV_LAST(msg);
