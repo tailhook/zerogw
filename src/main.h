@@ -6,6 +6,7 @@
 
 #include <website.h>
 #include <pthread.h>
+#include <sys/queue.h>
 
 #include "config.h"
 #include "sieve.h"
@@ -30,8 +31,7 @@ typedef struct hybi_s {
     hybi_enum type;
     char uid[UID_LEN];
     config_Route_t *route;
-    struct subscriber_s *first_sub;
-    struct subscriber_s *last_sub;
+    LIST_HEAD(conn_subscribers_s, subscriber_s) subscribers;
     connection_t *conn;
     comet_t comet[]; // tiny hack, to use less memory, but be efficient
 } hybi_t;

@@ -9,6 +9,7 @@ struct message_s;
 
 typedef struct comet_s {
     request_t *cur_request;
+    int overflow;
     int cur_format;
     int cur_limit;
     int queue_size;

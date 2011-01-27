@@ -3,15 +3,14 @@
 
 #include <website.h>
 #include <zmq.h>
+#include <sys/queue.h>
 #include "main.h"
 #include "request.h"
 #include "config.h"
 
 typedef struct subscriber_s {
-    struct subscriber_s *topic_next;
-    struct subscriber_s *topic_prev;
-    struct subscriber_s *client_next;
-    struct subscriber_s *client_prev;
+    LIST_ENTRY(subscriber_s) topic_list;
+    LIST_ENTRY(subscriber_s) client_list;
     struct topic_s *topic;
     struct hybi_s *connection;
 } subscriber_t;

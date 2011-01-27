@@ -1,6 +1,7 @@
 #include <zmq.h>
 #include <malloc.h>
 #include <strings.h>
+#include <sys/queue.h>
 
 #include "websocket.h"
 #include "log.h"
@@ -10,10 +11,8 @@
 
 typedef struct topic_s {
     struct topic_hash_s *table;
-    struct topic_s *next;
-    struct topic_s *prev;
-    subscriber_t *first_sub;
-    subscriber_t *last_sub;
+    LIST_ENTRY(topic_s) topic_list;
+    LIST_HEAD(topic_subsribers_s, subscriber_s) subscribers;
     size_t hash;
     size_t length;
     char topic[];
@@ -26,46 +25,20 @@ typedef struct topic_hash_s {
     topic_t **table;
 } topic_hash_t;
 
+LIST_HEAD(topic_head, topic_s);
+
 void free_topic(topic_t *topic) {
     // Frees both: empty/unused topics and forced free with unsubscribe
-    for(subscriber_t *sub = topic->first_sub; sub;) {
-        if(!sub->topic_prev) {
-            sub->topic->first_sub = sub->topic_next;
-        } else {
-            sub->topic_prev->topic_next = sub->topic_next;
-        }
-        if(!sub->topic_next) {
-            sub->topic->last_sub = sub->topic_prev;
-        } else {
-            sub->topic_next->topic_prev = sub->topic_prev;
-        }
-        if(!sub->client_prev) {
-            sub->connection->first_sub = sub->client_next;
-        } else {
-            sub->client_prev->client_next = sub->client_next;
-        }
-        if(!sub->client_next) {
-            sub->connection->last_sub = sub->client_prev;
-        } else {
-            sub->client_next->client_prev = sub->client_prev;
-        }
-        subscriber_t *nsub = sub->topic_next;
+    subscriber_t *sub, *nxt;
+    for (sub = LIST_FIRST(&topic->subscribers); sub; sub = nxt) {
+        nxt = LIST_NEXT(sub, topic_list);
+        LIST_REMOVE(sub, topic_list);
+        LIST_REMOVE(sub, client_list);
         free(sub);
-        sub = nsub;
         topic->table->nsubscriptions -= 1;
         root.stat.websock_unsubscribed += 1;
     }
-    if(topic->prev) {
-        topic->prev->next = topic->next;
-        if(topic->next) {
-            topic->next->prev = topic->prev;
-        }
-    } else if(topic->next) {
-        topic->next->prev = NULL;
-        topic->table->table[topic->hash%topic->table->hash_size] = topic->next;
-    } else {
-        topic->table->table[topic->hash%topic->table->hash_size] = NULL;
-    }
+    LIST_REMOVE(topic, topic_list);
     topic->table->ntopics -= 1;
     root.stat.topics_removed += 1;
     free(topic);
@@ -90,25 +63,18 @@ void hybi_stop(hybi_t *hybi) {
     SNIMPL(zmq_send(sock, &zmsg, ZMQ_NOBLOCK));
     LDEBUG("Websocket sent disconnect to 0x%x", sock);
 
-    for(subscriber_t *sub = hybi->first_sub; sub;) {
-        if(!sub->topic_prev) {
-            sub->topic->first_sub = sub->topic_next;
-        } else {
-            sub->topic_prev->topic_next = sub->topic_next;
-        }
-        if(!sub->topic_next) {
-            sub->topic->last_sub = sub->topic_prev;
-        } else {
-            sub->topic_next->topic_prev = sub->topic_prev;
-        }
-        sub->topic->table->nsubscriptions -= 1;
+    subscriber_t *sub, *nxt;
+    for (sub = LIST_FIRST(&hybi->subscribers); sub; sub = nxt) {
+        nxt = LIST_NEXT(sub, client_list);
+        LIST_REMOVE(sub, client_list);
+        LIST_REMOVE(sub, topic_list);
+        topic_t *topic = sub->topic;
+        topic->table->nsubscriptions -= 1;
         root.stat.websock_unsubscribed += 1;
-        if(!sub->topic->first_sub) {
-            free_topic(sub->topic);
+        if(!LIST_FIRST(&topic->subscribers)) {
+            free_topic(topic);
         }
-        subscriber_t *nsub = sub->client_next;
         free(sub);
-        sub = nsub;
     }
     free(hybi);
 }
@@ -134,8 +100,7 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
     }
     hybi->type = type;
     SNIMPL(make_hole_uid(hybi, hybi->uid, root.hybi_sieve, type == HYBI_COMET));
-    hybi->first_sub = NULL;
-    hybi->last_sub = NULL;
+    LIST_INIT(&hybi->subscribers);
     hybi->route = route;
 
     void *sock = route->websocket.forward._sock;
@@ -169,8 +134,7 @@ int websock_message(connection_t *conn, message_t *msg) {
 }
 
 hybi_t *hybi_find(char *data) {
-    hybi_t *hybi = (hybi_t *)sieve_get(root.hybi_sieve,
-        *(uint64_t *)(data + IID_LEN));
+    hybi_t *hybi = (hybi_t *)sieve_get(root.hybi_sieve, UID_HOLE(data));
     if(!hybi || !UID_EQ(hybi->uid, data)) return NULL;
     return hybi;
 }
@@ -192,10 +156,7 @@ static topic_t *mktopic(topic_hash_t *table, char *name, int len, size_t hash) {
     root.stat.topics_created += 1;
     memcpy(result->topic, name, len);
     result->length = len;
-    result->prev = NULL;
-    result->next = NULL;
-    result->first_sub = NULL;
-    result->last_sub = NULL;
+    LIST_INIT(&result->subscribers);
     return result;
 }
 
@@ -222,33 +183,32 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
         table->ntopics = 1;
         table->nsubscriptions = 0;
         result = mktopic(table, topic_name, topic_len, hash);
-        table->table[hash % table->hash_size] = result;
+        int bucket = hash % table->hash_size;
+        LIST_INSERT_HEAD((struct topic_head *)&table->table[bucket],
+            result, topic_list);
         return result;
     }
     size_t cell =  hash % table->hash_size;
-    topic_t *current = table->table[cell];
+    topic_t *current = LIST_FIRST((struct topic_head *)&table->table[cell]);
     if(!current) {
         if(!create) return NULL;
         result = mktopic(table, topic_name, topic_len, hash);
         table->ntopics += 1;
-        table->table[cell] = result;
+        LIST_INSERT_HEAD((struct topic_head *)&table->table[cell],
+            result, topic_list);
         return result;
     }
-    if(current->length == topic_len && current->hash == hash
-        && !memcmp(current->topic, topic_name, topic_len)) {
-        return current;
-    }
-    while(current->next) {
-        if(current->next->length == topic_len && current->next->hash == hash
-        && !memcmp(current->next->topic, topic_name, topic_len)) {
+    LIST_FOREACH(current, (struct topic_head *)&table->table[cell], topic_list) {
+        if(current->length == topic_len && current->hash == hash
+            && !memcmp(current->topic, topic_name, topic_len)) {
             return current;
         }
     }
     if(!create) return NULL;
     table->ntopics += 1;
     result = mktopic(table, topic_name, topic_len, hash);
-    result->prev = current;
-    current->next = result;
+    LIST_INSERT_HEAD((struct topic_head *)&table->table[cell],
+        result, topic_list);
     return result;
 }
 
@@ -259,22 +219,8 @@ static bool topic_subscribe(hybi_t *hybi, topic_t *topic) {
     }
     sub->topic = topic;
     sub->connection = hybi;
-    sub->topic_prev = topic->last_sub;
-    if(!topic->first_sub) {
-        topic->first_sub = sub;
-    } else {
-        topic->last_sub->topic_next = sub;
-    }
-    topic->last_sub = sub;
-    sub->topic_next = NULL;
-    sub->client_prev = hybi->last_sub;
-    if(!hybi->first_sub) {
-        hybi->first_sub = sub;
-    } else {
-        hybi->last_sub->client_next = sub;
-    }
-    hybi->last_sub = sub;
-    sub->client_next = NULL;
+    LIST_INSERT_HEAD(&topic->subscribers, sub, topic_list);
+    LIST_INSERT_HEAD(&hybi->subscribers, sub, client_list);
     topic->table->nsubscriptions += 1;
     root.stat.websock_subscribed += 1;
     LDEBUG("Subscription done, topics: %d, subscriptions: %d",
@@ -283,42 +229,17 @@ static bool topic_subscribe(hybi_t *hybi, topic_t *topic) {
 }
 
 static bool topic_unsubscribe(hybi_t *hybi, topic_t *topic) {
-    subscriber_t *sub = topic->first_sub;
-    ANIMPL(sub);
-    if(sub->connection == hybi) {
-        if(topic->last_sub == sub) {
-            // Only one subscriber in the topic
-            // Often it's user's own channel
-            free_topic(topic);
-            return TRUE;
-        }
-    } else {
-        // It's probably faster to search user topics, because user doesn't
-        // expected to have thousands of topics. But topic can actually have
-        // thousands of subscibers (very popular news feed or chat room)
-        for(sub = hybi->first_sub; sub; sub = sub->client_next)
-            if(sub->topic == topic) break;
-    }
+    // It's probably faster to search user topics, because user doesn't
+    // expected to have thousands of topics. But topic can actually have
+    // thousands of subscibers (very popular news feed or chat room)
+    subscriber_t *sub;
+    LIST_FOREACH(sub, &hybi->subscribers, client_list)
+        if(sub->topic == topic) break;
     if(!sub) return FALSE;
-    if(sub->client_prev) {
-        sub->client_prev->client_next = sub->client_next;
-    } else {
-        hybi->first_sub = sub->client_next;
-    }
-    if(sub->client_next) {
-        sub->client_next->client_prev = sub->client_prev;
-    } else {
-        hybi->last_sub = sub->client_prev;
-    }
-    if(!sub->topic_prev) {
-        sub->topic->first_sub = sub->topic_next;
-    } else {
-        sub->topic_prev->topic_next = sub->topic_next;
-    }
-    if(!sub->topic_next) {
-        sub->topic->last_sub = sub->topic_prev;
-    } else {
-        sub->topic_next->topic_prev = sub->topic_prev;
+    LIST_REMOVE(sub, topic_list);
+    LIST_REMOVE(sub, client_list);
+    if(!LIST_FIRST(&topic->subscribers)) {
+        free_topic(topic);
     }
     free(sub);
     topic->table->nsubscriptions -= 1;
@@ -332,8 +253,7 @@ static void websock_message_free(void *ws) {
 }
 
 static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
-    if(!topic->first_sub) return FALSE;
-    subscriber_t *sub = topic->first_sub;
+    subscriber_t *sub = LIST_FIRST(&topic->subscribers);
     // every connection are same, we use first so that libwebsite could
     // determine size of message, but reusing message for each subscriber
     message_t *msg = (message_t*)malloc(sizeof(message_t));
@@ -348,7 +268,7 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
     LDEBUG("Sending %x [%d]``%.*s''", msg,
         msg->ws.length, msg->ws.length, msg->ws.data);
     root.stat.websock_published += 1;
-    for(; sub; sub = sub->topic_next) {
+    LIST_FOREACH(sub, &topic->subscribers, topic_list) {
         root.stat.websock_sent += 1;
         if(sub->connection->type == HYBI_WEBSOCKET) {
             ws_message_send(&sub->connection->conn->ws, &msg->ws);
@@ -428,7 +348,14 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 zmq_msg_size(&mm->zmq), websock_message_free);
             root.stat.websock_sent += 1;
             if(hybi->type == HYBI_WEBSOCKET) {
-                ws_message_send(&hybi->conn->ws, &mm->ws);
+                int r = ws_message_send(&hybi->conn->ws, &mm->ws);
+                if(r < 0) {
+                    if(errno == EXFULL) {
+                        shutdown(hybi->conn->ws.watch.fd, SHUT_RDWR);
+                    } else {
+                        SNIMPL(r);
+                    }
+                }
             } else if(hybi->type == HYBI_COMET) {
                 comet_send(hybi, mm);
             } else {

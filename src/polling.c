@@ -283,8 +283,17 @@ static int comet_request_sent(ws_request_t *hint) {
 };
 
 static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
-    comet_t *comet = SHIFT(watch, hybi_t, comet[0].sendlater)->comet;
+    hybi_t *hybi = SHIFT(watch, hybi_t, comet[0].sendlater);
+    comet_t *comet = hybi->comet;
     request_t *mreq = comet->cur_request;
+    if(comet->overflow) {
+        if(mreq) {
+            close_reply(hybi);
+        } else {
+            free_comet(hybi);
+        }
+        return;
+    }
     comet->cur_request = NULL;
     ws_request_t *req = &mreq->ws;
     ANIMPL(req);
@@ -363,6 +372,7 @@ static int comet_connect(request_t *req) {
     hybi->comet->cur_format = FMT_SINGLE;
     hybi->comet->current_queue = 0;
     hybi->comet->first_index = 1;
+    hybi->comet->overflow = FALSE;
     ev_idle_init(&hybi->comet->sendlater, send_later);
     ev_timer_init(&hybi->comet->inactivity, inactivity_timeout,
         req->route->websocket.polling_fallback.inactivity_timeout,
@@ -404,7 +414,7 @@ int comet_request(request_t *req) {
         LDEBUG("Got comet CONNECT request");
         return comet_connect(req);
     }
-    
+
     hybi_t *hybi = hybi_find(args.uid);
     if(!hybi || hybi->type != HYBI_COMET) {
         TWARN("Trying to use websocket id as comet id");
@@ -477,12 +487,15 @@ int comet_request(request_t *req) {
 
 int comet_send(hybi_t *hybi, message_t *msg) {
     if(hybi->comet->current_queue >= hybi->comet->queue_size) {
-        free_comet(hybi);
+        hybi->comet->overflow = TRUE;
+        if(!hybi->comet->sendlater.active) {
+            ev_idle_start(root.loop, &hybi->comet->sendlater);
+        }
         return -1;
     }
     ws_MESSAGE_INCREF(&msg->ws);
     hybi->comet->queue[hybi->comet->current_queue++] = msg;
-    if(hybi->comet->cur_request) {
+    if(hybi->comet->cur_request && !hybi->comet->sendlater.active) {
         ev_idle_start(root.loop, &hybi->comet->sendlater);
     }
     return 0;
