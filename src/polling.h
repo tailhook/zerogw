@@ -22,5 +22,6 @@ typedef struct comet_s {
 
 int comet_send(struct hybi_s *hybi, struct message_s *msg);
 int comet_request(struct request_s *req);
+void comet_request_aborted(request_t *req);
 
 #endif //_H_POLLING

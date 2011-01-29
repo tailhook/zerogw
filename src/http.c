@@ -24,13 +24,17 @@ void request_decref(void *_data, void *request) {
 }
 
 int http_request_finish(request_t *req) {
-    REQ_DECREF(req);
+    if(req->hybi) {
+        comet_request_aborted(req);
+    } else {
+        REQ_DECREF(req);
+    }
     return 1;
 }
 
 void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     ANIMPL(!(revents & EV_ERROR));
-    
+
     config_Route_t *route = (config_Route_t *)((char *)watch
         - offsetof(config_Route_t, zmq_forward.socket._watch));
     while(TRUE) {

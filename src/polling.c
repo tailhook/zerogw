@@ -183,13 +183,15 @@ static void empty_reply(hybi_t *hybi) {
     if(hybi->comet->cur_request->timeout.active) {
         ev_timer_stop(root.loop, &hybi->comet->cur_request->timeout);
     }
-    ws_request_t *req = &hybi->comet->cur_request->ws;
+    request_t *mreq = hybi->comet->cur_request;
+    ws_request_t *req = &mreq->ws;
     ws_statusline(req, "200 OK");
     ws_add_header(req, "X-Messages", "0");
     nocache_headers(req);
     ws_reply_data(req, "", 0);
     REQ_DECREF(hybi->comet->cur_request);
     hybi->comet->cur_request = NULL;
+    mreq->hybi = NULL;
 }
 
 static void free_comet(hybi_t *hybi) {
@@ -208,7 +210,8 @@ static void free_comet(hybi_t *hybi) {
 }
 
 static void close_reply(hybi_t *hybi) {
-    ws_request_t *req = &hybi->comet->cur_request->ws;
+    request_t *mreq = hybi->comet->cur_request;
+    ws_request_t *req = &mreq->ws;
     ws_statusline(req, "200 OK");
     ws_add_header(req, "X-Messages", "0");
     ws_add_header(req, "X-Connection", "close");
@@ -216,7 +219,7 @@ static void close_reply(hybi_t *hybi) {
     ws_reply_data(req, "", 0);
     REQ_DECREF(hybi->comet->cur_request);
     hybi->comet->cur_request = NULL;
-    free_comet(hybi);
+    mreq->hybi = NULL;
 }
 
 static void send_message(hybi_t *hybi, request_t *req) {
@@ -234,6 +237,19 @@ static void send_message(hybi_t *hybi, request_t *req) {
     SNIMPL(zmq_send(sock, &zmsg, ZMQ_NOBLOCK));
 }
 
+void comet_request_aborted(request_t *req) {
+    TWARN("Aborted comet request %x", req->hybi->comet->cur_request);
+    root.stat.comet_aborted_replies += 1;
+    ADEBUG(req->hybi->comet->cur_request == req);
+    if(req->timeout.active) {
+        ev_timer_stop(root.loop, &req->timeout);
+    }
+    hybi_t *hybi = req->hybi;
+    req->hybi->comet->cur_request = NULL;
+    REQ_DECREF(req);
+    ev_timer_again(root.loop, &hybi->comet->inactivity);
+}
+
 static void polling_timeout(struct ev_loop *loop, struct ev_timer *timer,
     int rev)
 {
@@ -247,6 +263,7 @@ static void polling_timeout(struct ev_loop *loop, struct ev_timer *timer,
 static void inactivity_timeout(struct ev_loop *loop, struct ev_timer *timer,
     int rev)
 {
+    TWARN("Closing polling websocket due to inactivity");
     ANIMPL(!(rev & EV_ERROR));
     ev_timer_stop(loop, timer);
     hybi_t *hybi = (hybi_t *)((char *)timer
@@ -254,10 +271,14 @@ static void inactivity_timeout(struct ev_loop *loop, struct ev_timer *timer,
     free_comet(hybi);
 }
 
-static void move_queue(hybi_t *hybi, size_t msgid) {
-    if(msgid == 0) return;
+static int move_queue(hybi_t *hybi, size_t msgid) {
+    if(msgid == 0 || msgid < hybi->comet->first_index) return 0;
     size_t amount = msgid - hybi->comet->first_index + 1;
-    ANIMPL(amount <= hybi->comet->current_queue);
+    if(amount > hybi->comet->current_queue) {
+        TWARN("Wrong ack ``%d''/%d+%d", msgid,
+            hybi->comet->first_index, hybi->comet->current_queue);
+        return -1;
+    }
     if(amount) {
         root.stat.comet_acks += amount;
         for(int i = 0; i < amount; ++i) {
@@ -271,6 +292,7 @@ static void move_queue(hybi_t *hybi, size_t msgid) {
                     hybi->comet->current_queue * sizeof(message_t *));
         }
     }
+    return 0;
 }
 
 static int comet_request_sent(ws_request_t *hint) {
@@ -289,9 +311,12 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
     if(comet->overflow) {
         if(mreq) {
             close_reply(hybi);
-        } else {
-            free_comet(hybi);
         }
+        free_comet(hybi);
+        return;
+    } else if(!mreq) {
+        // Seems request aborted before we had chance to send anything
+        ev_idle_stop(loop, &comet->sendlater);
         return;
     }
     comet->cur_request = NULL;
@@ -358,8 +383,10 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
     } else {
         LNIMPL("Response format %d not implemented", comet->cur_format);
     }
+    mreq->hybi = NULL; // don't need hybi any more
     REQ_DECREF(mreq);
     ev_idle_stop(loop, &comet->sendlater);
+    ev_timer_again(loop, &comet->inactivity);
 }
 
 static int comet_connect(request_t *req) {
@@ -416,7 +443,11 @@ int comet_request(request_t *req) {
     }
 
     hybi_t *hybi = hybi_find(args.uid);
-    if(!hybi || hybi->type != HYBI_COMET) {
+    if(!hybi) {
+        TWARN("Websocket not found, probably already dead");
+        return -1;
+    }
+    if(hybi->type != HYBI_COMET) {
         TWARN("Trying to use websocket id as comet id");
         return -1; //FIXME: send meaningfull reply
     }
@@ -443,9 +474,15 @@ int comet_request(request_t *req) {
             empty_reply(hybi);
         }
     }
-    move_queue(hybi, args.last_message);
-    if(args.action == ACT_CLOSE) {
+    if(move_queue(hybi, args.last_message) < 0 || args.action == ACT_CLOSE) {
+        //TODO: maybe don't close, or send another message
+        // in case of message move fail (usually wrong ack id)
+        if(hybi->comet->cur_request) {
+            close_reply(hybi);
+        }
+        hybi->comet->cur_request = req;
         close_reply(hybi);
+        free_comet(hybi);
         return 0;
     }
     if(args.action == ACT_POST || args.action == ACT_BIDI)  {

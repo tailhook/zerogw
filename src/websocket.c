@@ -135,6 +135,7 @@ int websock_message(connection_t *conn, message_t *msg) {
 
 hybi_t *hybi_find(char *data) {
     hybi_t *hybi = (hybi_t *)sieve_get(root.hybi_sieve, UID_HOLE(data));
+    LDEBUG("Searching for hole %d", UID_HOLE(data));
     if(!hybi || !UID_EQ(hybi->uid, data)) return NULL;
     return hybi;
 }
@@ -361,6 +362,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             } else {
                 LNIMPL("Uknown connection type");
             }
+            ws_MESSAGE_DECREF(&mm->ws);
         } else if(cmdlen == 4 && !strncmp(cmd, "drop", cmdlen)) {
             LDEBUG("Websocket got DROP request");
             Z_RECV_LAST(msg);

@@ -51,6 +51,7 @@ typedef struct statistics_s {
     size_t comet_disconnects;
     size_t comet_acks;
     size_t comet_empty_replies;
+    size_t comet_aborted_replies;
     size_t comet_received_messages;
     size_t comet_received_batches;
     size_t comet_sent_messages;

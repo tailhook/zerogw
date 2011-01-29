@@ -9,6 +9,7 @@ void request_init(request_t *req) {
     req->timeout.active = 0;
     req->retries = 0;
     req->uid[0] = 0;
+    req->hybi = NULL;
 }
 
 void request_finish(request_t *req) {

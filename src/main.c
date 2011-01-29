@@ -49,6 +49,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         "comet_disconnects: %lu\n"
         "comet_acks: %lu\n"
         "comet_empty_replies: %lu\n"
+        "comet_aborted_replies: %lu\n"
         "comet_received_messages: %lu\n"
         "comet_received_batches: %lu\n"
         "comet_sent_messages: %lu\n"
@@ -79,6 +80,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.comet_disconnects,
         root.stat.comet_acks,
         root.stat.comet_empty_replies,
+        root.stat.comet_aborted_replies,
         root.stat.comet_received_messages,
         root.stat.comet_received_batches,
         root.stat.comet_sent_messages,
@@ -157,11 +159,11 @@ int main(int argc, char **argv) {
     ws_MESSAGE_STRUCT(&root.ws, message_t);
 
     // Probably here is a place to fork! :)
-    
+
     init_uid();
     init_statistics();
     root.zmq = zmq_init(config.Server.zmq_io_threads);
-    
+
     struct ev_timer status_timer;
     if(config.Server.status.socket.value_len) {
         SNIMPL(zmq_open(&config.Server.status.socket,
@@ -185,10 +187,10 @@ int main(int argc, char **argv) {
     ws_server_start(&root.ws);
     ev_run(root.loop, 0);
     ws_server_destroy(&root.ws);
-    
+
     sieve_free(root.request_sieve);
     sieve_free(root.hybi_sieve);
-    
+
     SNIMPL(release_http(&config, &config.Routing));
     SNIMPL(release_websockets(&config, &config.Routing));
     SNIMPL(release_disk(&config));
@@ -197,7 +199,7 @@ int main(int argc, char **argv) {
     }
     config_free(&config);
     ev_loop_destroy(root.loop);
-    
+
     zmq_term(root.zmq);
     LWARN("Terminated.");
 }
