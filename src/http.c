@@ -24,11 +24,8 @@ void request_decref(void *_data, void *request) {
 }
 
 int http_request_finish(request_t *req) {
-    if(req->hybi) {
-        comet_request_aborted(req);
-    } else {
-        REQ_DECREF(req);
-    }
+    ANIMPL(!req->hybi);
+    REQ_DECREF(req);
     return 1;
 }
 

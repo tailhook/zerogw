@@ -189,9 +189,9 @@ static void empty_reply(hybi_t *hybi) {
     ws_add_header(req, "X-Messages", "0");
     nocache_headers(req);
     ws_reply_data(req, "", 0);
-    REQ_DECREF(hybi->comet->cur_request);
-    hybi->comet->cur_request = NULL;
     mreq->hybi = NULL;
+    REQ_DECREF(mreq);
+    hybi->comet->cur_request = NULL;
 }
 
 static void free_comet(hybi_t *hybi) {
@@ -217,9 +217,9 @@ static void close_reply(hybi_t *hybi) {
     ws_add_header(req, "X-Connection", "close");
     nocache_headers(req);
     ws_reply_data(req, "", 0);
-    REQ_DECREF(hybi->comet->cur_request);
-    hybi->comet->cur_request = NULL;
     mreq->hybi = NULL;
+    REQ_DECREF(mreq);
+    hybi->comet->cur_request = NULL;
 }
 
 static void send_message(hybi_t *hybi, request_t *req) {
@@ -240,7 +240,7 @@ static void send_message(hybi_t *hybi, request_t *req) {
 void comet_request_aborted(request_t *req) {
     TWARN("Aborted comet request %x", req->hybi->comet->cur_request);
     root.stat.comet_aborted_replies += 1;
-    ADEBUG(req->hybi->comet->cur_request == req);
+    ANIMPL(req->hybi->comet->cur_request == req);
     if(req->timeout.active) {
         ev_timer_stop(root.loop, &req->timeout);
     }
@@ -254,8 +254,10 @@ static void polling_timeout(struct ev_loop *loop, struct ev_timer *timer,
     int rev)
 {
     ANIMPL(!(rev & EV_ERROR));
-    request_t *req = (request_t *)((char *)timer - offsetof(request_t,timeout));
+    LDEBUG("Polling timeout");
+    request_t *req = SHIFT(timer, request_t, timeout);
     hybi_t *hybi = req->hybi;
+    ANIMPL(req->hybi->comet->cur_request == req);
     empty_reply(hybi);
     ev_timer_again(root.loop, &hybi->comet->inactivity);
 }
@@ -266,8 +268,7 @@ static void inactivity_timeout(struct ev_loop *loop, struct ev_timer *timer,
     TWARN("Closing polling websocket due to inactivity");
     ANIMPL(!(rev & EV_ERROR));
     ev_timer_stop(loop, timer);
-    hybi_t *hybi = (hybi_t *)((char *)timer
-        - offsetof(hybi_t,comet[0].inactivity));
+    hybi_t *hybi = SHIFT(timer, hybi_t, comet[0].inactivity);
     free_comet(hybi);
 }
 
@@ -297,10 +298,14 @@ static int move_queue(hybi_t *hybi, size_t msgid) {
 
 static int comet_request_sent(ws_request_t *hint) {
     request_t *req = (request_t *)hint;
-    if(req->flags & REQ_OWNS_WSMESSAGE) {
-        ws_MESSAGE_DECREF(&req->ws_msg->ws);
+    if(req->hybi) {
+        comet_request_aborted(req);
+    } else {
+        if(req->flags & REQ_OWNS_WSMESSAGE) {
+            ws_MESSAGE_DECREF(&req->ws_msg->ws);
+        }
+        REQ_DECREF(req);
     }
-    REQ_DECREF(req);
     return 1;
 };
 
@@ -337,7 +342,6 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
         ws_add_header(req, "X-Message-ID", buf);
         nocache_headers(req);
         ws_MESSAGE_INCREF(&comet->queue[0]->ws);
-        ws_FINISH_CB(req, comet_request_sent);
         mreq->flags |= REQ_OWNS_WSMESSAGE;
         mreq->ws_msg = comet->queue[0];
         ws_reply_data(req, comet->queue[0]->ws.data,
@@ -467,6 +471,7 @@ int comet_request(request_t *req) {
             }
         }
     }
+    ANIMPL(hybi->comet->cur_request != req);
     if(args.action == ACT_GET || args.action == ACT_BIDI
         || args.action == ACT_CLOSE) {
         if(hybi->comet->cur_request) {
@@ -480,6 +485,7 @@ int comet_request(request_t *req) {
         if(hybi->comet->cur_request) {
             close_reply(hybi);
         }
+        REQ_INCREF(req);
         hybi->comet->cur_request = req;
         close_reply(hybi);
         free_comet(hybi);
@@ -504,6 +510,7 @@ int comet_request(request_t *req) {
         }
         hybi->comet->cur_limit = limit;
         req->hybi = hybi;
+        ws_FINISH_CB(&req->ws, comet_request_sent);
         if(hybi->comet->current_queue) {
             req->timeout.active = FALSE;
             ev_idle_start(root.loop, &hybi->comet->sendlater);

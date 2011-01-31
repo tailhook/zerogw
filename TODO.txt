@@ -5,6 +5,8 @@
  * Implement or disable more output and input formats for polling
  * Review ws.js, limit number of requests, introduce queue, data batching
  * Implement pseudo peer-to-peer communication support
+ * Fix simple polling (timeout=0)
+ * Make them also work with Push/Pull sockets
 
  Static:
  * implement directory index
@@ -12,6 +14,8 @@
  * implement gzip
  * implement expires (cache-age)
 
+ * Check what happens on ECONNRESET, EPIPE
+ * Check working server with ZMQ_HWM's set on sockets
  * Strip `?` from uri before matching
  * Implement fallback routes
  * Setuid, chroot, etc.
