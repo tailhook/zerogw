@@ -149,6 +149,7 @@ int main(int argc, char **argv) {
         }
     }
     ws_REQUEST_STRUCT(&root.ws, request_t);
+    ws_HEADERS_CB(&root.ws, http_headers);
     ws_REQUEST_CB(&root.ws, http_request);
     ws_FINISH_CB(&root.ws, http_request_finish);
     ws_CONNECTION_STRUCT(&root.ws, connection_t);

@@ -327,68 +327,69 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
     comet->cur_request = NULL;
     ws_request_t *req = &mreq->ws;
     ANIMPL(req);
-    ANIMPL(comet->current_queue);
-    if(mreq->timeout.active) {
-        ev_timer_stop(loop, &mreq->timeout);
-    }
-    root.stat.comet_sent_batches += 1;
-    if(comet->cur_format == FMT_SINGLE) {
-        root.stat.comet_sent_messages += 1;
-        char buf[24];
-        sprintf(buf, "%lu", comet->first_index);
-        ws_statusline(req, "200 OK");
-        ws_add_header(req, "X-Messages", "1");
-        ws_add_header(req, "X-Format", "single");
-        ws_add_header(req, "X-Message-ID", buf);
-        nocache_headers(req);
-        ws_MESSAGE_INCREF(&comet->queue[0]->ws);
-        mreq->flags |= REQ_OWNS_WSMESSAGE;
-        mreq->ws_msg = comet->queue[0];
-        ws_reply_data(req, comet->queue[0]->ws.data,
-            comet->queue[0]->ws.length);
-    } else if(comet->cur_format == FMT_MULTIPART) {
-        char boundary[32] = "---------------WebsockZerogwPart";
-        int num = comet->current_queue;
-        if(num > comet->cur_limit) {
-            num = comet->cur_limit;
+    if(comet->current_queue) {
+        if(mreq->timeout.active) {
+            ev_timer_stop(loop, &mreq->timeout);
         }
-        char buf[128];
-        ws_statusline(req, "200 OK");
-        sprintf(buf, "%lu", num);
-        ws_add_header(req, "X-Messages", buf);
-        sprintf(buf, "%lu", comet->first_index + comet->current_queue);
-        ws_add_header(req, "X-Last-ID", buf);
-        ws_add_header(req, "X-Format", "multipart");
-        sprintf(buf, "multipart/mixed; boundary=\"%s\"", boundary);
-        ws_add_header(req, "Content-Type", buf);
-        nocache_headers(req);
-        ws_finish_headers(req);
-        obstack_blank(&req->pieces, 0);
-        obstack_grow(&req->pieces,
-            "Parts following\r\n", strlen("Parts following\r\n"));
-        obstack_grow(&req->pieces, boundary, sizeof(boundary));
-        for(int i = 0; i < num; ++i) {
+        root.stat.comet_sent_batches += 1;
+        if(comet->cur_format == FMT_SINGLE) {
             root.stat.comet_sent_messages += 1;
-            obstack_grow(&req->pieces,
-                "\r\nContent-Type: application/octed-stream\r\n"
-                    "X-Message-ID: ",
-                strlen("\r\nContent-Type: application/octed-stream\r\n"
-                    "X-Message-ID "));
-            int len = sprintf(buf, "%lu", comet->first_index + i);
-            obstack_grow(&req->pieces, buf, len);
-            obstack_grow(&req->pieces, "\r\n\r\n", 4);
-            obstack_grow(&req->pieces, comet->queue[0]->ws.data,
+            char buf[24];
+            sprintf(buf, "%lu", comet->first_index);
+            ws_statusline(req, "200 OK");
+            ws_add_header(req, "X-Messages", "1");
+            ws_add_header(req, "X-Format", "single");
+            ws_add_header(req, "X-Message-ID", buf);
+            nocache_headers(req);
+            ws_MESSAGE_INCREF(&comet->queue[0]->ws);
+            mreq->flags |= REQ_OWNS_WSMESSAGE;
+            mreq->ws_msg = comet->queue[0];
+            ws_reply_data(req, comet->queue[0]->ws.data,
                 comet->queue[0]->ws.length);
+        } else if(comet->cur_format == FMT_MULTIPART) {
+            char boundary[32] = "---------------WebsockZerogwPart";
+            int num = comet->current_queue;
+            if(num > comet->cur_limit) {
+                num = comet->cur_limit;
+            }
+            char buf[128];
+            ws_statusline(req, "200 OK");
+            sprintf(buf, "%lu", num);
+            ws_add_header(req, "X-Messages", buf);
+            sprintf(buf, "%lu", comet->first_index + comet->current_queue);
+            ws_add_header(req, "X-Last-ID", buf);
+            ws_add_header(req, "X-Format", "multipart");
+            sprintf(buf, "multipart/mixed; boundary=\"%s\"", boundary);
+            ws_add_header(req, "Content-Type", buf);
+            nocache_headers(req);
+            ws_finish_headers(req);
+            obstack_blank(&req->pieces, 0);
+            obstack_grow(&req->pieces,
+                "Parts following\r\n", strlen("Parts following\r\n"));
             obstack_grow(&req->pieces, boundary, sizeof(boundary));
+            for(int i = 0; i < num; ++i) {
+                root.stat.comet_sent_messages += 1;
+                obstack_grow(&req->pieces,
+                    "\r\nContent-Type: application/octed-stream\r\n"
+                        "X-Message-ID: ",
+                    strlen("\r\nContent-Type: application/octed-stream\r\n"
+                        "X-Message-ID "));
+                int len = sprintf(buf, "%lu", comet->first_index + i);
+                obstack_grow(&req->pieces, buf, len);
+                obstack_grow(&req->pieces, "\r\n\r\n", 4);
+                obstack_grow(&req->pieces, comet->queue[0]->ws.data,
+                    comet->queue[0]->ws.length);
+                obstack_grow(&req->pieces, boundary, sizeof(boundary));
+            }
+            obstack_grow(&req->pieces, "--\r\n", 2);
+            int len = obstack_object_size(&req->pieces);
+            ws_reply_data(req, obstack_finish(&req->pieces), len);
+        } else {
+            LNIMPL("Response format %d not implemented", comet->cur_format);
         }
-        obstack_grow(&req->pieces, "--\r\n", 2);
-        int len = obstack_object_size(&req->pieces);
-        ws_reply_data(req, obstack_finish(&req->pieces), len);
-    } else {
-        LNIMPL("Response format %d not implemented", comet->cur_format);
+        mreq->hybi = NULL; // don't need hybi any more
+        REQ_DECREF(mreq);
     }
-    mreq->hybi = NULL; // don't need hybi any more
-    REQ_DECREF(mreq);
     ev_idle_stop(loop, &comet->sendlater);
     ev_timer_again(loop, &comet->inactivity);
 }

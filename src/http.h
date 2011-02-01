@@ -4,6 +4,7 @@
 #include "request.h"
 #include "config.h"
 
+int http_headers(request_t *req);
 int http_request(request_t *req);
 int http_request_finish(request_t *req);
 void http_static_response(request_t *req, config_StaticResponse_t *resp);

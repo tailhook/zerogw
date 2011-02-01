@@ -335,8 +335,17 @@ static void request_timeout(struct ev_loop *loop, struct ev_timer *tm, int rev){
     }
 }
 
-int http_request(request_t *req) {
+int http_headers(request_t *req) {
+    config_Route_t *route = resolve_url(req);
+    if(req->ws.bodylen > route->limits.max_body_size) {
+        TWARN("Request size too big");
+        return -1; // Close connection immediately
+    }
     request_init(req);
+    return 0;
+}
+
+int http_request(request_t *req) {
     root.stat.http_requests += 1;
     config_Route_t *route = resolve_url(req);
 

@@ -8,6 +8,12 @@ const char *get_field(request_t *req, config_RequestField_t*value, size_t*len) {
     const char *result;
     switch(value->kind) {
     case CONFIG_Body:
+        if(!req->ws.bodyposition) { // only headers read
+            if(len) {
+                *len = 0;
+            }
+            return NULL;
+        }
         if(len) {
             *len = req->ws.bodylen;
         }
