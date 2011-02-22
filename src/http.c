@@ -130,6 +130,14 @@ static int socket_visitor(config_Route_t *route) {
     if(route->zmq_forward.socket.value_len) {
         SNIMPL(zmq_open(&route->zmq_forward.socket, ZMASK_REQ, ZMQ_XREQ,
             http_process, root.loop));
+        CONFIG_REQUESTFIELD_LOOP(item, route->zmq_forward.contents) {
+            switch(item->value.kind) {
+            case CONFIG_Header:
+                item->value._field_index = ws_index_header(&root.ws,
+                    item->value.value);
+                break;
+            }
+        }
     }
     route->_child_match = NULL;
     if(route->routing.kind && (route->map_len || route->children_len)) {
@@ -392,4 +400,3 @@ int release_http(config_main_t *config, config_Route_t *root) {
     SNIMPL(socket_unvisitor(&config->Routing));
     return 0;
 }
-
