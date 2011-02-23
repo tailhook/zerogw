@@ -7,7 +7,7 @@ pkgdesc="A http/zeromq gateway"
 arch=('i686' 'x86_64')
 url="http://github.com/tailhook/zerogw"
 license=('GPL')
-depends=('zeromq' 'libyaml')
+depends=('zeromq' 'libyaml' 'openssl' 'libev')
 makedepends=('coyaml>=0.3.2' 'libwebsite>=0.2.7')
 backup=("etc/zerogw.yaml")
 source=(https://github.com/downloads/tailhook/zerogw/$pkgname-$pkgver.tar.bz2)

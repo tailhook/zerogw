@@ -7,12 +7,14 @@
  * Implement pseudo peer-to-peer communication support
  * Fix simple polling (timeout=0)
  * Make them also work with Push/Pull sockets
+ * Implement routing messages by prefix
 
  Static:
  * implement directory index
  * implement cache
  * implement gzip
  * implement expires (cache-age)
+ * implement If-Modified-Since and If-None-Match
 
  * Check what happens on ECONNRESET, EPIPE
  * Check working server with ZMQ_HWM's set on sockets
@@ -30,3 +32,5 @@
  * Configuration of zeromq devices in zerogw config
  * Figure out how to implement SDCH
  * Replace ugly offsetof's to SHIFT macro
+ * Add another kind of forwarding (pushing) requests for statistics
+ * Implement unique ids for requests
