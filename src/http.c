@@ -64,7 +64,7 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             char *tail;
             int dlen = zmq_msg_size(&msg);
             LDEBUG("Status line: [%d] %s", dlen, data);
-            ws_statusline(&req->ws, data);
+            ws_statusline_len(&req->ws, data, dlen);
 
             Z_RECV(msg);
             if(msg_opt) { //second is headers if its not last

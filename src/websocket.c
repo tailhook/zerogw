@@ -239,11 +239,12 @@ static bool topic_unsubscribe(hybi_t *hybi, topic_t *topic) {
     if(!sub) return FALSE;
     LIST_REMOVE(sub, topic_list);
     LIST_REMOVE(sub, client_list);
+    topic_hash_t *tbl = topic->table;
     if(!LIST_FIRST(&topic->subscribers)) {
         free_topic(topic);
     }
     free(sub);
-    topic->table->nsubscriptions -= 1;
+    tbl->nsubscriptions -= 1;
     root.stat.websock_unsubscribed += 1;
     return TRUE;
 }
