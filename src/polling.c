@@ -225,16 +225,24 @@ static void close_reply(hybi_t *hybi) {
 static void send_message(hybi_t *hybi, request_t *req) {
     root.stat.comet_received_batches += 1;
     root.stat.comet_received_messages += 1;
-    void *sock = hybi->route->websocket.forward._sock;
     zmq_msg_t zmsg;
-    REQ_INCREF(req);
-    SNIMPL(zmq_msg_init_data(&zmsg, hybi->uid, UID_LEN, NULL, NULL));
-    SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK));
-    SNIMPL(zmq_msg_init_data(&zmsg, "message", 7, NULL, NULL));
-    SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK));
-    SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
-        request_decref, req));
-    SNIMPL(zmq_send(sock, &zmsg, ZMQ_NOBLOCK));
+    STREAMER_SEND_LOOP(&hybi->route->websocket._device) {
+        SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
+        memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
+        STREAMER_SEND(&zmsg);
+        SNIMPL(zmq_msg_init_size(&zmsg, 7));
+        memcpy(zmq_msg_data(&zmsg), "message", 7);
+        STREAMER_SEND(&zmsg);
+        REQ_INCREF(req);
+        SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
+            request_decref, req));
+        STREAMER_SEND_LAST(&zmsg);
+    }
+    return;
+streamer_error:
+    TWARN("Failed to queue message from http");
+    //TODO: close connection
+    return;
 }
 
 void comet_request_aborted(request_t *req) {

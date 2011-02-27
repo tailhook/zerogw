@@ -48,6 +48,7 @@ int zmq_open(config_zmqsocket_t *sock, int kinds, int defkind,
     }
     void *result = zmq_socket(root.zmq, zkind);
     ANIMPL(result);
+    LDEBUG("Socket 0x%x is of kind %d", result, zkind);
     CONFIG_ZMQADDR_LOOP(addr, sock->value) {
         if(addr->value.kind == CONFIG_zmq_Bind) {
             LDEBUG("Binding 0x%x to ``%s''", result, addr->value.value);

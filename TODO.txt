@@ -6,8 +6,9 @@
  * Review ws.js, limit number of requests, introduce queue, data batching
  * Implement pseudo peer-to-peer communication support
  * Fix simple polling (timeout=0)
- * Make them also work with Push/Pull sockets
  * Implement routing messages by prefix
+ * Make Push by default (probably in the 0.6 or 1.0)
+ * Do something with connect/disconnect if queues are full
 
  Static:
  * implement directory index
@@ -16,6 +17,7 @@
  * implement expires (cache-age)
  * implement If-Modified-Since and If-None-Match
 
+ * Check EINTR in all zmq_send
  * Check what happens on ECONNRESET, EPIPE
  * Check working server with ZMQ_HWM's set on sockets
  * Strip `?` from uri before matching

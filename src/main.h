@@ -63,6 +63,8 @@ typedef struct statistics_s {
     size_t websock_published;
     size_t websock_sent;
     size_t websock_received;
+    size_t websock_backend_queued;
+    size_t websock_backend_unqueued;
     size_t disk_requests;
     size_t disk_reads;
     size_t disk_bytes_read;
@@ -82,6 +84,7 @@ typedef struct serverroot_s {
     config_Route_t **wsock_routes;
     sieve_t *request_sieve;
     sieve_t *hybi_sieve;
+    LIST_HEAD(hybi_devices_s, streamer_s) hybi_devices;
     statistics_t stat;
 } serverroot_t;
 

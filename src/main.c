@@ -61,6 +61,8 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         "websock_published: %lu\n"
         "websock_sent: %lu\n"
         "websock_received: %lu\n"
+        "websock_backend_queued: %lu\n"
+        "websock_backend_unqueued: %lu\n"
         "disk_requests: %lu\n"
         "disk_reads: %lu\n"
         "disk_bytes_read: %lu\n"
@@ -92,6 +94,8 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_published,
         root.stat.websock_sent,
         root.stat.websock_received,
+        root.stat.websock_backend_queued,
+        root.stat.websock_backend_unqueued,
         root.stat.disk_requests,
         root.stat.disk_reads,
         root.stat.disk_bytes_read

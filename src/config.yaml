@@ -8,6 +8,8 @@ __meta__:
 
   c_std_include:
   - ev.h
+  c_include:
+  - device.h
 
 __types__:
 
@@ -482,9 +484,9 @@ __types__:
         min: 1
         max: 1Mi
         description: >
-          Limits number of messages queued for single connection before it will
-          be dropped. Be carefull, because static buffer of pointer size
-          multiplied with this number of messages is created for each socket
+          Limits number of output messages queued for single connection before
+          it will be dropped. Be carefull, because static buffer of pointer size
+          multiplied with this number of messages is created for each connection
         inheritance: yes
       inactivity-timeout: !UInt
         default: 60
@@ -495,6 +497,16 @@ __types__:
           connection, even if buffer is not full. Drops connection only if at
           least one connection is on the queue.
         inheritance: yes
+      max-backend-queue: !UInt
+        default: 1024
+        min: 0
+        max: 1Gi
+        description: >
+          Maximum number of messages outstanding in the queue to backend, while
+          can't be send to it. This limit does not include zeromq queue limit.
+          This limit works only for Push sockets with either high water mark set
+          or having no connections at the moment. Also it works when server was
+          paused by user.
       disable-websocket: !Bool
         =: no
         description: >
@@ -543,6 +555,7 @@ __types__:
             Some browsers and some proxies don't like high values. Client can
             specify value less than this on per-request basis.
           inheritance: yes
+      _device: !CStruct streamer_s
       _heartbeat-timer: !CStruct ev_timer
       _topics: !_VoidPtr ~
 

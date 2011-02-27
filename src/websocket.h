@@ -26,6 +26,7 @@ int websock_message(connection_t *conn, message_t *msg);
 int start_websocket(request_t *req);
 int prepare_websockets(config_main_t *config, config_Route_t *root);
 int release_websockets(config_main_t *config, config_Route_t *root);
+int pause_websockets(bool pause);
 hybi_t *hybi_start(config_Route_t *route, hybi_enum type);
 void hybi_stop(hybi_t *hybi);
 hybi_t *hybi_find(char *data);

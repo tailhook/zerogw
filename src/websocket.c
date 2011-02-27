@@ -8,6 +8,7 @@
 #include "zutils.h"
 #include "resolve.h"
 #include "uidgen.h"
+#include "device.h"
 
 typedef struct topic_s {
     struct topic_hash_s *table;
@@ -55,13 +56,19 @@ void hybi_stop(hybi_t *hybi) {
     sieve_empty(root.hybi_sieve, UID_HOLE(hybi->uid));
 
     zmq_msg_t zmsg;
-    void *sock = hybi->route->websocket.forward._sock;
-    SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
-    memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
-    SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK));
-    SNIMPL(zmq_msg_init_data(&zmsg, "disconnect", 10, NULL, NULL));
-    SNIMPL(zmq_send(sock, &zmsg, ZMQ_NOBLOCK));
-    LDEBUG("Websocket sent disconnect to 0x%x", sock);
+    STREAMER_SEND_LOOP(&hybi->route->websocket._device) {
+        SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
+        memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
+        STREAMER_SEND(&zmsg);
+        SNIMPL(zmq_msg_init_size(&zmsg, 10));
+        memcpy(zmq_msg_data(&zmsg), "disconnect", 10);
+        STREAMER_SEND_LAST(&zmsg);
+    }
+    if(FALSE) {
+streamer_error: // can't do anything very useful
+        TWARN("Couldn't send disconnect message");
+    }
+    LDEBUG("Websocket sent disconnect");
 
     subscriber_t *sub, *nxt;
     for (sub = LIST_FIRST(&hybi->subscribers); sub; sub = nxt) {
@@ -94,23 +101,32 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
         int qsize = route->websocket.polling_fallback.queue_limit;
         hybi = (hybi_t*)malloc(sizeof(hybi_t) + sizeof(comet_t)
             + qsize * sizeof(message_t *));
+        ANIMPL(hybi); //FIXME
         hybi->comet->queue_size = qsize;
     } else {
         hybi = (hybi_t*)malloc(sizeof(hybi_t));
     }
+    ANIMPL(hybi); //FIXME
     hybi->type = type;
     SNIMPL(make_hole_uid(hybi, hybi->uid, root.hybi_sieve, type == HYBI_COMET));
     LIST_INIT(&hybi->subscribers);
     hybi->route = route;
 
-    void *sock = route->websocket.forward._sock;
     zmq_msg_t zmsg;
-    SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
-    memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
-    SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK));
-    SNIMPL(zmq_msg_init_data(&zmsg, "connect", 7, NULL, NULL));
-    SNIMPL(zmq_send(sock, &zmsg, ZMQ_NOBLOCK));
-    LDEBUG("Websocket sent hello to 0x%x", sock);
+    STREAMER_SEND_LOOP(&hybi->route->websocket._device) {
+        SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
+        memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
+        STREAMER_SEND(&zmsg);
+        SNIMPL(zmq_msg_init_size(&zmsg, 7));
+        memcpy(zmq_msg_data(&zmsg), "connect", 7);
+        STREAMER_SEND_LAST(&zmsg);
+    }
+    LDEBUG("Websocket sent hello");
+    return hybi;
+
+streamer_error:
+    TWARN("Failed to queue connect message");
+    //TODO: close connection
     return hybi;
 }
 
@@ -120,17 +136,23 @@ void websock_free_message(void *data, void *hint) {
 }
 
 int websock_message(connection_t *conn, message_t *msg) {
-    ws_MESSAGE_INCREF(&msg->ws);
     root.stat.websock_received += 1;
-    void *sock = conn->hybi->route->websocket.forward._sock;
     zmq_msg_t zmsg;
-    SNIMPL(zmq_msg_init_data(&zmsg, conn->hybi->uid, UID_LEN, NULL, NULL));
-    SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK));
-    SNIMPL(zmq_msg_init_data(&zmsg, "message", 7, NULL, NULL));
-    SNIMPL(zmq_send(sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK));
-    SNIMPL(zmq_msg_init_data(&zmsg, msg->ws.data, msg->ws.length,
-        websock_free_message, msg));
-    SNIMPL(zmq_send(sock, &zmsg, ZMQ_NOBLOCK));
+    STREAMER_SEND_LOOP(&conn->hybi->route->websocket._device) {
+        SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
+        memcpy(zmq_msg_data(&zmsg), conn->hybi->uid, UID_LEN);
+        STREAMER_SEND(&zmsg);
+        SNIMPL(zmq_msg_init_size(&zmsg, 7));
+        memcpy(zmq_msg_data(&zmsg), "message", 7);
+        STREAMER_SEND(&zmsg);
+        ws_MESSAGE_INCREF(&msg->ws);
+        SNIMPL(zmq_msg_init_data(&zmsg, msg->ws.data, msg->ws.length,
+            websock_free_message, msg));
+        STREAMER_SEND_LAST(&zmsg);
+    }
+    return 0;
+streamer_error:
+    return -1;
 }
 
 hybi_t *hybi_find(char *data) {
@@ -401,11 +423,20 @@ static void heartbeat(struct ev_loop *loop,
         - offsetof(config_Route_t, websocket._heartbeat_timer));
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-    SNIMPL(zmq_send(route->websocket.forward._sock, &msg,
-        ZMQ_SNDMORE|ZMQ_NOBLOCK));
+    if(zmq_send(route->websocket.forward._sock, &msg,
+        ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+        if(errno != EAGAIN) { //TODO: EINTR???
+            SNIMPL(-1);
+        } else {
+            return; // nevermind
+        }
+    }
     SNIMPL(zmq_msg_init_data(&msg, "heartbeat", 9, NULL, NULL));
-    SNIMPL(zmq_send(route->websocket.forward._sock, &msg, ZMQ_NOBLOCK));
-    SNIMPL(zmq_msg_close(&msg));
+    if(zmq_send(route->websocket.forward._sock, &msg, ZMQ_NOBLOCK) < 0) {
+        if(errno != EAGAIN) { //TODO: EINTR???
+            SNIMPL(-1);
+        } // else: nevermind
+    }
 }
 
 static int socket_visitor(config_Route_t *route) {
@@ -421,19 +452,18 @@ static int socket_visitor(config_Route_t *route) {
     if(route->websocket.forward.value_len) {
         SNIMPL(zmq_open(&route->websocket.forward,
             ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, NULL, NULL));
-        zmq_msg_t msg;
-        SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-        SNIMPL(zmq_send(route->websocket.forward._sock, &msg,
-            ZMQ_SNDMORE|ZMQ_NOBLOCK));
-        SNIMPL(zmq_msg_init_data(&msg, "ready", 5, NULL, NULL));
-        SNIMPL(zmq_send(route->websocket.forward._sock, &msg, ZMQ_NOBLOCK));
-        SNIMPL(zmq_msg_close(&msg));
         if(route->websocket.heartbeat_interval) {
             ev_timer_init(&route->websocket._heartbeat_timer, heartbeat,
                 route->websocket.heartbeat_interval,
                 route->websocket.heartbeat_interval);
             ev_timer_start(root.loop, &route->websocket._heartbeat_timer);
         }
+        streamer_init(&route->websocket._device,
+            route->websocket.forward._sock,
+            route->websocket.max_backend_queue,
+            &root.stat.websock_backend_queued,
+            &root.stat.websock_backend_unqueued);
+        LIST_INSERT_HEAD(&root.hybi_devices, &route->websocket._device, lst);
     }
     CONFIG_ROUTE_LOOP(item, route->children) {
         SNIMPL(socket_visitor(&item->value));
@@ -459,6 +489,7 @@ static int socket_unvisitor(config_Route_t *route) {
         if(route->websocket.heartbeat_interval) {
             ev_timer_stop(root.loop, &route->websocket._heartbeat_timer);
         }
+        SNIMPL(streamer_close(&route->websocket._device));
     }
     CONFIG_ROUTE_LOOP(item, route->children) {
         SNIMPL(socket_unvisitor(&item->value));
@@ -469,14 +500,22 @@ static int socket_unvisitor(config_Route_t *route) {
     return 0;
 }
 
-int prepare_websockets(config_main_t *config, config_Route_t *root) {
-    SNIMPL(socket_visitor(&config->Routing));
+int pause_websockets(bool pause) {
+    streamer_t *dev;
+    LIST_FOREACH(dev, &root.hybi_devices, lst) {
+        streamer_pause(dev, pause);
+    }
+}
+
+int prepare_websockets(config_main_t *config, config_Route_t *rroot) {
+    LIST_INIT(&root.hybi_devices);
+    SNIMPL(socket_visitor(rroot));
     LINFO("Websocket connections complete");
     return 0;
 }
 
-int release_websockets(config_main_t *config, config_Route_t *root) {
-    SNIMPL(socket_unvisitor(&config->Routing));
+int release_websockets(config_main_t *config, config_Route_t *rroot) {
+    SNIMPL(socket_unvisitor(rroot));
     return 0;
 }
 
