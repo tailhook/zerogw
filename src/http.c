@@ -247,7 +247,7 @@ static int socket_visitor(config_Route_t *route) {
 
 static int socket_unvisitor(config_Route_t *route) {
     if(route->zmq_forward.socket.value_len) {
-        SNIMPL(z_close(route->zmq_forward.socket._sock, root.loop));
+        SNIMPL(z_close(&route->zmq_forward.socket, root.loop));
     }
     if(route->routing.kind && (route->map_len || route->children_len)) {
         switch(route->routing.kind) {

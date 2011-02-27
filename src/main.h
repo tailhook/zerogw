@@ -3,6 +3,7 @@
 
 #define SHIFT(ptr, typ, mem) ((typ *)((char *)(ptr) - offsetof(typ, mem)))
 #define RANDOM_LENGTH 16
+#define STAT_MAXLEN 4096
 
 #include <website.h>
 #include <pthread.h>
@@ -89,5 +90,7 @@ typedef struct serverroot_s {
 } serverroot_t;
 
 extern serverroot_t root;
+
+int format_statistics(char *buf);
 
 #endif

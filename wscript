@@ -33,6 +33,7 @@ def build(bld):
             'src/polling.c',
             'src/disk.c',
             'src/device.c',
+            'src/commands.c',
             ],
         target       = 'zerogw',
         includes     = ['src'],

@@ -642,6 +642,12 @@ Server:
       default: 60
       description: >
         Interval at which status messages will be published
+  control:
+    socket: !Struct
+      type: zmqsocket
+      descripton: >
+        Zeromq REP-type socket, which will accept commands from user. Send it
+        single message `list_commands` to get a list of all supported commands.
   max-requests: !Int
     min: 4
     max: 1Gi

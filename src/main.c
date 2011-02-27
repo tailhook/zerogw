@@ -19,6 +19,7 @@
 #include "resolve.h"
 #include "http.h"
 #include "disk.h"
+#include "commands.h"
 
 serverroot_t root;
 
@@ -27,13 +28,10 @@ void init_statistics() {
     memset(&root.stat, 0, sizeof(root.stat));
 }
 
-void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
-    ANIMPL(!(rev & EV_ERROR));
-    config_main_t *config = (config_main_t *)watch->data;
-    char buf[4096];
+int format_statistics(char *buf) {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    size_t len = snprintf(buf, sizeof(buf),
+    int res = snprintf(buf, STAT_MAXLEN,
         "%lu.%06d\n"
         "connects: %lu\n"
         "disconnects: %lu\n"
@@ -100,6 +98,15 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.disk_reads,
         root.stat.disk_bytes_read
         );
+    buf[STAT_MAXLEN-1] = 0;
+    return res;
+}
+
+void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
+    ANIMPL(!(rev & EV_ERROR));
+    config_main_t *config = (config_main_t *)watch->data;
+    char buf[STAT_MAXLEN];
+    size_t len = format_statistics(buf);
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
     SNIMPL(zmq_send(config->Server.status.socket._sock, &msg,
@@ -179,6 +186,7 @@ int main(int argc, char **argv) {
         ev_timer_start(root.loop, &status_timer);
     }
 
+    SNIMPL(prepare_commands(&config));
     sieve_prepare(&root.request_sieve, config.Server.max_requests);
     sieve_prepare(&root.hybi_sieve, config.Server.max_websockets);
     SNIMPL(prepare_http(&config, &config.Routing));
@@ -199,8 +207,9 @@ int main(int argc, char **argv) {
     SNIMPL(release_http(&config, &config.Routing));
     SNIMPL(release_websockets(&config, &config.Routing));
     SNIMPL(release_disk(&config));
+    SNIMPL(release_commands(&config));
     if(config.Server.status.socket.value_len) {
-        SNIMPL(z_close(config.Server.status.socket._sock, root.loop));
+        SNIMPL(z_close(&config.Server.status.socket, root.loop));
     }
     config_free(&config);
     ev_loop_destroy(root.loop);

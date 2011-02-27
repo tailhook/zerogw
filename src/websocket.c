@@ -482,10 +482,10 @@ static int socket_unvisitor(config_Route_t *route) {
         free(route->websocket._topics);
     }
     if(route->websocket.subscribe.value_len) {
-        SNIMPL(z_close(route->websocket.subscribe._sock, root.loop));
+        SNIMPL(z_close(&route->websocket.subscribe, root.loop));
     }
     if(route->websocket.forward.value_len) {
-        SNIMPL(z_close(route->websocket.forward._sock, root.loop));
+        SNIMPL(z_close(&route->websocket.forward, root.loop));
         if(route->websocket.heartbeat_interval) {
             ev_timer_stop(root.loop, &route->websocket._heartbeat_timer);
         }

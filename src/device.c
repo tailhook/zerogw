@@ -127,4 +127,17 @@ int streamer_close(streamer_t *device) {
 
 void streamer_pause(streamer_t *device, bool pause) {
     device->paused = pause;
+    if(pause) {
+        if(device->output_watch.active) {
+            ev_io_stop(root.loop, &device->output_watch);
+        }
+        if(device->input_watch.active) {
+            ev_io_stop(root.loop, &device->input_watch);
+        }
+    } else {
+        if(!device->output_watch.active) {
+            ev_io_start(root.loop, &device->output_watch);
+            ev_feed_event(root.loop, &device->output_watch, EV_READ);
+        }
+    }
 }

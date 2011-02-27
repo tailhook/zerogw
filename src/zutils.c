@@ -125,6 +125,6 @@ int z_close(config_zmqsocket_t *sock, struct ev_loop *loop) {
     if(sock->_watch.active) {
         ev_io_stop(loop, &sock->_watch);
     }
-    SNIMPL(zmq_close(sock));
+    SNIMPL(zmq_close(sock->_sock));
     return 0;
 }
