@@ -10,6 +10,8 @@
  - Implement pseudo peer-to-peer communication support (?)
  + Fix simple polling (timeout=0)
  - Implement routing messages by prefix
+ - Maybe prefix routing should work with xreq sockets by subscribing
+   on specific prefixes/topics, so it uses just one socket not lots of them
  + Make Push by default (probably in the 0.6 or 1.0)
  * Do something with connect/disconnect if queues are full
  - Make a way to send message to all users
