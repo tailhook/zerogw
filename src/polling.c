@@ -533,6 +533,12 @@ int comet_request(request_t *req) {
             ev_timer_start(root.loop, &req->timeout);
         }
         ev_timer_stop(root.loop, &hybi->comet->inactivity);
+    } else if(args.action == ACT_POST) {
+        ws_request_t *wreq = &req->ws;
+        ws_statusline(wreq, "200 OK");
+        ws_add_header(wreq, "X-Messages", "0");
+        nocache_headers(wreq);
+        ws_reply_data(wreq, "", 0);
     }
     return 0;
 }
