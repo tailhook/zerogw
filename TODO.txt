@@ -2,7 +2,8 @@
  `-` definetly not blocks 1.0 release (but still may be done)
 
  + resolve_url in http_headers should probably differ (do not reply too early)
- + Find out rare startup failure (probably related to already opened connections after restart)
+ + strange ECONNRESET on read from client (maybe previous issue?)
+ + Find out rare startup failure (probably related to already opened connections after restart
 
  Websockets:
  + Add error pages for http polling
