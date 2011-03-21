@@ -158,7 +158,9 @@ streamer_error:
 hybi_t *hybi_find(char *data) {
     hybi_t *hybi = (hybi_t *)sieve_get(root.hybi_sieve, UID_HOLE(data));
     LDEBUG("Searching for hole %d", UID_HOLE(data));
-    if(!hybi || !UID_EQ(hybi->uid, data)) return NULL;
+    if(!hybi || !UID_EQ(hybi->uid, data)) {
+        return NULL;
+    }
     return hybi;
 }
 
@@ -292,7 +294,12 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
     LDEBUG("Sending %x [%d]``%.*s''", msg,
         msg->ws.length, msg->ws.length, msg->ws.data);
     root.stat.websock_published += 1;
-    LIST_FOREACH(sub, &topic->subscribers, topic_list) {
+    subscriber_t *nxt;
+    for (sub = LIST_FIRST(&topic->subscribers); sub; sub = nxt) {
+        nxt = LIST_NEXT(sub, client_list);
+	// Subscribers, and whole topic can be deleted while traversing
+	// list of subscribers. Note that topic can be deleted only
+        // after each of the subscribers are deleted
         root.stat.websock_sent += 1;
         if(sub->connection->type == HYBI_WEBSOCKET) {
             ws_message_send(&sub->connection->conn->ws, &msg->ws);

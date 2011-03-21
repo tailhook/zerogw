@@ -180,10 +180,10 @@ static void nocache_headers(ws_request_t *req) {
 
 static void empty_reply(hybi_t *hybi) {
     root.stat.comet_empty_replies += 1;
-    if(hybi->comet->cur_request->timeout.active) {
-        ev_timer_stop(root.loop, &hybi->comet->cur_request->timeout);
-    }
     request_t *mreq = hybi->comet->cur_request;
+    if(mreq->timeout.active) {
+        ev_timer_stop(root.loop, &mreq->timeout);
+    }
     ws_request_t *req = &mreq->ws;
     ws_statusline(req, "200 OK");
     ws_add_header(req, "X-Messages", "0");
@@ -211,6 +211,9 @@ static void free_comet(hybi_t *hybi) {
 
 static void close_reply(hybi_t *hybi) {
     request_t *mreq = hybi->comet->cur_request;
+    if(mreq->timeout.active) {
+        ev_timer_stop(root.loop, &mreq->timeout);
+    }
     ws_request_t *req = &mreq->ws;
     ws_statusline(req, "200 OK");
     ws_add_header(req, "X-Messages", "0");
@@ -262,7 +265,6 @@ static void polling_timeout(struct ev_loop *loop, struct ev_timer *timer,
     int rev)
 {
     ANIMPL(!(rev & EV_ERROR));
-    LDEBUG("Polling timeout");
     request_t *req = SHIFT(timer, request_t, timeout);
     hybi_t *hybi = req->hybi;
     ANIMPL(req->hybi->comet->cur_request == req);
@@ -282,6 +284,8 @@ static void inactivity_timeout(struct ev_loop *loop, struct ev_timer *timer,
 
 static int move_queue(hybi_t *hybi, size_t msgid) {
     if(msgid == 0 || msgid < hybi->comet->first_index) return 0;
+    LDEBUG("Acked %d while at %d with %d items", msgid,
+	   hybi->comet->first_index, hybi->comet->current_queue);
     size_t amount = msgid - hybi->comet->first_index + 1;
     if(amount > hybi->comet->current_queue) {
         TWARN("Wrong ack ``%d''/%d+%d", msgid,
@@ -321,13 +325,8 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
     hybi_t *hybi = SHIFT(watch, hybi_t, comet[0].sendlater);
     comet_t *comet = hybi->comet;
     request_t *mreq = comet->cur_request;
-    if(comet->overflow) {
-        if(mreq) {
-            close_reply(hybi);
-        }
-        free_comet(hybi);
-        return;
-    } else if(!mreq) {
+    ANIMPL(!comet->overflow);
+    if(!mreq) {
         // Seems request aborted before we had chance to send anything
         ev_idle_stop(loop, &comet->sendlater);
         return;
@@ -521,7 +520,6 @@ int comet_request(request_t *req) {
         req->hybi = hybi;
         ws_FINISH_CB(&req->ws, comet_request_sent);
         if(hybi->comet->current_queue) {
-            req->timeout.active = FALSE;
             ev_idle_start(root.loop, &hybi->comet->sendlater);
         } else {
             double timeout = hybi->route->websocket.polling_fallback.max_timeout;
@@ -546,14 +544,17 @@ int comet_request(request_t *req) {
 
 int comet_send(hybi_t *hybi, message_t *msg) {
     if(hybi->comet->current_queue >= hybi->comet->queue_size) {
-        hybi->comet->overflow = TRUE;
-        if(!hybi->comet->sendlater.active) {
-            ev_idle_start(root.loop, &hybi->comet->sendlater);
+	LWARN("Queue overflowed with %d", hybi->comet->current_queue);
+        if(hybi->comet->cur_request) {
+            close_reply(hybi);
         }
+        free_comet(hybi);
+	errno = EOVERFLOW;
         return -1;
     }
     ws_MESSAGE_INCREF(&msg->ws);
     hybi->comet->queue[hybi->comet->current_queue++] = msg;
+    LDEBUG("Queued up to %d last acked %d", hybi->comet->current_queue, hybi->comet->first_index);
     if(hybi->comet->cur_request && !hybi->comet->sendlater.active) {
         ev_idle_start(root.loop, &hybi->comet->sendlater);
     }
