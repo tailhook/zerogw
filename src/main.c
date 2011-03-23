@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
 
     SNIMPL(prepare_commands(&config));
     sieve_prepare(&root.request_sieve, config.Server.max_requests);
-    sieve_prepare(&root.hybi_sieve, config.Server.max_websockets);
+    sieve_prepare(&root.hybi.sieve, config.Server.max_websockets);
     SNIMPL(prepare_http(&config, &config.Routing));
     SNIMPL(prepare_websockets(&config, &config.Routing));
     SNIMPL(prepare_disk(&config));
@@ -202,7 +202,7 @@ int main(int argc, char **argv) {
     ws_server_destroy(&root.ws);
 
     sieve_free(root.request_sieve);
-    sieve_free(root.hybi_sieve);
+    sieve_free(root.hybi.sieve);
 
     SNIMPL(release_http(&config, &config.Routing));
     SNIMPL(release_websockets(&config, &config.Routing));

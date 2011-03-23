@@ -3,3 +3,4 @@ build
 .lock-*
 *.pyc
 zerogw-*.tar.bz2
+*~

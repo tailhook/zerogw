@@ -9,7 +9,7 @@ __meta__:
   c_std_include:
   - ev.h
   c_include:
-  - device.h
+  - msgqueue.h
 
 __types__:
 
@@ -84,6 +84,7 @@ __types__:
         documentation for the SO_RCVBUF socket option
     _sock: !_VoidPtr ~
     _watch: !CStruct ev_io
+    _queue: !CStruct queue_s
 
   listenaddr:
     host: !String ""
@@ -463,6 +464,9 @@ __types__:
       forward: !Struct
         =: zmqsocket
         inheritance: no
+      named-outputs: !Mapping
+        key-element: !String ~
+        value-element: !Struct zmqsocket
       heartbeat-interval: !UInt
         default: 5
         max: 86400
@@ -485,17 +489,7 @@ __types__:
         max: 1Mi
         description: >
           Limits number of output messages queued for single connection before
-          it will be dropped. Be carefull, because static buffer of pointer size
-          multiplied with this number of messages is created for each connection
-        inheritance: yes
-      inactivity-timeout: !UInt
-        default: 60
-        min: 1
-        max: 86400
-        description: >
-          The number of seconds to wait to send message, before closing
-          connection, even if buffer is not full. Drops connection only if at
-          least one connection is on the queue.
+          it will be dropped
         inheritance: yes
       max-backend-queue: !UInt
         default: 1024
@@ -522,10 +516,8 @@ __types__:
           max: 1Mi
           description: >
             Limits number of messages queued for single connection before it will
-            be dropped. Be carefull, because static buffer of pointer size
-            multiplied with this number of messages is created for each socket.
-            For polling case already sent messages are not dropped until the new
-            request which says it got request comes in. So low values are
+            be dropped. For polling case already sent messages are not dropped until
+            the new request which says it got request comes in. So low values are
             unlikely to work here.
           inheritance: yes
         max-bundle: !UInt
@@ -555,7 +547,6 @@ __types__:
             Some browsers and some proxies don't like high values. Client can
             specify value less than this on per-request basis.
           inheritance: yes
-      _device: !CStruct streamer_s
       _heartbeat-timer: !CStruct ev_timer
       _topics: !_VoidPtr ~
 
@@ -696,5 +687,30 @@ Server:
     _match: !_VoidPtr ~
 
   error-log: *errorlog # not struct because command-line
+  pools:
+    backend-messages: !Int
+      min: 1
+      max: 2G
+      default: 4096
+      description: >
+        For experts. Number of entities in backend messages pool
+    frontend-messages: !Int
+      min: 1
+      max: 2G
+      default: 4096
+      description: >
+        For experts. Number of entities in frontend messages pool
+    subscriptions: !Int
+      min: 1
+      max: 2G
+      default: 128
+      description: >
+        For experts. Number of entities in subscriptions pool
+    backend-mappings: !Int
+      min: 1
+      max: 2G
+      default: 128
+      description: >
+        For experts. Number of entities in backend mappings pool
 
 Routing: !Struct Route

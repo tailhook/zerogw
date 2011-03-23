@@ -5,6 +5,7 @@
 #include "log.h"
 #include "websocket.h"
 #include "http.h"
+#include "main.h"
 
 typedef enum {
     FMT_SINGLE,
@@ -228,23 +229,13 @@ static void close_reply(hybi_t *hybi) {
 static void send_message(hybi_t *hybi, request_t *req) {
     root.stat.comet_received_batches += 1;
     root.stat.comet_received_messages += 1;
-    zmq_msg_t zmsg;
-    STREAMER_SEND_LOOP(&hybi->route->websocket._device) {
-        SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
-        memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
-        STREAMER_SEND(&zmsg);
-        SNIMPL(zmq_msg_init_size(&zmsg, 7));
-        memcpy(zmq_msg_data(&zmsg), "message", 7);
-        STREAMER_SEND(&zmsg);
-        REQ_INCREF(req);
-        SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
-            request_decref, req));
-        STREAMER_SEND_LAST(&zmsg);
+    config_zmqsocket_t *sock = &hybi->route->websocket.forward;
+    //TODO: find output by prefix
+    if(backend_send(sock, hybi, req, FALSE)) {
+        //TODO: disconnect hybi
+        TWARN("Failed to queue message from http");
+        return;
     }
-    return;
-streamer_error:
-    TWARN("Failed to queue message from http");
-    //TODO: close connection
     return;
 }
 

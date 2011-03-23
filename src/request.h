@@ -29,6 +29,11 @@ typedef struct request_s {
     zmq_msg_t response_msg;
 } request_t;
 
+typedef struct connection_s {
+    ws_connection_t ws;
+    struct hybi_s *hybi;
+} connection_t;
+
 void request_init(request_t *req);
 void request_finish(request_t *req);
 void request_free(request_t *req);
