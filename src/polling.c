@@ -231,6 +231,7 @@ static void send_message(hybi_t *hybi, request_t *req) {
     root.stat.comet_received_messages += 1;
     config_zmqsocket_t *sock = &hybi->route->websocket.forward;
     //TODO: find output by prefix
+    REQ_INCREF(req);
     if(backend_send(sock, hybi, req, FALSE)) {
         //TODO: disconnect hybi
         TWARN("Failed to queue message from http");

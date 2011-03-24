@@ -17,5 +17,7 @@ typedef struct queue_s {
 
 int init_queue(queue_t *queue, int capacity, pool_t *pool);
 void free_queue(queue_t *queue);
+queue_item_t *queue_push(queue_t *queue);
+queue_item_t *queue_force_push(queue_t *queue);
 
 #endif //_H_MSGQUEUE

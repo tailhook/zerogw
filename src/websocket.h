@@ -32,11 +32,13 @@ typedef struct output_s {
 } output_t;
 
 typedef struct backend_msg_s {
+    queue_item_t qhead;
     struct hybi_s *hybi;
     void *msg;
 } backend_msg_t;
 
 typedef struct frontend_msg_s {
+    queue_item_t qhead;
     zmq_msg_t zmq;
 } frontend_msg_t;
 

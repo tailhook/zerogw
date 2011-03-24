@@ -9,6 +9,7 @@
 #include "resolve.h"
 #include "uidgen.h"
 #include "main.h"
+#include "http.h"
 
 #define MSG_CONNECT ((void *)1)
 #define MSG_DISCONNECT ((void *)2)
@@ -55,8 +56,67 @@ void websock_stop(ws_connection_t *hint) {
     hybi_stop(conn->hybi);
 }
 
+void websock_free_message(void *data, void *hint) {
+    message_t *msg = (message_t *)hint;
+    ws_MESSAGE_DECREF(&msg->ws);
+}
+
+// This method needs own reference to msg (if refcounted)
 int backend_send(config_zmqsocket_t *sock, hybi_t *hybi, void *msg, bool force) {
-	LNIMPL("send");
+	while(!root.hybi.paused && !sock->_queue.size) {  // not while, but can break
+		zmq_msg_t zmsg;
+		SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
+		memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
+		if(zmq_send(sock->_sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+			if(errno == EAGAIN) break;
+			if(errno == EINTR) continue;
+			SNIMPL(-1);
+		}
+		int len;
+		char *kind;
+		if(msg == MSG_CONNECT) {
+			kind = "connect";
+			len = strlen("connect");  // compiler will take care
+		} else if(msg == MSG_DISCONNECT) {
+			kind = "connect";
+			len = strlen("connect");  // we have a smart compiler
+		} else {
+			kind = "message";
+			len = strlen("message");  // compiler is smarter than you
+		}
+		SNIMPL(zmq_msg_init_size(&zmsg, len));
+		memcpy(zmq_msg_data(&zmsg), kind, len);
+		SNIMPL(zmq_send(sock->_sock, &zmsg,
+			ZMQ_NOBLOCK | (kind == "message" ? ZMQ_SNDMORE : 0)));
+		if(kind == "message") {  // Yeah, i really mean that
+			if(hybi->type == HYBI_COMET) {
+				request_t *req = msg;
+				SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
+					request_decref, req));
+			} else {
+				message_t *wmsg = msg;
+				SNIMPL(zmq_msg_init_data(&zmsg, wmsg->ws.data, wmsg->ws.length,
+					websock_free_message, wmsg));
+			}
+			SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK));
+		}
+		return 0;
+	}
+
+	backend_msg_t *q;
+	if(force) {
+		q = (backend_msg_t *)queue_push(&sock->_queue);
+	} else {
+		q = (backend_msg_t *)queue_force_push(&sock->_queue);
+	}
+	if(!q) {
+		errno = EAGAIN;
+		return -1;
+	}
+	hybi_INCREF(hybi);
+	q->hybi = hybi;
+	q->msg = msg;
+	return 0;
 }
 
 void hybi_stop(hybi_t *hybi) {
@@ -122,15 +182,11 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
 	}
 }
 
-void websock_free_message(void *data, void *hint) {
-    message_t *msg = (message_t *)hint;
-    ws_MESSAGE_DECREF(&msg->ws);
-}
-
 int websock_message(connection_t *conn, message_t *msg) {
     root.stat.websock_received += 1;
 	config_zmqsocket_t *sock = &conn->hybi->route->websocket.forward;
 	//TODO: resolve socket according to outputs
+	ws_MESSAGE_INCREF(&msg->ws);
 	return backend_send(sock, conn->hybi, msg, FALSE);
 }
 
