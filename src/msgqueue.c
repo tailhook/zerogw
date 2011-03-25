@@ -28,5 +28,11 @@ queue_item_t *queue_force_push(queue_t *queue) {
     queue_item_t *res = pool_alloc(queue->pool);
     if(!res) return NULL;
     TAILQ_INSERT_TAIL(&queue->items, res, list);
+    queue->size += 1;
     return res;
+}
+
+void queue_remove(queue_t *queue, queue_item_t *item) {
+    TAILQ_REMOVE(&queue->items, item, list);
+    queue->size -= 1;
 }

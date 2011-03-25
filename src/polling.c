@@ -204,8 +204,9 @@ static void free_comet(hybi_t *hybi) {
     if(hybi->comet->inactivity.active) {
         ev_timer_stop(root.loop, &hybi->comet->inactivity);
     }
-    for(int i = 0; i < hybi->comet->current_queue; ++i) {
-        ws_MESSAGE_DECREF(&hybi->comet->queue[i]->ws);
+    queue_item_t *cur;
+    TAILQ_FOREACH(cur, &hybi->comet->queue.items, list) {
+        zmq_msg_close(&((frontend_msg_t *)cur)->zmsg);
     }
     hybi_stop(hybi);
 }
@@ -277,25 +278,22 @@ static void inactivity_timeout(struct ev_loop *loop, struct ev_timer *timer,
 static int move_queue(hybi_t *hybi, size_t msgid) {
     if(msgid == 0 || msgid < hybi->comet->first_index) return 0;
     LDEBUG("Acked %d while at %d with %d items", msgid,
-	   hybi->comet->first_index, hybi->comet->current_queue);
+	   hybi->comet->first_index, hybi->comet->queue.size);
     size_t amount = msgid - hybi->comet->first_index + 1;
-    if(amount > hybi->comet->current_queue) {
+    if(amount > hybi->comet->queue.size) {
         TWARN("Wrong ack ``%d''/%d+%d", msgid,
-            hybi->comet->first_index, hybi->comet->current_queue);
+            hybi->comet->first_index, hybi->comet->queue.size);
         return -1;
     }
     if(amount) {
         root.stat.comet_acks += amount;
-        for(int i = 0; i < amount; ++i) {
-            ws_MESSAGE_DECREF(&hybi->comet->queue[i]->ws);
+        queue_item_t *cur = TAILQ_FIRST(&hybi->comet->queue.items), *nxt;
+        for(int i = 0; i < amount; cur = nxt, i += 1) {
+            ANIMPL(cur);
+            nxt = TAILQ_NEXT(cur, list);
+            queue_remove(&hybi->comet->queue, cur);
         }
         hybi->comet->first_index += amount;
-        hybi->comet->current_queue -= amount;
-        if(hybi->comet->current_queue) {
-            memmove(hybi->comet->queue,
-                hybi->comet->queue + amount,
-                    hybi->comet->current_queue * sizeof(message_t *));
-        }
     }
     return 0;
 }
@@ -323,13 +321,13 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
         ev_idle_stop(loop, &comet->sendlater);
         return;
     }
-    comet->cur_request = NULL;
     ws_request_t *req = &mreq->ws;
     ANIMPL(req);
-    if(comet->current_queue) {
+    if(comet->queue.size) {
         if(mreq->timeout.active) {
             ev_timer_stop(loop, &mreq->timeout);
         }
+        comet->cur_request = NULL;
         root.stat.comet_sent_batches += 1;
         if(comet->cur_format == FMT_SINGLE) {
             root.stat.comet_sent_messages += 1;
@@ -340,14 +338,15 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             ws_add_header(req, "X-Format", "single");
             ws_add_header(req, "X-Message-ID", buf);
             nocache_headers(req);
-            ws_MESSAGE_INCREF(&comet->queue[0]->ws);
-            mreq->flags |= REQ_OWNS_WSMESSAGE;
-            mreq->ws_msg = comet->queue[0];
-            ws_reply_data(req, comet->queue[0]->ws.data,
-                comet->queue[0]->ws.length);
+            mreq->flags |= REQ_HAS_MESSAGE;
+            SNIMPL(zmq_msg_init(&mreq->response_msg));
+            SNIMPL(zmq_msg_move(&mreq->response_msg,
+                &((frontend_msg_t *)TAILQ_FIRST(&comet->queue.items))->zmsg));
+            SNIMPL(ws_reply_data(req, zmq_msg_data(&mreq->response_msg),
+                zmq_msg_size(&mreq->response_msg)));
         } else if(comet->cur_format == FMT_MULTIPART) {
             char boundary[32] = "---------------WebsockZerogwPart";
-            int num = comet->current_queue;
+            int num = comet->queue.size;
             if(num > comet->cur_limit) {
                 num = comet->cur_limit;
             }
@@ -355,7 +354,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             ws_statusline(req, "200 OK");
             sprintf(buf, "%lu", num);
             ws_add_header(req, "X-Messages", buf);
-            sprintf(buf, "%lu", comet->first_index + comet->current_queue);
+            sprintf(buf, "%lu", comet->first_index + comet->queue.size);
             ws_add_header(req, "X-Last-ID", buf);
             ws_add_header(req, "X-Format", "multipart");
             sprintf(buf, "multipart/mixed; boundary=\"%s\"", boundary);
@@ -366,7 +365,10 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             obstack_grow(&req->pieces,
                 "Parts following\r\n", strlen("Parts following\r\n"));
             obstack_grow(&req->pieces, boundary, sizeof(boundary));
+            frontend_msg_t *msg = (frontend_msg_t *)TAILQ_FIRST(
+                &comet->queue.items);
             for(int i = 0; i < num; ++i) {
+                msg = (frontend_msg_t *)TAILQ_NEXT(msg, qhead.list);
                 root.stat.comet_sent_messages += 1;
                 obstack_grow(&req->pieces,
                     "\r\nContent-Type: application/octed-stream\r\n"
@@ -376,8 +378,8 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
                 int len = sprintf(buf, "%lu", comet->first_index + i);
                 obstack_grow(&req->pieces, buf, len);
                 obstack_grow(&req->pieces, "\r\n\r\n", 4);
-                obstack_grow(&req->pieces, comet->queue[0]->ws.data,
-                    comet->queue[0]->ws.length);
+                obstack_grow(&req->pieces, zmq_msg_data(&msg->zmsg),
+                    zmq_msg_size(&msg->zmsg));
                 obstack_grow(&req->pieces, boundary, sizeof(boundary));
             }
             obstack_grow(&req->pieces, "--\r\n", 2);
@@ -401,7 +403,9 @@ static int comet_connect(request_t *req) {
     root.stat.comet_connects += 1;
     hybi->comet->cur_request = NULL;
     hybi->comet->cur_format = FMT_SINGLE;
-    hybi->comet->current_queue = 0;
+    init_queue(&hybi->comet->queue,
+        req->route->websocket.polling_fallback.queue_limit,
+        &root.hybi.frontend_pool);
     hybi->comet->first_index = 1;
     hybi->comet->overflow = FALSE;
     ev_idle_init(&hybi->comet->sendlater, send_later);
@@ -511,7 +515,7 @@ int comet_request(request_t *req) {
         hybi->comet->cur_limit = limit;
         req->hybi = hybi;
         ws_FINISH_CB(&req->ws, comet_request_sent);
-        if(hybi->comet->current_queue) {
+        if(hybi->comet->queue.size) {
             ev_idle_start(root.loop, &hybi->comet->sendlater);
         } else {
             double timeout = hybi->route->websocket.polling_fallback.max_timeout;
@@ -535,18 +539,20 @@ int comet_request(request_t *req) {
 
 
 int comet_send(hybi_t *hybi, message_t *msg) {
-    if(hybi->comet->current_queue >= hybi->comet->queue_size) {
-	LWARN("Queue overflowed with %d", hybi->comet->current_queue);
+    frontend_msg_t *qitem = (frontend_msg_t *)queue_push(&hybi->comet->queue);
+    if(!qitem) {
+        LWARN("Queue overflowed with %d", hybi->comet->queue.size);
         if(hybi->comet->cur_request) {
             close_reply(hybi);
         }
         free_comet(hybi);
-	errno = EOVERFLOW;
+        errno = EOVERFLOW;
         return -1;
     }
-    ws_MESSAGE_INCREF(&msg->ws);
-    hybi->comet->queue[hybi->comet->current_queue++] = msg;
-    LDEBUG("Queued up to %d last acked %d", hybi->comet->current_queue, hybi->comet->first_index);
+    SNIMPL(zmq_msg_init(&qitem->zmsg));
+    SNIMPL(zmq_msg_copy(&qitem->zmsg, &msg->zmq));
+    LDEBUG("Queued up to %d last acked %d",
+        hybi->comet->queue.size, hybi->comet->first_index);
     if(hybi->comet->cur_request && !hybi->comet->sendlater.active) {
         ev_idle_start(root.loop, &hybi->comet->sendlater);
     }

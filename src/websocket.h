@@ -39,7 +39,7 @@ typedef struct backend_msg_s {
 
 typedef struct frontend_msg_s {
     queue_item_t qhead;
-    zmq_msg_t zmq;
+    zmq_msg_t zmsg;
 } frontend_msg_t;
 
 typedef struct message_s {

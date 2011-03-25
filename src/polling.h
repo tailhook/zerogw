@@ -12,12 +12,10 @@ typedef struct comet_s {
     int overflow;
     int cur_format;
     int cur_limit;
-    int queue_size;
     int first_index;
-    int current_queue;
     ev_idle sendlater;
     ev_timer inactivity;
-    struct message_s *queue[];
+    queue_t queue;
 } comet_t;
 
 int comet_send(struct hybi_s *hybi, struct message_s *msg);

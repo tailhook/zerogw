@@ -78,8 +78,8 @@ int backend_send(config_zmqsocket_t *sock, hybi_t *hybi, void *msg, bool force) 
 			kind = "connect";
 			len = strlen("connect");  // compiler will take care
 		} else if(msg == MSG_DISCONNECT) {
-			kind = "connect";
-			len = strlen("connect");  // we have a smart compiler
+			kind = "disconnect";
+			len = strlen("disconnect");  // we have a smart compiler
 		} else {
 			kind = "message";
 			len = strlen("message");  // compiler is smarter than you
@@ -121,7 +121,7 @@ int backend_send(config_zmqsocket_t *sock, hybi_t *hybi, void *msg, bool force) 
 
 void hybi_stop(hybi_t *hybi) {
     sieve_empty(root.hybi.sieve, UID_HOLE(hybi->uid));
-	backend_send(&hybi->route->websocket.forward, hybi, NULL, TRUE);
+	backend_send(&hybi->route->websocket.forward, hybi, MSG_DISCONNECT, TRUE);
 
     subscriber_t *sub, *nxt;
     for(sub = LIST_FIRST(&hybi->subscribers); sub; sub = nxt) {

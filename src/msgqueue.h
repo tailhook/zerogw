@@ -19,5 +19,6 @@ int init_queue(queue_t *queue, int capacity, pool_t *pool);
 void free_queue(queue_t *queue);
 queue_item_t *queue_push(queue_t *queue);
 queue_item_t *queue_force_push(queue_t *queue);
+void queue_remove(queue_t *queue, queue_item_t *item); 
 
 #endif //_H_MSGQUEUE
