@@ -338,6 +338,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             ws_add_header(req, "X-Format", "single");
             ws_add_header(req, "X-Message-ID", buf);
             nocache_headers(req);
+            ws_finish_headers(req);
             mreq->flags |= REQ_HAS_MESSAGE;
             SNIMPL(zmq_msg_init(&mreq->response_msg));
             SNIMPL(zmq_msg_move(&mreq->response_msg,
