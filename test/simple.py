@@ -86,11 +86,11 @@ class CheckingWebsock(object):
         self.testcase.assertEqual(val[1], b'connect')
         self.intid = val[0]
 
-    def client_send(self, body):
+    def client_send(self, body, name=None):
         self.http.request("GET",
             '/chat?limit=0&timeout=0&id=' + self.id, body=body)
         self.testcase.assertEqual(b'', self.http.getresponse().read())
-        self.testcase.assertEqual(self.testcase.backend_recv(),
+        self.testcase.assertEqual(self.testcase.backend_recv(name),
             [self.intid, b'message', body.encode('utf-8')])
 
     def client_got(self, body):
@@ -105,9 +105,17 @@ class CheckingWebsock(object):
         self.testcase.backend_send(
             'subscribe', self.intid, topic)
 
+    def add_output(self, prefix, name):
+        self.testcase.backend_send(
+            'add_output', self.intid, prefix, name)
+
     def unsubscribe(self, topic):
         self.testcase.backend_send(
             'unsubscribe', self.intid, topic)
+
+    def del_output(self, name):
+        self.testcase.backend_send(
+            'del_output', self.intid, name)
 
     def close(self):
         self.http.request('GET', '/chat?action=CLOSE&id=' + self.id)
@@ -125,7 +133,9 @@ class Chat(Base):
         self.chatfw.connect(CHAT_FW)
         self.chatout = self.zmq.socket(zmq.PUB)
         self.chatout.connect(CHAT_SOCK)
-        time.sleep(0.2)
+        self.minigame = self.zmq.socket(zmq.PULL)
+        self.minigame.connect(MINIGAME)
+        time.sleep(0.2)  # sorry, need for zmq sockets
 
     def backend_send(self, *args):
         self.assertEqual(([], [self.chatout], []),
@@ -134,12 +144,16 @@ class Chat(Base):
             a if isinstance(a, bytes) else a.encode('utf-8')
             for a in args])
 
-    def backend_recv(self):
-        self.assertEqual(([self.chatfw], [], []),
-            zmq.select([self.chatfw], [], [], timeout=self.timeout))
-        val =  self.chatfw.recv_multipart()
+    def backend_recv(self, backend=None):
+        if backend is None:
+            sock = self.chatfw
+        else:
+            sock = self.minigame
+        self.assertEqual(([sock], [], []),
+            zmq.select([sock], [], [], timeout=self.timeout))
+        val =  sock.recv_multipart()
         if val[1] == b'heartbeat':
-            return self.backend_recv()
+            return self.backend_recv(backend=backend)
         return val
 
     def websock(self):
@@ -165,6 +179,27 @@ class Chat(Base):
         ws.client_got('message: personal')
         ws.client_send('hurray!')
         ws.close()
+
+    def testNamed(self):
+        wa = self.websock()
+        wb = self.websock()
+        wa.connect()
+        wb.connect()
+        wa.subscribe('chat')
+        wb.subscribe('chat')
+        wa.add_output('game1', 'minigame')
+        wb.add_output('game2', 'minigame')
+        wa.client_send('hello_world')
+        wb.client_send('hello_world')
+        wb.client_send('game1_action')
+        wa.client_send('game1_action', 'game')
+        wb.client_send('game2_action', 'game')
+        wa.client_send('game2_action')
+        wa.del_output('game1')
+        time.sleep(0.1)  # waiting for message to be delivered
+        wa.client_send('game1_action')
+        wa.close()
+        wb.close()
 
 if __name__ == '__main__':
     unittest.main()

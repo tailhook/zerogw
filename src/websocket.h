@@ -25,8 +25,8 @@ typedef struct subscriber_s {
 } subscriber_t;
 
 typedef struct output_s {
-    LIST_ENTRY(output_s) output_list;
-    void *socket;
+    LIST_ENTRY(output_s) list;
+    config_zmqsocket_t *socket;
     int prefix_len;
     char prefix[];
 } output_t;
@@ -79,6 +79,7 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type);
 void hybi_stop(hybi_t *hybi);
 hybi_t *hybi_find(char *data);
 
+config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length);
 int backend_send(config_zmqsocket_t *sock, hybi_t *hybi, void *msg, bool force);
 
 #endif // _H_WEBSOCKET

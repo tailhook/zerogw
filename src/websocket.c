@@ -139,9 +139,9 @@ void hybi_stop(hybi_t *hybi) {
         }
         free(sub);
     }
-    for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt;
-        out; (out=nxt), nxt = LIST_NEXT(out, output_list)) {
-        LIST_REMOVE(out, output_list);
+    for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt; out; out=nxt) {
+        nxt = LIST_NEXT(out, list);
+        LIST_REMOVE(out, list);
         free(out);
     }
     hybi_DECREF(hybi);
@@ -185,12 +185,26 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
     }
 }
 
+config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
+    output_t *item;
+    LIST_FOREACH(item, &hybi->outputs, list) {
+        if(item->prefix_len <= length &&
+                !strncmp(data, item->prefix, item->prefix_len)) {
+            return item->socket;
+        }
+    }
+    return &hybi->route->websocket.forward;
+}
+
 int websock_message(connection_t *conn, message_t *msg) {
     root.stat.websock_received += 1;
-    config_zmqsocket_t *sock = &conn->hybi->route->websocket.forward;
-    //TODO: resolve socket according to outputs
-    ws_MESSAGE_INCREF(&msg->ws);
-    return backend_send(sock, conn->hybi, msg, FALSE);
+    config_zmqsocket_t *sock = websock_resolve(conn->hybi,
+        msg->ws.data, msg->ws.length);
+    if(sock) {
+        ws_MESSAGE_INCREF(&msg->ws);
+        return backend_send(sock, conn->hybi, msg, FALSE);
+    }
+    return -1;
 }
 
 hybi_t *hybi_find(char *data) {
@@ -448,7 +462,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             int len = zmq_msg_size(&msg);
             char *data = zmq_msg_data(&msg);
             output_t *iter = NULL;
-            LIST_FOREACH(iter, &hybi->outputs, output_list) {
+            LIST_FOREACH(iter, &hybi->outputs, list) {
                 if(iter->prefix_len == len && !memcmp(data, iter->prefix, len)) {
                     break;
                 }
@@ -461,12 +475,14 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 output->prefix[len] = 0;
             }
             Z_RECV_LAST(msg);
-            output = iter; // It's now safe to assign
+            if(iter) {
+                output = iter; // It's now safe to assign
+            }
             len = zmq_msg_size(&msg);
             data = zmq_msg_data(&msg);
             CONFIG_STRING_ZMQSOCKET_LOOP(item, route->websocket.named_outputs) {
                 if(item->key_len == len && !memcmp(data, item->key, len)) {
-                    output->socket = item->value._sock;
+                    output->socket = &item->value;
                     len = 0;
                     break;
                 }
@@ -478,7 +494,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 }
             } else {
                 if(!iter) {
-                    LIST_INSERT_HEAD(&hybi->outputs, output, output_list);
+                    LIST_INSERT_HEAD(&hybi->outputs, output, list);
                 }
             }
         } else if(cmdlen == 10 && !memcmp(cmd, "del_output", cmdlen)) {
@@ -489,10 +505,10 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             Z_RECV_LAST(msg);
             int len = zmq_msg_size(&msg);
             char *data = zmq_msg_data(&msg);
-            for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt;
-                out; (out=nxt), nxt = LIST_NEXT(out, output_list)) {
+            for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt; out; out=nxt) {
+                nxt = LIST_NEXT(out, list);
                 if(out->prefix_len == len && !memcmp(data, out->prefix, len)) {
-                    LIST_REMOVE(out, output_list);
+                    LIST_REMOVE(out, list);
                     free(out);
                     len = 0;
                     break;
@@ -568,6 +584,12 @@ static int socket_visitor(config_Route_t *route) {
             ev_timer_start(root.loop, &route->websocket._heartbeat_timer);
         }
         init_queue(&route->websocket.forward._queue,
+            route->websocket.max_backend_queue, &root.hybi.backend_pool);
+    }
+    CONFIG_STRING_ZMQSOCKET_LOOP(item, route->websocket.named_outputs) {
+        SNIMPL(zmq_open(&item->value,
+            ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, NULL, NULL));
+        init_queue(&item->value._queue,
             route->websocket.max_backend_queue, &root.hybi.backend_pool);
     }
     CONFIG_ROUTE_LOOP(item, route->children) {

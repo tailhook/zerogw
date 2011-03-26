@@ -230,12 +230,17 @@ static void close_reply(hybi_t *hybi) {
 static void send_message(hybi_t *hybi, request_t *req) {
     root.stat.comet_received_batches += 1;
     root.stat.comet_received_messages += 1;
-    config_zmqsocket_t *sock = &hybi->route->websocket.forward;
-    //TODO: find output by prefix
-    REQ_INCREF(req);
-    if(backend_send(sock, hybi, req, FALSE)) {
-        //TODO: disconnect hybi
-        TWARN("Failed to queue message from http");
+    config_zmqsocket_t *sock = websock_resolve(hybi,
+        req->ws.body, req->ws.bodylen);
+    if(sock) {
+        REQ_INCREF(req);
+        if(backend_send(sock, hybi, req, FALSE)) {
+            //TODO: disconnect hybi
+            TWARN("Failed to queue message from http");
+            return;
+        }
+    } else {
+        LNIMPL("Can't find route for mesage (what?)");
         return;
     }
     return;
