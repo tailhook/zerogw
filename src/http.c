@@ -10,13 +10,13 @@
 void http_static_response(request_t *req, config_StaticResponse_t *resp) {
     char status[resp->status_len + 5];
     sprintf(status, "%03d %s", resp->code, resp->status);
-    ws_statusline(&req->ws, status);
+    SNIMPL(ws_statusline(&req->ws, status));
     //ws_add_header(&req->ws, "Server", config.Server.header);
     CONFIG_STRING_STRING_LOOP(line, resp->headers) {
-        ws_add_header(&req->ws, line->key, line->value);
+        SNIMPL(ws_add_header(&req->ws, line->key, line->value));
     }
     LDEBUG("Replying with %d bytes", resp->body_len);
-    ws_reply_data(&req->ws, resp->body, resp->body_len);
+    SNIMPL(ws_reply_data(&req->ws, resp->body, resp->body_len));
 }
 
 void request_decref(void *_data, void *request) {

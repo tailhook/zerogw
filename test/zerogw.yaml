@@ -1,0 +1,49 @@
+# -*- vim:sw=2:ts=2:et -*-
+Server:
+  zmq-io-threads: 1
+  disk-io-threads: 1
+  listen:
+    - unix-socket: /tmp/zerogw-test
+  status:
+    socket:
+    - !zmq.Bind ipc:///tmp/zerogw-test-status
+  error-log:
+    level: 7
+    warning-timeout: 300
+
+Routing:
+    routing: !Prefix ~
+    routing-by: !Uri ~
+    map:
+      "/echo*":
+        zmq-forward:
+          enabled: yes
+          socket:
+          - !zmq.Bind "ipc:///tmp/zerogw-test-echo"
+          contents:
+          - !Uri ~
+          - !Body ~
+          timeout: 2
+          retry: !RetryFirst
+            count: 3
+      "/chat*":
+        websocket:
+          enabled: yes
+          forward:
+          - !zmq.Bind "ipc:///tmp/zerogw-test-chatfw"
+          subscribe:
+          - !zmq.Bind "ipc:///tmp/zerogw-test-chat"
+          named-outputs:
+            minigame:
+            - !zmq.Bind "ipc:///tmp/zerogw-test-minigame"
+      "/crossdomain.xml":
+        responses:
+          default:
+            headers:
+              Content-Type: text/xml; charset="utf-8"
+            body: |
+              <?xml version="1.0"?>
+              <cross-domain-policy>
+                  <allow-access-from domain="*" />
+              </cross-domain-policy>
+

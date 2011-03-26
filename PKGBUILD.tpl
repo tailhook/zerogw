@@ -8,7 +8,7 @@ arch=('i686' 'x86_64')
 url="http://github.com/tailhook/zerogw"
 license=('GPL')
 depends=('zeromq' 'libyaml' 'openssl' 'libev')
-makedepends=('coyaml>=0.3.2' 'libwebsite>=0.2.9')
+makedepends=('coyaml>=0.3.2' 'libwebsite>=0.2.10')
 backup=("etc/zerogw.yaml")
 source=(https://github.com/downloads/tailhook/zerogw/$pkgname-$pkgver.tar.bz2)
 md5sums=('${DIST_MD5}')
