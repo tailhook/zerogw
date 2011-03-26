@@ -1,4 +1,4 @@
-# -*- vim:sw=2:ts=2:et -*-
+# vim: sw=2:ts=2:et
 Server:
   zmq-io-threads: 1
   disk-io-threads: 1
@@ -29,9 +29,9 @@ Routing:
       "/chat*":
         websocket:
           enabled: yes
-          forward:
+          forward: !zmq.Push
           - !zmq.Bind "ipc:///tmp/zerogw-test-chatfw"
-          subscribe:
+          subscribe: !zmq.Sub
           - !zmq.Bind "ipc:///tmp/zerogw-test-chat"
           named-outputs:
             minigame:

@@ -63,65 +63,68 @@ void websock_free_message(void *data, void *hint) {
 
 // This method needs own reference to msg (if refcounted)
 int backend_send(config_zmqsocket_t *sock, hybi_t *hybi, void *msg, bool force) {
-	while(!root.hybi.paused && !sock->_queue.size) {  // not while, but can break
-		zmq_msg_t zmsg;
-		SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
-		memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
-		if(zmq_send(sock->_sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
-			if(errno == EAGAIN) break;
-			if(errno == EINTR) continue;
-			SNIMPL(-1);
-		}
-		int len;
-		char *kind;
-		if(msg == MSG_CONNECT) {
-			kind = "connect";
-			len = strlen("connect");  // compiler will take care
-		} else if(msg == MSG_DISCONNECT) {
-			kind = "disconnect";
-			len = strlen("disconnect");  // we have a smart compiler
-		} else {
-			kind = "message";
-			len = strlen("message");  // compiler is smarter than you
-		}
-		SNIMPL(zmq_msg_init_size(&zmsg, len));
-		memcpy(zmq_msg_data(&zmsg), kind, len);
-		SNIMPL(zmq_send(sock->_sock, &zmsg,
-			ZMQ_NOBLOCK | (kind == "message" ? ZMQ_SNDMORE : 0)));
-		if(kind == "message") {  // Yeah, i really mean that
-			if(hybi->type == HYBI_COMET) {
-				request_t *req = msg;
-				SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
-					request_decref, req));
-			} else {
-				message_t *wmsg = msg;
-				SNIMPL(zmq_msg_init_data(&zmsg, wmsg->ws.data, wmsg->ws.length,
-					websock_free_message, wmsg));
-			}
-			SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK));
-		}
-		return 0;
-	}
+    while(!root.hybi.paused && !sock->_queue.size) {  // not while, but can break
+        zmq_msg_t zmsg;
+        SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
+        memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
+        if(zmq_send(sock->_sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+            if(errno == EAGAIN) {
+                LWARN("Can't send a message, started queueing");
+                break;
+            }
+            if(errno == EINTR) continue;
+            SNIMPL(-1);
+        }
+        int len;
+        char *kind;
+        if(msg == MSG_CONNECT) {
+            kind = "connect";
+            len = strlen("connect");  // compiler will take care
+        } else if(msg == MSG_DISCONNECT) {
+            kind = "disconnect";
+            len = strlen("disconnect");  // we have a smart compiler
+        } else {
+            kind = "message";
+            len = strlen("message");  // compiler is smarter than you
+        }
+        SNIMPL(zmq_msg_init_size(&zmsg, len));
+        memcpy(zmq_msg_data(&zmsg), kind, len);
+        SNIMPL(zmq_send(sock->_sock, &zmsg,
+            ZMQ_NOBLOCK | (kind == "message" ? ZMQ_SNDMORE : 0)));
+        if(kind == "message") {  // Yeah, i really mean that
+            if(hybi->type == HYBI_COMET) {
+                request_t *req = msg;
+                SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
+                    request_decref, req));
+            } else {
+                message_t *wmsg = msg;
+                SNIMPL(zmq_msg_init_data(&zmsg, wmsg->ws.data, wmsg->ws.length,
+                    websock_free_message, wmsg));
+            }
+            SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK));
+        }
+        return 0;
+    }
 
-	backend_msg_t *q;
-	if(force) {
-		q = (backend_msg_t *)queue_push(&sock->_queue);
-	} else {
-		q = (backend_msg_t *)queue_force_push(&sock->_queue);
-	}
-	if(!q) {
-		errno = EAGAIN;
-		return -1;
-	}
-	hybi_INCREF(hybi);
-	q->hybi = hybi;
-	q->msg = msg;
-	return 0;
+    backend_msg_t *q;
+    if(force) {
+        q = (backend_msg_t *)queue_push(&sock->_queue);
+    } else {
+        q = (backend_msg_t *)queue_force_push(&sock->_queue);
+    }
+    if(!q) {
+        errno = EAGAIN;
+        return -1;
+    }
+    hybi_INCREF(hybi);
+    q->hybi = hybi;
+    q->msg = msg;
+    return 0;
 }
 
 void hybi_stop(hybi_t *hybi) {
     sieve_empty(root.hybi.sieve, UID_HOLE(hybi->uid));
-	backend_send(&hybi->route->websocket.forward, hybi, MSG_DISCONNECT, TRUE);
+    backend_send(&hybi->route->websocket.forward, hybi, MSG_DISCONNECT, TRUE);
 
     subscriber_t *sub, *nxt;
     for(sub = LIST_FIRST(&hybi->subscribers); sub; sub = nxt) {
@@ -141,15 +144,15 @@ void hybi_stop(hybi_t *hybi) {
         LIST_REMOVE(out, output_list);
         free(out);
     }
-	hybi_DECREF(hybi);
+    hybi_DECREF(hybi);
 }
 
 int websock_start(connection_t *conn, config_Route_t *route) {
     LDEBUG("Websocket started");
     hybi_t *hybi = hybi_start(route, HYBI_WEBSOCKET);
-	if(!hybi) {
-		return -1;
-	}
+    if(!hybi) {
+        return -1;
+    }
     hybi->conn = conn;
     conn->hybi = hybi;
     ws_DISCONNECT_CB(&conn->ws, websock_stop);
@@ -165,29 +168,29 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
     }
     ANIMPL(hybi); //FIXME
     hybi->type = type;
-	hybi->refcnt = 1;
+    hybi->refcnt = 1;
     SNIMPL(make_hole_uid(hybi, hybi->uid, root.hybi.sieve, type == HYBI_COMET));
     LIST_INIT(&hybi->subscribers);
     hybi->route = route;
     LIST_INIT(&hybi->outputs);
 
-	if(backend_send(&hybi->route->websocket.forward, hybi, MSG_CONNECT, FALSE)) {
-		LWARN("Failed to queue hello message");
-		sieve_empty(root.hybi.sieve, UID_HOLE(hybi->uid));
-		free(hybi);
-		return NULL;
-	} else {
-		LDEBUG("Websocket sent hello");
-		return hybi;
-	}
+    if(backend_send(&hybi->route->websocket.forward, hybi, MSG_CONNECT, FALSE)) {
+        LWARN("Failed to queue hello message");
+        sieve_empty(root.hybi.sieve, UID_HOLE(hybi->uid));
+        free(hybi);
+        return NULL;
+    } else {
+        LDEBUG("Websocket sent hello");
+        return hybi;
+    }
 }
 
 int websock_message(connection_t *conn, message_t *msg) {
     root.stat.websock_received += 1;
-	config_zmqsocket_t *sock = &conn->hybi->route->websocket.forward;
-	//TODO: resolve socket according to outputs
-	ws_MESSAGE_INCREF(&msg->ws);
-	return backend_send(sock, conn->hybi, msg, FALSE);
+    config_zmqsocket_t *sock = &conn->hybi->route->websocket.forward;
+    //TODO: resolve socket according to outputs
+    ws_MESSAGE_INCREF(&msg->ws);
+    return backend_send(sock, conn->hybi, msg, FALSE);
 }
 
 hybi_t *hybi_find(char *data) {
@@ -202,8 +205,8 @@ hybi_t *hybi_find(char *data) {
 size_t topic_hash(const char *s, size_t len) {
     size_t res = 0;
     while (len--) {
-	    res += (res<<1) + (res<<4) + (res<<7) + (res<<8) + (res<<24);
-    	res ^= (size_t)*s++;
+        res += (res<<1) + (res<<4) + (res<<7) + (res<<8) + (res<<24);
+        res ^= (size_t)*s++;
     }
     return res;
 }
@@ -332,8 +335,8 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
     subscriber_t *nxt;
     for (sub = LIST_FIRST(&topic->subscribers); sub; sub = nxt) {
         nxt = LIST_NEXT(sub, client_list);
-	// Subscribers, and whole topic can be deleted while traversing
-	// list of subscribers. Note that topic can be deleted only
+    // Subscribers, and whole topic can be deleted while traversing
+    // list of subscribers. Note that topic can be deleted only
         // after each of the subscribers are deleted
         root.stat.websock_sent += 1;
         if(sub->connection->type == HYBI_WEBSOCKET) {
@@ -353,7 +356,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     config_Route_t *route = (config_Route_t *)((char *)watch
         - offsetof(config_Route_t, websocket.subscribe._watch));
     size_t opt, optlen = sizeof(opt);
-	output_t *output = NULL;
+    output_t *output = NULL;
     SNIMPL(zmq_getsockopt(route->websocket.subscribe._sock, ZMQ_EVENTS, &opt, &optlen));
     while(TRUE) {
         Z_SEQ_INIT(msg, route->websocket.subscribe._sock);
@@ -443,22 +446,22 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             if(!hybi) goto msg_error;
             Z_RECV_NEXT(msg);
             int len = zmq_msg_size(&msg);
-			char *data = zmq_msg_data(&msg);
-			output_t *iter = NULL;
-			LIST_FOREACH(iter, &hybi->outputs, output_list) {
-				if(iter->prefix_len == len && !memcmp(data, iter->prefix, len)) {
-					break;
-				}
-			}
-			if(!iter) {
-				output = malloc(sizeof(output_t) + len + 1);
-				ANIMPL(output);
-				memcpy(output->prefix, zmq_msg_data(&msg), len);
-				output->prefix_len = len;
-				output->prefix[len] = 0;
-			}
+            char *data = zmq_msg_data(&msg);
+            output_t *iter = NULL;
+            LIST_FOREACH(iter, &hybi->outputs, output_list) {
+                if(iter->prefix_len == len && !memcmp(data, iter->prefix, len)) {
+                    break;
+                }
+            }
+            if(!iter) {
+                output = malloc(sizeof(output_t) + len + 1);
+                ANIMPL(output);
+                memcpy(output->prefix, zmq_msg_data(&msg), len);
+                output->prefix_len = len;
+                output->prefix[len] = 0;
+            }
             Z_RECV_LAST(msg);
-			output = iter; // It's now safe to assign
+            output = iter; // It's now safe to assign
             len = zmq_msg_size(&msg);
             data = zmq_msg_data(&msg);
             CONFIG_STRING_ZMQSOCKET_LOOP(item, route->websocket.named_outputs) {
@@ -470,13 +473,13 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             }
             if(len) {
                 TWARN("Can't find named path ``%.*s''", len, data);
-				if(!iter) {
-					free(output);
-				}
-            } else { 
-				if(!iter) {
-					LIST_INSERT_HEAD(&hybi->outputs, output, output_list);
-				}
+                if(!iter) {
+                    free(output);
+                }
+            } else {
+                if(!iter) {
+                    LIST_INSERT_HEAD(&hybi->outputs, output, output_list);
+                }
             }
         } else if(cmdlen == 10 && !memcmp(cmd, "del_output", cmdlen)) {
             LDEBUG("Removing output");
@@ -486,15 +489,15 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             Z_RECV_LAST(msg);
             int len = zmq_msg_size(&msg);
             char *data = zmq_msg_data(&msg);
-			for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt;
-				out; (out=nxt), nxt = LIST_NEXT(out, output_list)) {
-				if(out->prefix_len == len && !memcmp(data, out->prefix, len)) {
-					LIST_REMOVE(out, output_list);
-					free(out);
-					len = 0;
-					break;
-				}
-			}
+            for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt;
+                out; (out=nxt), nxt = LIST_NEXT(out, output_list)) {
+                if(out->prefix_len == len && !memcmp(data, out->prefix, len)) {
+                    LIST_REMOVE(out, output_list);
+                    free(out);
+                    len = 0;
+                    break;
+                }
+            }
             if(len) {
                 TWARN("Can't find prefix ``%.*s''", len, data);
             }
@@ -506,7 +509,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         Z_SEQ_FINISH(msg);
         continue;
     msg_error:
-		if(output) free(output);
+        if(output) free(output);
         Z_SEQ_ERROR(msg);
         continue;
     }
@@ -564,8 +567,8 @@ static int socket_visitor(config_Route_t *route) {
                 route->websocket.heartbeat_interval);
             ev_timer_start(root.loop, &route->websocket._heartbeat_timer);
         }
-		init_queue(&route->websocket.forward._queue,
-			route->websocket.max_backend_queue, &root.hybi.backend_pool);
+        init_queue(&route->websocket.forward._queue,
+            route->websocket.max_backend_queue, &root.hybi.backend_pool);
     }
     CONFIG_ROUTE_LOOP(item, route->children) {
         SNIMPL(socket_visitor(&item->value));
@@ -591,7 +594,7 @@ static int socket_unvisitor(config_Route_t *route) {
         if(route->websocket.heartbeat_interval) {
             ev_timer_stop(root.loop, &route->websocket._heartbeat_timer);
         }
-		free_queue(&route->websocket.forward._queue);
+        free_queue(&route->websocket.forward._queue);
     }
     CONFIG_ROUTE_LOOP(item, route->children) {
         SNIMPL(socket_unvisitor(&item->value));
@@ -604,7 +607,7 @@ static int socket_unvisitor(config_Route_t *route) {
 
 static void resume_visitor(config_Route_t *route) {
     if(route->websocket.forward.value_len) {
-		ev_feed_event(root.loop, &route->websocket.forward._watch, EV_READ);
+        ev_feed_event(root.loop, &route->websocket.forward._watch, EV_READ);
     }
     CONFIG_ROUTE_LOOP(item, route->children) {
         resume_visitor(&item->value);
@@ -615,24 +618,24 @@ static void resume_visitor(config_Route_t *route) {
 }
 
 int pause_websockets(bool pause) {
-	if(pause) {
-		root.hybi.paused = TRUE;
-	} else {
-		root.hybi.paused = FALSE;
-		resume_visitor(&root.config->Routing);
-	}
+    if(pause) {
+        root.hybi.paused = TRUE;
+    } else {
+        root.hybi.paused = FALSE;
+        resume_visitor(&root.config->Routing);
+    }
 }
 
 int prepare_websockets(config_main_t *config, config_Route_t *rroot) {
-	root.hybi.paused = FALSE;
-	SNIMPL(init_pool(&root.hybi.backend_pool, sizeof(backend_msg_t),
-		config->Server.pools.backend_messages));
-	SNIMPL(init_pool(&root.hybi.frontend_pool, sizeof(frontend_msg_t),
-		config->Server.pools.frontend_messages));
-	SNIMPL(init_pool(&root.hybi.subscriber_pool, sizeof(subscriber_t),
-		config->Server.pools.subscriptions));
-	SNIMPL(init_pool(&root.hybi.output_pool, sizeof(output_t),
-		config->Server.pools.backend_mappings));
+    root.hybi.paused = FALSE;
+    SNIMPL(init_pool(&root.hybi.backend_pool, sizeof(backend_msg_t),
+        config->Server.pools.backend_messages));
+    SNIMPL(init_pool(&root.hybi.frontend_pool, sizeof(frontend_msg_t),
+        config->Server.pools.frontend_messages));
+    SNIMPL(init_pool(&root.hybi.subscriber_pool, sizeof(subscriber_t),
+        config->Server.pools.subscriptions));
+    SNIMPL(init_pool(&root.hybi.output_pool, sizeof(output_t),
+        config->Server.pools.backend_mappings));
     SNIMPL(socket_visitor(rroot));
     LINFO("Websocket connections complete");
     return 0;
