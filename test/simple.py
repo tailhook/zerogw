@@ -162,7 +162,9 @@ class Chat(Base):
     def tearDown(self):
         self.chatout.close()
         self.chatfw.close()
+        self.minigame.close()
         super().tearDown()
+        self.zmq.term()
 
     def testSimple(self):
         ws = self.websock()
