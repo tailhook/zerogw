@@ -39,7 +39,7 @@ void free_topic(topic_t *topic) {
         nxt = LIST_NEXT(sub, topic_list);
         LIST_REMOVE(sub, topic_list);
         LIST_REMOVE(sub, client_list);
-        free(sub);
+        pool_free(&root.hybi.subscriber_pool, sub);
         topic->table->nsubscriptions -= 1;
         root.stat.websock_unsubscribed += 1;
     }
@@ -137,7 +137,7 @@ void hybi_stop(hybi_t *hybi) {
         if(!LIST_FIRST(&topic->subscribers)) {
             free_topic(topic);
         }
-        free(sub);
+        pool_free(&root.hybi.subscriber_pool, sub);
     }
     for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt; out; out=nxt) {
         nxt = LIST_NEXT(out, list);
@@ -290,7 +290,7 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
 }
 
 static bool topic_subscribe(hybi_t *hybi, topic_t *topic) {
-    subscriber_t *sub = (subscriber_t *)malloc(sizeof(subscriber_t));
+    subscriber_t *sub = (subscriber_t *)pool_alloc(&root.hybi.subscriber_pool);
     if(!sub) {
         return FALSE;
     }
@@ -319,7 +319,7 @@ static bool topic_unsubscribe(hybi_t *hybi, topic_t *topic) {
     if(!LIST_FIRST(&topic->subscribers)) {
         free_topic(topic);
     }
-    free(sub);
+    pool_free(&root.hybi.subscriber_pool, sub);
     tbl->nsubscriptions -= 1;
     root.stat.websock_unsubscribed += 1;
     return TRUE;
@@ -343,14 +343,12 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
     zmq_msg_move(&msg->zmq, omsg);
     ws_MESSAGE_DATA(&msg->ws, (char *)zmq_msg_data(&msg->zmq),
         zmq_msg_size(&msg->zmq), websock_message_free);
-    LDEBUG("Sending %x [%d]``%.*s''", msg,
-        msg->ws.length, msg->ws.length, msg->ws.data);
     root.stat.websock_published += 1;
     subscriber_t *nxt;
     for (sub = LIST_FIRST(&topic->subscribers); sub; sub = nxt) {
-        nxt = LIST_NEXT(sub, client_list);
-    // Subscribers, and whole topic can be deleted while traversing
-    // list of subscribers. Note that topic can be deleted only
+        nxt = LIST_NEXT(sub, topic_list);
+        // Subscribers, and whole topic can be deleted while traversing
+        // list of subscribers. Note that topic can be deleted only
         // after each of the subscribers are deleted
         root.stat.websock_sent += 1;
         if(sub->connection->type == HYBI_WEBSOCKET) {
@@ -385,10 +383,10 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             if(!hybi) goto msg_error;
             Z_RECV_LAST(msg);
             topic_t *topic = find_topic(hybi->route, &msg, TRUE);
-            if(topic) { // no topic on memory failure
-                topic_subscribe(hybi, topic);
+            if(topic && topic_subscribe(hybi, topic)) {
+                LDEBUG("Subscribed to ``%.*s''", topic->length, topic->topic);
             } else {
-                LDEBUG("Couldn't make topic");
+                TWARN("Couldn't make topic or subscribe, probably no memory");
             }
         } else if(cmdlen == 11 && !strncmp(cmd, "unsubscribe", cmdlen)) {
             LDEBUG("Websocket got UNSUBSCRIBE request");
@@ -656,8 +654,6 @@ int prepare_websockets(config_main_t *config, config_Route_t *rroot) {
         config->Server.pools.frontend_messages));
     SNIMPL(init_pool(&root.hybi.subscriber_pool, sizeof(subscriber_t),
         config->Server.pools.subscriptions));
-    SNIMPL(init_pool(&root.hybi.output_pool, sizeof(output_t),
-        config->Server.pools.backend_mappings));
     SNIMPL(socket_visitor(rroot));
     LINFO("Websocket connections complete");
     return 0;
@@ -665,6 +661,9 @@ int prepare_websockets(config_main_t *config, config_Route_t *rroot) {
 
 int release_websockets(config_main_t *config, config_Route_t *rroot) {
     SNIMPL(socket_unvisitor(rroot));
+    free_pool(&root.hybi.backend_pool);
+    free_pool(&root.hybi.frontend_pool);
+    free_pool(&root.hybi.subscriber_pool);
     return 0;
 }
 

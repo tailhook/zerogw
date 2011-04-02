@@ -706,11 +706,5 @@ Server:
       default: 128
       description: >
         For experts. Number of entities in subscriptions pool
-    backend-mappings: !Int
-      min: 1
-      max: 2G
-      default: 128
-      description: >
-        For experts. Number of entities in backend mappings pool
 
 Routing: !Struct Route
