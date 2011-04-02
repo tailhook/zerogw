@@ -99,7 +99,8 @@ class CheckingWebsock(object):
             '/chat?limit=1&timeout=1.0&ack='+self.ack+'&id=' + self.id)
         resp = self.http.getresponse()
         self.ack = resp.getheader('X-Message-ID')
-        self.testcase.assertEqual(resp.read(), body)
+        rbody = resp.read()
+        self.testcase.assertEqual(rbody, body)
 
     def subscribe(self, topic):
         self.testcase.backend_send(
@@ -181,6 +182,19 @@ class Chat(Base):
         ws.client_got('message: personal')
         ws.client_send('hurray!')
         ws.close()
+
+    def testTwoUsers(self):
+        ws1 = self.websock()
+        ws2 = self.websock()
+        ws1.connect()
+        ws2.connect()
+        ws1.subscribe('chat')
+        ws2.subscribe('chat')
+        self.backend_send('publish', 'chat', 'message: hello_world')
+        ws1.client_got('message: hello_world')
+        ws2.client_got('message: hello_world')
+        ws1.close()
+        ws2.close()
 
     def testNamed(self):
         wa = self.websock()
