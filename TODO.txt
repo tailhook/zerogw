@@ -12,11 +12,10 @@
  - Review ws.js, limit number of requests, introduce queue, data batching
  - Implement pseudo peer-to-peer communication support (?)
  + Fix simple polling (timeout=0)
- - Implement routing messages by prefix (by subscribing prefixes for user in backend)
  + Make Push by default (probably in the 0.6 or 1.0)
- * Do something with connect/disconnect if queues are full
- - Make a way to send message to all users
+ - Make a way to send message to all users (?)
  - Implement a command which returns all conection id's (to sync periodically with backend)
+ - Implement changing of connection id by backend, to simplify it a bit
 
  Static:
  * implement directory index
