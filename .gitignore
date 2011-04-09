@@ -1,4 +1,5 @@
-build
+/build
+/doc/_build
 .waf*
 .lock-*
 *.pyc
