@@ -7,9 +7,11 @@ Contents:
    :maxdepth: 2
 
    install
-   config
    proto
    control
+   httptut
+   wsocktut
+   config
 
 Indices and tables
 ==================
