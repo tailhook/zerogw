@@ -6,6 +6,8 @@ Prerequisites
 
 * libzmq >= 2.1
 * openssl
+* libev
+* libyaml
 
 Easy Way
 --------
