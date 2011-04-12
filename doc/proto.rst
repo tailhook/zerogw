@@ -1,2 +1,86 @@
 Zerogw Backend Protocols
 ========================
+
+HTTP Forwarding
+---------------
+
+We use zeromq's request reply model for http forwarding (except for
+:ref:`long polling case <long_polling>`)
+
+Request
+^^^^^^^
+
+For each http request zerogw forwards a single multipart message.
+Request_id is sent like address data (message parts that can be read
+using XREP sockets only, and finished by empty message). After address
+data configured parts of the request are sent one by one as multipart
+message. E.g. if you have following in configuration::
+
+    zmq-forward:
+      contents:
+        - !Method
+        - !Uri
+        - !Header Cookie
+        - !Body
+
+And you've got request::
+
+    POST /hello HTTP/1.1
+    Host: example.com
+    Cookie: example=cookie_value
+    Content-Length: 8
+
+    PostBody
+
+You will receive following message parts (one line per message part)::
+
+    POST
+    /hello
+    example=cookie_value
+    PostBody
+
+It's up to the application for how to act upon it. Note if you set
+``retry`` to something you can get same request twice. And if ``retry``
+is set to ``!RetryFirst <N>`` request id will be same for every attempt,
+if you've set ``retry`` to ``!RetryLast <N>`` request id will change on
+each attempt. But usually request id is opaque for user in zeromq.
+
+Response
+^^^^^^^^
+
+Response can contain one, two or three parts for convenience.
+
+In the simple case you just send message body, as a single part message.
+Zerogw will respond with ``200 OK`` and that message body.
+
+If you respond with two messages first one will be status line, so yo
+can respond with 404 page like the following::
+
+    404 Not Found
+    <h1> Page Not Found</h1>
+
+.. note:: These ways are quite unuseful in real situations.
+   ``Content-Length`` header will be added automatically, but you should
+   configure specific ``Content-Type`` header in a config to be sure
+   that browser will render page correctly when using this method
+
+If you need to supply headers you send 3 message parts. Second one is
+constructed from nul-terminated name/value header pairs::
+
+    200 OK
+    Content-Type\0text/html\0E-tag\0immortal\0
+    <b>Lorem ipsum dolor sit amet</b>
+
+.. note:: Last header value must be nul-terminated. You must not add
+   ``Content-Length`` header as it will be generated automatically.
+   Currently headers sent from backend will be appended to headers
+   specified in config without overwriting, it can lead to unexpected
+   behavior on some proxies or browsers so you should use use one or
+   another way for each header type throught the whole application.
+
+.. _long_polling:
+
+WebSockets Backend Protocol
+---------------------------
+
+
