@@ -2,9 +2,14 @@
 # -*- coding: utf-8 -*-
 from waflib import Utils, Options
 from waflib.Build import BuildContext
+from waflib.Scripting import Dist
 
 APPNAME='zerogw'
 VERSION='0.5.5'
+
+# Bundled versions
+LIBWEBSITE_VERSION = '0.2.11'
+COYAML_VERSION = '0.3.6'
 
 top = '.'
 out = 'build'
@@ -51,8 +56,11 @@ def build(bld):
         bld.install_files('${PREFIX}/etc', ['examples/zerogw.yaml'])
 
 def dist(ctx):
-    ctx.excl = ['.waf*', '*.tar.bz2', '*.zip', 'build',
-        '.git*', '.lock*', '**/*.pyc']
+    ctx.excl = [
+        'doc/_build/**',
+        '.waf*', '*.tar.bz2', '*.zip', 'build',
+        '.git*', '.lock*', '**/*.pyc', '**/*.swp', '**/*~'
+        ]
     ctx.algo = 'tar.bz2'
 
 def make_pkgbuild(task):
@@ -81,3 +89,73 @@ class makepkg(BuildContext):
     cmd = 'makepkg'
     fun = 'build_package'
     variant = 'archpkg'
+
+def prepare_bundle(bld):
+    import coyaml.waf
+    distfile = APPNAME + '-bundle-' + VERSION + '.tar.bz2'
+    bld(rule='wget -nv -O${TGT} --no-check-certificate https://github.com/downloads/tailhook/coyaml/coyaml-'+COYAML_VERSION+'.tar.bz2',
+        target='coyaml.tar.gz')
+    bld(rule='wget -nv -O${TGT} --no-check-certificate https://github.com/downloads/tailhook/libwebsite/libwebsite-'+LIBWEBSITE_VERSION+'.tar.bz2',
+        target='libwebsite.tar.gz')
+    # TODO: check checksums
+    bld(rule='tar -xjf ${SRC}', source='coyaml.tar.gz')
+    bld(rule='tar -xjf ${SRC}', source='libwebsite.tar.gz')
+    bld(
+        features     = ['c', 'coyaml'],
+        includes     = ['src'],
+        source       = [
+            'src/config.yaml',
+            ],
+        )
+    bld(rule='cp ${SRC} build/bundle/${TGT}', source='wscript.bundle', target='wscript')
+    bld.add_group()
+    bld(rule='rm -rf coyaml; mv coyaml-'+COYAML_VERSION+' coyaml')
+    bld(rule='rm -rf libwebsite; mv libwebsite-'+LIBWEBSITE_VERSION+' libwebsite')
+
+def make_bundle(ctx):
+    from waflib import Options
+    Options.commands = ['preparebundle', 'packbundle'] + Options.commands
+
+class makebundle(BuildContext):
+    cmd = 'mkbundle'
+    fun = 'make_bundle'
+    variant = 'bundle'
+
+class preparebundle(BuildContext):
+    cmd = 'preparebundle'
+    fun = 'prepare_bundle'
+    variant = 'bundle'
+
+class bundlepack(Dist):
+    cmd = 'packbundle'
+    fun = 'packbundle'
+    variant = 'bundle'
+
+    def get_files(self):
+        for f in super().get_files():
+            yield f
+        base_dir = self.path.find_dir(out + '/' + self.variant)
+        self.base_path = base_dir
+        for f in base_dir.ant_glob('wscript'):
+            yield f
+        for f in base_dir.ant_glob('src/config.*'):
+            yield f
+        for f in base_dir.ant_glob('libev/**/*'):
+            yield f
+        for f in base_dir.ant_glob('libyaml/**/*'):
+            yield f
+        for f in base_dir.ant_glob('coyaml/**/*'):
+            yield f
+        for f in base_dir.ant_glob('libwebsite/**/*'):
+            yield f
+
+def packbundle(ctx):
+    ctx.excl = [
+        'doc/_build/**',
+        '*.tar.gz',
+        'wscript', # will add manually
+        '.waf*', '*.tar.bz2', '*.zip', 'build',
+        '.git*', '.lock*', '**/*.pyc', '**/*.swp', '**/*~'
+        ]
+    ctx.algo = 'tar.bz2'
+    ctx.arch_name = 'zerogw-bundle-' + VERSION + '.' + ctx.algo
