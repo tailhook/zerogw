@@ -164,6 +164,53 @@ notion that it&#8217;s still alive. Heartbeat consists of two part message:
 server id and literal ascii <tt class="docutils literal"><span class="pre">heartbeat</span></tt>.</p>
 </div>
 </div>
+<div class="section" id="backend-to-zerogw-messages">
+<h3>Backend to Zerogw Messages<a class="headerlink" href="#backend-to-zerogw-messages" title="Permalink to this headline">¶</a></h3>
+<p>Usually messages sent from backend are published using pubsub to several
+zerogw. This allows not to track where user currently is and also allows
+to publish messages to several users without doing that on backend.</p>
+<div class="section" id="direct-messages">
+<h4>Direct Messages<a class="headerlink" href="#direct-messages" title="Permalink to this headline">¶</a></h4>
+<dl class="docutils">
+<dt><tt class="samp docutils literal"><span class="pre">send,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">message</span></em></tt> - sends message directly to the user.</dt>
+<dd>You can send binary message, but most browsers can read only text
+data, so use utf-8</dd>
+</dl>
+</div>
+<div class="section" id="topic-subscription">
+<h4>Topic Subscription<a class="headerlink" href="#topic-subscription" title="Permalink to this headline">¶</a></h4>
+<p>Topics is a mechanism in zerogw which allows you to send message to
+several users effeciently. You first subscribe users to a topic, send
+publish a message to a topic, and all users get this message. Topic is
+an opaque binary string. Topics are created and removed on demand and
+are quite fast to use them for a lot of things.</p>
+<p><tt class="samp docutils literal"><span class="pre">subscribe,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">topic</span></em></tt> &#8211; subscribes user</p>
+<p><tt class="samp docutils literal"><span class="pre">unsubscribe,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">topic</span></em></tt> &#8211; unsubscribes user</p>
+<dl class="docutils">
+<dt><tt class="samp docutils literal"><span class="pre">publish,</span> <em><span class="pre">topic</span></em><span class="pre">,</span> <em><span class="pre">message</span></em></tt> &#8211; publish message to a topic,</dt>
+<dd>message will be delivered to all users subscribed on the topic</dd>
+</dl>
+<p><tt class="samp docutils literal"><span class="pre">drop,</span> <em><span class="pre">topic</span></em></tt> &#8211; delete topic, unsubscribing all the users</p>
+</div>
+<div class="section" id="outputs">
+<h4>Outputs<a class="headerlink" href="#outputs" title="Permalink to this headline">¶</a></h4>
+<p>In addition to subscription clients on topics you can subscribe subset
+of client messages to a specific named backend (<tt class="docutils literal"><span class="pre">named-outputs</span></tt> in
+config)</p>
+<dl class="docutils">
+<dt><tt class="samp docutils literal"><span class="pre">add_output,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">msg_prefix</span></em><span class="pre">,</span> <em><span class="pre">name</span></em></tt> &#8211; map prefix to</dt>
+<dd>specific output</dd>
+</dl>
+<p><tt class="samp docutils literal"><span class="pre">del_output,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">msg_prefix</span></em></tt> &#8211; unmap prefix</p>
+<p>As with subscriptions don&#8217;t need to unmap anything from disconnected
+user.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">it&#8217;s your responsibility to clean user state from the backend.
+<tt class="docutils literal"><span class="pre">disconnect</span></tt> messages are sent to main backend only</p>
+</div>
+</div>
+</div>
 </div>
 </div>
 
@@ -186,6 +233,12 @@ server id and literal ascii <tt class="docutils literal"><span class="pre">heart
 <li><a class="reference internal" href="#connection-messages">Connection Messages</a></li>
 <li><a class="reference internal" href="#messages">Messages</a></li>
 <li><a class="reference internal" href="#heartbeats">Heartbeats</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#backend-to-zerogw-messages">Backend to Zerogw Messages</a><ul>
+<li><a class="reference internal" href="#direct-messages">Direct Messages</a></li>
+<li><a class="reference internal" href="#topic-subscription">Topic Subscription</a></li>
+<li><a class="reference internal" href="#outputs">Outputs</a></li>
 </ul>
 </li>
 </ul>

@@ -123,3 +123,53 @@ If configured server sends heartbeats to the backend to give backend
 notion that it's still alive. Heartbeat consists of two part message:
 server id and literal ascii ``heartbeat``.
 
+Backend to Zerogw Messages
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Usually messages sent from backend are published using pubsub to several
+zerogw. This allows not to track where user currently is and also allows
+to publish messages to several users without doing that on backend.
+
+Direct Messages
+~~~~~~~~~~~~~~~
+
+:samp:`send, {conn_id}, {message}` - sends message directly to the user.
+    You can send binary message, but most browsers can read only text
+    data, so use utf-8
+
+Topic Subscription
+~~~~~~~~~~~~~~~~~~
+
+Topics is a mechanism in zerogw which allows you to send message to
+several users effeciently. You first subscribe users to a topic, send
+publish a message to a topic, and all users get this message. Topic is
+an opaque binary string. Topics are created and removed on demand and
+are quite fast to use them for a lot of things.
+
+:samp:`subscribe, {conn_id}, {topic}` -- subscribes user
+
+:samp:`unsubscribe, {conn_id}, {topic}` -- unsubscribes user
+
+:samp:`publish, {topic}, {message}` -- publish message to a topic,
+    message will be delivered to all users subscribed on the topic
+
+:samp:`drop, {topic}` -- delete topic, unsubscribing all the users
+
+Outputs
+~~~~~~~
+
+In addition to subscription clients on topics you can subscribe subset
+of client messages to a specific named backend (``named-outputs`` in
+config)
+
+:samp:`add_output, {conn_id}, {msg_prefix}, {name}` -- map prefix to
+    specific output
+
+:samp:`del_output, {conn_id}, {msg_prefix}` -- unmap prefix
+
+As with subscriptions don't need to unmap anything from disconnected
+user.
+
+.. note:: it's your responsibility to clean user state from the backend.
+   ``disconnect`` messages are sent to main backend only
+
