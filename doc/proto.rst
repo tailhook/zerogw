@@ -83,4 +83,93 @@ constructed from nul-terminated name/value header pairs::
 WebSockets Backend Protocol
 ---------------------------
 
+Zerogw implements unified interface for application writers for both
+long polling and websockets. Both are used for bidirectional message
+channels from client to server.
+
+.. note:: There is no overhead of using long polling with normal http
+   backend in zerogw if that suits your application. This interface is
+   provided to make using either websockets or long polling transparent
+   for both frontend and backend developer and provides reliable message
+   stream.
+
+Zerogw to Backend Messages
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Most messages from server to client consists of client id (long binary
+string of nonsense) and ascii command name, following more message parts
+which we will call arguments in the text below.
+
+Connection Messages
+~~~~~~~~~~~~~~~~~~~
+
+``connect`` - is sent when new connection established, no arguments
+
+``disconnect`` - is sent when connection disconnected. All subscriptions
+    (see below) are already cancelled so you don't need to remove them,
+    but you can cleanup some application-specific data. No arguments
+
+Messages
+~~~~~~~~
+
+``message`` - message sent from frontend to websocket, has single
+    argument - message text. Can be binary if the browser (or malicious
+    client) sent binary data
+
+Heartbeats
+~~~~~~~~~~
+
+If configured server sends heartbeats to the backend to give backend
+notion that it's still alive. Heartbeat consists of two part message:
+server id and literal ascii ``heartbeat``.
+
+Backend to Zerogw Messages
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Usually messages sent from backend are published using pubsub to several
+zerogw. This allows not to track where user currently is and also allows
+to publish messages to several users without doing that on backend.
+
+Direct Messages
+~~~~~~~~~~~~~~~
+
+:samp:`send, {conn_id}, {message}` - sends message directly to the user.
+    You can send binary message, but most browsers can read only text
+    data, so use utf-8
+
+Topic Subscription
+~~~~~~~~~~~~~~~~~~
+
+Topics is a mechanism in zerogw which allows you to send message to
+several users effeciently. You first subscribe users to a topic, send
+publish a message to a topic, and all users get this message. Topic is
+an opaque binary string. Topics are created and removed on demand and
+are quite fast to use them for a lot of things.
+
+:samp:`subscribe, {conn_id}, {topic}` -- subscribes user
+
+:samp:`unsubscribe, {conn_id}, {topic}` -- unsubscribes user
+
+:samp:`publish, {topic}, {message}` -- publish message to a topic,
+    message will be delivered to all users subscribed on the topic
+
+:samp:`drop, {topic}` -- delete topic, unsubscribing all the users
+
+Outputs
+~~~~~~~
+
+In addition to subscription clients on topics you can subscribe subset
+of client messages to a specific named backend (``named-outputs`` in
+config)
+
+:samp:`add_output, {conn_id}, {msg_prefix}, {name}` -- map prefix to
+    specific output
+
+:samp:`del_output, {conn_id}, {msg_prefix}` -- unmap prefix
+
+As with subscriptions don't need to unmap anything from disconnected
+user.
+
+.. note:: it's your responsibility to clean user state from the backend.
+   ``disconnect`` messages are sent to main backend only
 
