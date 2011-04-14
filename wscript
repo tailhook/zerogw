@@ -44,6 +44,11 @@ def build(bld):
         cflags      = ['-std=c99'],
         lib          = ['yaml', 'zmq', 'ev', 'coyaml', 'website', 'ssl'],
         )
+    bld(
+        features    = ['c', 'cprogram'],
+        source      = 'src/openport.c',
+        target      = 'openport',
+        )
 
     if bld.env['PREFIX'] == '/usr':
         bld.install_files('/etc', ['examples/zerogw.yaml'])
