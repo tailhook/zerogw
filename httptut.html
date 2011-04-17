@@ -50,8 +50,8 @@
             
   <div class="section" id="http-tutorial">
 <h1>HTTP Tutorial<a class="headerlink" href="#http-tutorial" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="overview">
-<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="disclaimer">
+<h2>Disclaimer<a class="headerlink" href="#disclaimer" title="Permalink to this headline">¶</a></h2>
 <p>Unlike most HTTP servers out there zerogw doesn&#8217;t try to support old CGI
 convention of passing environment to your web application. For each
 forwarded requests zerogw forwards only a few fields, such as url and
@@ -62,6 +62,60 @@ fast web applications (and a parts of thereof) which need most out of
 machine performance (e.g. you can use it for autocompletion or some
 other AJAX). If you want to use big fat web framework there are plenty
 of other solutions. If thats ok for you, read on!</p>
+</div>
+<div class="section" id="hello-world">
+<h2>Hello World<a class="headerlink" href="#hello-world" title="Permalink to this headline">¶</a></h2>
+<p>Let&#8217;s start with simple hello world application. The first thing to know
+is how to configure zerogw. We will start with simplest possible
+configuration and will improve it later.</p>
+<p>Minimal configuration:</p>
+<div class="highlight-python"><pre>Server:
+  listen:
+    host: 0.0.0.0
+    port: 8080
+
+Routing:
+  zmq-forward:
+    enabled: yes
+    socket:
+    - !zmq.Bind "tcp://127.0.0.1:5000"
+    contents:
+    - !Uri</pre>
+</div>
+<p>All above means that zerogw will listen for connections on port 8080 on
+all interfaces (0.0.0.0). Then it will forward requests to local host
+with port 5000. This port also listens for connections, so you can start
+several backend processes (and even several boxes, if you&#8217;ll change
+127.0.0.1 to your local network ip address) to process requests.
+Forwarded request will contain just URI part of the original request.</p>
+<p>Then we will write a simple script which would make this work:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">zmq</span>
+
+<span class="n">ctx</span> <span class="o">=</span> <span class="n">zmq</span><span class="o">.</span><span class="n">Context</span><span class="p">()</span>
+<span class="n">sock</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">zmq</span><span class="o">.</span><span class="n">REP</span><span class="p">)</span>
+<span class="n">sock</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s">&#39;tcp://127.0.0.1:5000&#39;</span><span class="p">)</span>
+<span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+    <span class="n">uri</span><span class="p">,</span> <span class="o">=</span> <span class="n">sock</span><span class="o">.</span><span class="n">recv_multipart</span><span class="p">()</span>
+    <span class="n">sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span><span class="n">b</span><span class="s">&#39;Hello from &#39;</span><span class="o">+</span><span class="n">uri</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>This is everything which is needed to serve requests. Note we are
+connecting to the address you specified to bind to in zerogw config.
+Now you can go to the browser at <a class="reference external" href="http://localhost:8080/">http://localhost:8080/</a> and you should
+see <tt class="docutils literal"><span class="pre">Hello</span> <span class="pre">from</span> <span class="pre">/</span></tt>.</p>
+<p>We use <tt class="docutils literal"><span class="pre">recv_multipart</span></tt> and <tt class="docutils literal"><span class="pre">send_multipart</span></tt> to simplify working
+with sockets. If they are not provided in your language bindings you
+will probably need to use <tt class="docutils literal"><span class="pre">recv</span></tt> and <tt class="docutils literal"><span class="pre">send</span></tt> while reading
+<tt class="docutils literal"><span class="pre">RCVMORE</span></tt> and setting <tt class="docutils literal"><span class="pre">SNDMORE</span></tt> flags. Refer to zeromq and you
+language bindings for more information.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This code works perfectly for example, but in reality it can
+except suring recv or send calls. So in production application you
+should use more complicated loop. See ioloop in pyzmq bindings or
+appropriate functionality in your language bindings</p>
+</div>
+<p>Was that hard? I guess no really.</p>
 </div>
 </div>
 
@@ -74,7 +128,8 @@ of other solutions. If thats ok for you, read on!</p>
   <h3><a href="index.html">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#">HTTP Tutorial</a><ul>
-<li><a class="reference internal" href="#overview">Overview</a></li>
+<li><a class="reference internal" href="#disclaimer">Disclaimer</a></li>
+<li><a class="reference internal" href="#hello-world">Hello World</a></li>
 </ul>
 </li>
 </ul>
