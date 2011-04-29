@@ -112,7 +112,7 @@ def prepare_bundle(bld):
             'src/config.yaml',
             ],
         )
-    bld(rule='cp ${SRC} build/bundle/${TGT}', source='wscript.bundle', target='wscript')
+    bld(rule='cp ${SRC} ${TGT[0].get_bld()}', source='wscript.bundle', target='wscript')
     bld.add_group()
     bld(rule='rm -rf coyaml; mv coyaml-'+COYAML_VERSION+' coyaml')
     bld(rule='rm -rf libwebsite; mv libwebsite-'+LIBWEBSITE_VERSION+' libwebsite')
