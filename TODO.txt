@@ -1,10 +1,6 @@
  `+` is scheduled before 1.0 release
  `-` definitely not blocks 1.0 release (but still may be done)
 
- + fix bug of not timeouting and not closing long polling connections
- + strange ECONNRESET on read from client (maybe previous issue?)
- + Find out rare startup failure (probably related to already opened connections after restart
-
  Websockets:
  + Add error pages for http polling
  + Implement or disable more output and input formats for polling
@@ -23,6 +19,7 @@
  * implement expires (cache-age)
  * implement If-Modified-Since and If-None-Match
 
+ + Add test command to wscript to run tests add check to pkgbuild
  + Check EINTR in all zmq_send
  + Check what happens on ECONNRESET, EPIPE
  + Check working server with ZMQ_HWM's set on sockets
