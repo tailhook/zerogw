@@ -5,7 +5,7 @@ from waflib.Build import BuildContext
 from waflib.Scripting import Dist
 
 APPNAME='zerogw'
-VERSION='0.5.6'
+VERSION='0.5.7'
 
 # Bundled versions
 LIBWEBSITE_VERSION = '0.2.11'
