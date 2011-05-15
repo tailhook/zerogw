@@ -44,13 +44,13 @@ const char *get_field(request_t *req, config_RequestField_t*value, size_t*len) {
     return result;
 }
 
-
-
-config_Route_t *resolve_url(request_t *req) {
+static config_Route_t *do_resolve_url(request_t *req, bool ready) {
     if(sieve_full(root.request_sieve)) {
         LWARN("Too many requests");
-        http_static_response(req,
-            &REQRCONFIG(req)->responses.service_unavailable);
+        if(ready) {  // TODO: investigate this further
+            http_static_response(req,
+                &REQRCONFIG(req)->responses.service_unavailable);
+        }
         return NULL;
     }
 
@@ -64,7 +64,8 @@ config_Route_t *resolve_url(request_t *req) {
             if(ws_match(route->_child_match, data, &tmp)) {
                 route = (config_Route_t *)tmp;
             } else {
-                http_static_response(req, &route->responses.not_found);
+                if(ready)
+                    http_static_response(req, &route->responses.not_found);
                 return NULL;
             }
             continue;
@@ -72,7 +73,8 @@ config_Route_t *resolve_url(request_t *req) {
             if(ws_fuzzy(route->_child_match, data, &tmp)) {
                 route = (config_Route_t *)tmp;
             } else {
-                http_static_response(req, &route->responses.not_found);
+                if(ready)
+                    http_static_response(req, &route->responses.not_found);
                 return NULL;
             }
             continue;
@@ -80,7 +82,8 @@ config_Route_t *resolve_url(request_t *req) {
             if(ws_rfuzzy(route->_child_match, data, &tmp)) {
                 route = (config_Route_t *)tmp;
             } else {
-                http_static_response(req, &route->responses.not_found);
+                if(ready)
+                    http_static_response(req, &route->responses.not_found);
                 return NULL;
             }
             continue;
@@ -96,5 +99,13 @@ config_Route_t *resolve_url(request_t *req) {
         break;
     }
     return route;
+}
+
+
+config_Route_t *preliminary_resolve(request_t *req) {
+    return do_resolve_url(req, FALSE);
+}
+config_Route_t *resolve_url(request_t *req) {
+    return do_resolve_url(req, TRUE);
 }
 

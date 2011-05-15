@@ -10,5 +10,6 @@
 
 const char *get_field(request_t *req, config_RequestField_t*value, size_t*len);
 config_Route_t *resolve_url(request_t *req);
+config_Route_t *preliminary_resolve(request_t *req);
 
 #endif

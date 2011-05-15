@@ -1,0 +1,22 @@
+# vim: sw=2:ts=2:et
+Server:
+  zmq-io-threads: 1
+  disk-io-threads: 1
+  listen:
+    - unix-socket: /tmp/zerogw-test
+  status:
+    socket:
+    - !zmq.Bind ipc:///tmp/zerogw-test-status
+  error-log:
+    level: 1
+    warning-timeout: 300
+
+Routing:
+    routing: !Prefix ~
+    routing-by: !Header Host
+    map:
+      "hello":
+        responses:
+          default:
+            code: 200
+            body: "Hello World!"

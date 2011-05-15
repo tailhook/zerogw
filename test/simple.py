@@ -19,6 +19,7 @@ HTTP_ADDR = "/tmp/zerogw-test"
 STATUS_ADDR = "ipc:///tmp/zerogw-test-status"
 
 class Base(unittest.TestCase):
+    config = CONFIG
 
     def setUp(self):
         for i in (HTTP_ADDR,):
@@ -26,10 +27,14 @@ class Base(unittest.TestCase):
                 os.unlink(i)
             except OSError:
                 pass
-        self.proc = subprocess.Popen([ZEROGW_BINARY, '-c', CONFIG])
+        if os.environ.get('RUN_WITH_GDB'):
+            self.proc = subprocess.Popen(['gdb', '-x', 'test/run.gdb',
+                '--args', ZEROGW_BINARY, '-c', self.config])
+        else:
+            self.proc = subprocess.Popen([ZEROGW_BINARY, '-c', self.config])
 
-    def http(self):
-        conn = http.HTTPConnection('localhost', timeout=1.0)
+    def http(self, host='localhost'):
+        conn = http.HTTPConnection(host, timeout=1.0)
         conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         for i in range(100):
             try:
@@ -53,7 +58,7 @@ class HTTP(Base):
         conn = self.http()
         conn.request('GET', '/crossdomain.xml')
         resp = conn.getresponse()
-        self.assertTrue('cross-domain-policy', resp.read())
+        self.assertTrue('cross-domain-policy' in resp.read())
         conn.close()
 
 class WebSocket(Base):
