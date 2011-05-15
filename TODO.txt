@@ -2,7 +2,6 @@
  `-` definitely not blocks 1.0 release (but still may be done)
 
  + fix bug of not timeouting and not closing long polling connections
- + resolve_url in http_headers should probably differ (do not reply too early)
  + strange ECONNRESET on read from client (maybe previous issue?)
  + Find out rare startup failure (probably related to already opened connections after restart
 
