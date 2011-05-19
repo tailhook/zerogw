@@ -116,6 +116,10 @@ Messages
     argument - message text. Can be binary if the browser (or malicious
     client) sent binary data
 
+``msgfrom`` - message sent from frontend to websocket, has two arguments
+*cookie* and *message text*, latter is same as in ``message`` and former
+is an opaque string set by ``set_cookie`` (see below)
+
 Heartbeats
 ~~~~~~~~~~
 
@@ -172,4 +176,21 @@ user.
 
 .. note:: it's your responsibility to clean user state from the backend.
    ``disconnect`` messages are sent to main backend only
+
+Cookie
+~~~~~~
+
+Cookie is a experimental feature of zerogw v0.5.8, which allows to
+prepend opaque data to all messages sent from a client. This is usually
+used to authorize connection without need to access authorization
+database on each user's message. Only one cookie can be attached at a
+time, but you can change the cookie at any time. Once set, you can't
+discard cookie. Once cookie attached all messages will be forwarded
+using ``msgfrom`` message type with cookie and data.
+
+:samp:`set_cookie, {conn_id}, {cookie}` -- set cookie for the
+connection, cookie is an opaque string
+
+.. note:: only ``msgfrom`` messages will contain cookie, ``disconnect``
+   will be sent without cookie and ``connect`` can never contain one
 
