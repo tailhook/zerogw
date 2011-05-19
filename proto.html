@@ -142,19 +142,26 @@ string of nonsense) and ascii command name, following more message parts
 which we will call arguments in the text below.</p>
 <div class="section" id="connection-messages">
 <h4>Connection Messages<a class="headerlink" href="#connection-messages" title="Permalink to this headline">¶</a></h4>
-<p><tt class="docutils literal"><span class="pre">connect</span></tt> - is sent when new connection established, no arguments</p>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">disconnect</span></tt> - is sent when connection disconnected. All subscriptions</dt>
-<dd>(see below) are already cancelled so you don&#8217;t need to remove them,
+<dt><tt class="docutils literal"><span class="pre">connect</span></tt></dt>
+<dd>is sent when new connection established, no arguments</dd>
+<dt><tt class="docutils literal"><span class="pre">disconnect</span></tt></dt>
+<dd>is sent when connection disconnected. All subscriptions
+(see below) are already cancelled so you don&#8217;t need to remove them,
 but you can cleanup some application-specific data. No arguments</dd>
 </dl>
 </div>
 <div class="section" id="messages">
 <h4>Messages<a class="headerlink" href="#messages" title="Permalink to this headline">¶</a></h4>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">message</span></tt> - message sent from frontend to websocket, has single</dt>
-<dd>argument - message text. Can be binary if the browser (or malicious
+<dt><tt class="docutils literal"><span class="pre">message</span></tt></dt>
+<dd>message sent from frontend to websocket, has single
+argument - message text. Can be binary if the browser (or malicious
 client) sent binary data</dd>
+<dt><tt class="docutils literal"><span class="pre">msgfrom</span></tt></dt>
+<dd>message sent from frontend to websocket, has two arguments <em>cookie</em>
+and <em>message text</em>, latter is same as in <tt class="docutils literal"><span class="pre">message</span></tt> and former is
+an opaque string set by <tt class="docutils literal"><span class="pre">set_cookie</span></tt> (see below)</dd>
 </dl>
 </div>
 <div class="section" id="heartbeats">
@@ -172,9 +179,9 @@ to publish messages to several users without doing that on backend.</p>
 <div class="section" id="direct-messages">
 <h4>Direct Messages<a class="headerlink" href="#direct-messages" title="Permalink to this headline">¶</a></h4>
 <dl class="docutils">
-<dt><tt class="samp docutils literal"><span class="pre">send,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">message</span></em></tt> - sends message directly to the user.</dt>
-<dd>You can send binary message, but most browsers can read only text
-data, so use utf-8</dd>
+<dt><tt class="samp docutils literal"><span class="pre">send,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">message</span></em></tt></dt>
+<dd>sends message directly to the user.  You can send binary message,
+but most browsers can read only text data, so use utf-8</dd>
 </dl>
 </div>
 <div class="section" id="topic-subscription">
@@ -184,13 +191,17 @@ several users effeciently. You first subscribe users to a topic, send
 publish a message to a topic, and all users get this message. Topic is
 an opaque binary string. Topics are created and removed on demand and
 are quite fast to use them for a lot of things.</p>
-<p><tt class="samp docutils literal"><span class="pre">subscribe,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">topic</span></em></tt> &#8211; subscribes user</p>
-<p><tt class="samp docutils literal"><span class="pre">unsubscribe,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">topic</span></em></tt> &#8211; unsubscribes user</p>
 <dl class="docutils">
-<dt><tt class="samp docutils literal"><span class="pre">publish,</span> <em><span class="pre">topic</span></em><span class="pre">,</span> <em><span class="pre">message</span></em></tt> &#8211; publish message to a topic,</dt>
-<dd>message will be delivered to all users subscribed on the topic</dd>
+<dt><tt class="samp docutils literal"><span class="pre">subscribe,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">topic</span></em></tt></dt>
+<dd>subscribes user</dd>
+<dt><tt class="samp docutils literal"><span class="pre">unsubscribe,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">topic</span></em></tt></dt>
+<dd>unsubscribes user</dd>
+<dt><tt class="samp docutils literal"><span class="pre">publish,</span> <em><span class="pre">topic</span></em><span class="pre">,</span> <em><span class="pre">message</span></em></tt></dt>
+<dd>publish message to a topic, message will be delivered to all users
+subscribed on the topic</dd>
+<dt><tt class="samp docutils literal"><span class="pre">drop,</span> <em><span class="pre">topic</span></em></tt></dt>
+<dd>delete topic, unsubscribing all the users</dd>
 </dl>
-<p><tt class="samp docutils literal"><span class="pre">drop,</span> <em><span class="pre">topic</span></em></tt> &#8211; delete topic, unsubscribing all the users</p>
 </div>
 <div class="section" id="outputs">
 <h4>Outputs<a class="headerlink" href="#outputs" title="Permalink to this headline">¶</a></h4>
@@ -198,16 +209,36 @@ are quite fast to use them for a lot of things.</p>
 of client messages to a specific named backend (<tt class="docutils literal"><span class="pre">named-outputs</span></tt> in
 config)</p>
 <dl class="docutils">
-<dt><tt class="samp docutils literal"><span class="pre">add_output,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">msg_prefix</span></em><span class="pre">,</span> <em><span class="pre">name</span></em></tt> &#8211; map prefix to</dt>
-<dd>specific output</dd>
+<dt><tt class="samp docutils literal"><span class="pre">add_output,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">msg_prefix</span></em><span class="pre">,</span> <em><span class="pre">name</span></em></tt></dt>
+<dd>map prefix to specific output</dd>
+<dt><tt class="samp docutils literal"><span class="pre">del_output,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">msg_prefix</span></em></tt></dt>
+<dd>unmap prefix</dd>
 </dl>
-<p><tt class="samp docutils literal"><span class="pre">del_output,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">msg_prefix</span></em></tt> &#8211; unmap prefix</p>
 <p>As with subscriptions don&#8217;t need to unmap anything from disconnected
 user.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">it&#8217;s your responsibility to clean user state from the backend.
 <tt class="docutils literal"><span class="pre">disconnect</span></tt> messages are sent to main backend only</p>
+</div>
+</div>
+<div class="section" id="cookie">
+<h4>Cookie<a class="headerlink" href="#cookie" title="Permalink to this headline">¶</a></h4>
+<p>Cookie is a experimental feature of zerogw v0.5.8, which allows to
+prepend opaque data to all messages sent from a client. This is usually
+used to authorize connection without need to access authorization
+database on each user&#8217;s message. Only one cookie can be attached at a
+time, but you can change the cookie at any time. Once set, you can&#8217;t
+discard cookie. Once cookie attached all messages will be forwarded
+using <tt class="docutils literal"><span class="pre">msgfrom</span></tt> message type with cookie and data.</p>
+<dl class="docutils">
+<dt><tt class="samp docutils literal"><span class="pre">set_cookie,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">cookie</span></em></tt></dt>
+<dd>set cookie for the connection, cookie is an opaque string</dd>
+</dl>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">only <tt class="docutils literal"><span class="pre">msgfrom</span></tt> messages will contain cookie, <tt class="docutils literal"><span class="pre">disconnect</span></tt>
+will be sent without cookie and <tt class="docutils literal"><span class="pre">connect</span></tt> can never contain one</p>
 </div>
 </div>
 </div>
@@ -239,6 +270,7 @@ user.</p>
 <li><a class="reference internal" href="#direct-messages">Direct Messages</a></li>
 <li><a class="reference internal" href="#topic-subscription">Topic Subscription</a></li>
 <li><a class="reference internal" href="#outputs">Outputs</a></li>
+<li><a class="reference internal" href="#cookie">Cookie</a></li>
 </ul>
 </li>
 </ul>
