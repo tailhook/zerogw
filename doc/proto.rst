@@ -103,22 +103,26 @@ which we will call arguments in the text below.
 Connection Messages
 ~~~~~~~~~~~~~~~~~~~
 
-``connect`` - is sent when new connection established, no arguments
+``connect``
+    is sent when new connection established, no arguments
 
-``disconnect`` - is sent when connection disconnected. All subscriptions
+``disconnect``
+    is sent when connection disconnected. All subscriptions
     (see below) are already cancelled so you don't need to remove them,
     but you can cleanup some application-specific data. No arguments
 
 Messages
 ~~~~~~~~
 
-``message`` - message sent from frontend to websocket, has single
+``message``
+    message sent from frontend to websocket, has single
     argument - message text. Can be binary if the browser (or malicious
     client) sent binary data
 
-``msgfrom`` - message sent from frontend to websocket, has two arguments
-*cookie* and *message text*, latter is same as in ``message`` and former
-is an opaque string set by ``set_cookie`` (see below)
+``msgfrom``
+    message sent from frontend to websocket, has two arguments *cookie*
+    and *message text*, latter is same as in ``message`` and former is
+    an opaque string set by ``set_cookie`` (see below)
 
 Heartbeats
 ~~~~~~~~~~
@@ -137,9 +141,9 @@ to publish messages to several users without doing that on backend.
 Direct Messages
 ~~~~~~~~~~~~~~~
 
-:samp:`send, {conn_id}, {message}` - sends message directly to the user.
-    You can send binary message, but most browsers can read only text
-    data, so use utf-8
+:samp:`send, {conn_id}, {message}`
+    sends message directly to the user.  You can send binary message,
+    but most browsers can read only text data, so use utf-8
 
 Topic Subscription
 ~~~~~~~~~~~~~~~~~~
@@ -150,14 +154,18 @@ publish a message to a topic, and all users get this message. Topic is
 an opaque binary string. Topics are created and removed on demand and
 are quite fast to use them for a lot of things.
 
-:samp:`subscribe, {conn_id}, {topic}` -- subscribes user
+:samp:`subscribe, {conn_id}, {topic}`
+    subscribes user
 
-:samp:`unsubscribe, {conn_id}, {topic}` -- unsubscribes user
+:samp:`unsubscribe, {conn_id}, {topic}`
+    unsubscribes user
 
-:samp:`publish, {topic}, {message}` -- publish message to a topic,
-    message will be delivered to all users subscribed on the topic
+:samp:`publish, {topic}, {message}`
+    publish message to a topic, message will be delivered to all users
+    subscribed on the topic
 
-:samp:`drop, {topic}` -- delete topic, unsubscribing all the users
+:samp:`drop, {topic}`
+    delete topic, unsubscribing all the users
 
 Outputs
 ~~~~~~~
@@ -166,10 +174,11 @@ In addition to subscription clients on topics you can subscribe subset
 of client messages to a specific named backend (``named-outputs`` in
 config)
 
-:samp:`add_output, {conn_id}, {msg_prefix}, {name}` -- map prefix to
-    specific output
+:samp:`add_output, {conn_id}, {msg_prefix}, {name}`
+    map prefix to specific output
 
-:samp:`del_output, {conn_id}, {msg_prefix}` -- unmap prefix
+:samp:`del_output, {conn_id}, {msg_prefix}`
+    unmap prefix
 
 As with subscriptions don't need to unmap anything from disconnected
 user.
@@ -188,8 +197,8 @@ time, but you can change the cookie at any time. Once set, you can't
 discard cookie. Once cookie attached all messages will be forwarded
 using ``msgfrom`` message type with cookie and data.
 
-:samp:`set_cookie, {conn_id}, {cookie}` -- set cookie for the
-connection, cookie is an opaque string
+:samp:`set_cookie, {conn_id}, {cookie}`
+    set cookie for the connection, cookie is an opaque string
 
 .. note:: only ``msgfrom`` messages will contain cookie, ``disconnect``
    will be sent without cookie and ``connect`` can never contain one
