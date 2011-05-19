@@ -77,6 +77,7 @@ int backend_send(config_zmqsocket_t *sock, hybi_t *hybi, void *msg, bool force) 
         }
         int len;
         char *kind;
+        bool is_msg = FALSE;
         if(msg == MSG_CONNECT) {
             kind = "connect";
             len = strlen("connect");  // compiler will take care
@@ -84,14 +85,23 @@ int backend_send(config_zmqsocket_t *sock, hybi_t *hybi, void *msg, bool force) 
             kind = "disconnect";
             len = strlen("disconnect");  // we have a smart compiler
         } else {
-            kind = "message";
-            len = strlen("message");  // compiler is smarter than you
+            is_msg = TRUE;
+            if(hybi->flags & WS_HAS_COOKIE) {
+                kind = "msgfrom";
+                len = strlen("msgfrom");   // still compiler is smart
+            } else {
+                kind = "message";
+                len = strlen("message");  // compiler is smarter than you
+            }
         }
         SNIMPL(zmq_msg_init_size(&zmsg, len));
         memcpy(zmq_msg_data(&zmsg), kind, len);
-        SNIMPL(zmq_send(sock->_sock, &zmsg,
-            ZMQ_NOBLOCK | (kind == "message" ? ZMQ_SNDMORE : 0)));
-        if(kind == "message") {  // Yeah, i really mean that
+        SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | (is_msg ? ZMQ_SNDMORE : 0)));
+        if(is_msg) {  // Yeah, i really mean that
+            if(hybi->flags & WS_HAS_COOKIE) {
+                SNIMPL(zmq_msg_copy(&zmsg, &hybi->cookie));
+                SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK|ZMQ_SNDMORE));
+            }
             if(hybi->type == HYBI_COMET) {
                 request_t *req = msg;
                 SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
@@ -144,6 +154,9 @@ void hybi_stop(hybi_t *hybi) {
         LIST_REMOVE(out, list);
         free(out);
     }
+    if(hybi->flags & WS_HAS_COOKIE) {
+        zmq_msg_close(&hybi->cookie);
+    }
     hybi_DECREF(hybi);
 }
 
@@ -169,6 +182,7 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
     ANIMPL(hybi); //FIXME
     hybi->type = type;
     hybi->refcnt = 1;
+    hybi->flags = 0;
     SNIMPL(make_hole_uid(hybi, hybi->uid, root.hybi.sieve, type == HYBI_COMET));
     LIST_INIT(&hybi->subscribers);
     hybi->route = route;
@@ -515,6 +529,17 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             if(len) {
                 TWARN("Can't find prefix ``%.*s''", len, data);
             }
+        } else if(cmdlen == 10 && !memcmp(cmd, "set_cookie", cmdlen)) {
+            LDEBUG("Setting connection cookie");
+            Z_RECV_NEXT(msg);
+            hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
+            if(!hybi) goto msg_error;
+            Z_RECV_LAST(msg);
+            if(!(hybi->flags & WS_HAS_COOKIE)) {
+                zmq_msg_init(&hybi->cookie);
+            }
+            SNIMPL(zmq_msg_move(&hybi->cookie, &msg));
+            hybi->flags |= WS_HAS_COOKIE;
         } else {
             TWARN("Wrong command [%d]``%s''", cmdlen, cmd);
             goto msg_error;

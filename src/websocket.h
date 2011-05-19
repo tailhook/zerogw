@@ -12,6 +12,8 @@
 #define hybi_INCREF(hybi) (hybi)->refcnt += 1;
 #define hybi_DECREF(hybi) if(--(hybi)->refcnt <= 0) { free(hybi); }
 
+#define WS_HAS_COOKIE 1
+
 typedef enum {
     HYBI_WEBSOCKET,
     HYBI_COMET
@@ -51,6 +53,8 @@ typedef struct hybi_s {
     hybi_enum type;
     unsigned refcnt;
     char uid[UID_LEN];
+    int flags;
+    zmq_msg_t cookie;
     config_Route_t *route;
     LIST_HEAD(conn_subscribers_s, subscriber_s) subscribers;
     LIST_HEAD(conn_outputs_s, output_s) outputs;

@@ -58,7 +58,7 @@ class HTTP(Base):
         conn = self.http()
         conn.request('GET', '/crossdomain.xml')
         resp = conn.getresponse()
-        self.assertTrue('cross-domain-policy' in resp.read())
+        self.assertTrue(b'cross-domain-policy' in resp.read())
         conn.close()
 
 class WebSocket(Base):
@@ -98,6 +98,13 @@ class CheckingWebsock(object):
         self.testcase.assertEqual(self.testcase.backend_recv(name),
             [self.intid, b'message', body.encode('utf-8')])
 
+    def client_send2(self, body, name=None):
+        self.http.request("GET",
+            '/chat?limit=0&timeout=0&id=' + self.id, body=body)
+        self.testcase.assertEqual(b'', self.http.getresponse().read())
+        self.testcase.assertEqual(self.testcase.backend_recv(name),
+            [self.intid, b'msgfrom', self.cookie.encode('utf-8'), body.encode('utf-8')])
+
     def client_got(self, body):
         body = body.encode('utf-8')
         self.http.request("GET",
@@ -106,6 +113,11 @@ class CheckingWebsock(object):
         self.ack = resp.getheader('X-Message-ID')
         rbody = resp.read()
         self.testcase.assertEqual(rbody, body)
+
+    def set_cookie(self, cookie):
+        self.cookie = cookie
+        self.testcase.backend_send(
+            'set_cookie', self.intid, cookie)
 
     def subscribe(self, topic):
         self.testcase.backend_send(
@@ -221,6 +233,22 @@ class Chat(Base):
         wa.client_send('game1_action')
         wa.close()
         wb.close()
+
+    def testCookie(self):
+        ws1 = self.websock()
+        ws2 = self.websock()
+        ws1.connect()
+        ws2.connect()
+        ws1.subscribe('chat')
+        ws2.subscribe('chat')
+        ws1.set_cookie('u1')
+        ws2.set_cookie('u2')
+        ws1.client_send2('hello utwo!')  #checks cookie internally
+        ws2.client_send2('hello uone!')
+        ws1.set_cookie('u3')
+        ws1.client_send2('i am uthree!')
+        ws1.close()
+        ws2.close()
 
 if __name__ == '__main__':
     unittest.main()
