@@ -7,7 +7,9 @@ import os
 
 import zmq
 
-ZEROGW_BINARY="./build/zerogw"
+builddir = os.environ.get("BUILDDIR", './build')
+
+ZEROGW_BINARY=builddir + "/zerogw"
 CONFIG="./test/zerogw.yaml"
 
 ECHO_SOCKET = "ipc:///tmp/zerogw-test-echo"

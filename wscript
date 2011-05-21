@@ -164,3 +164,17 @@ def packbundle(ctx):
         ]
     ctx.algo = 'tar.bz2'
     ctx.arch_name = 'zerogw-bundle-' + VERSION + '.' + ctx.algo
+
+def build_tests(bld):
+    build(bld)
+    bld.add_group()
+    bld(rule='cd ${SRC[0].parent.parent.abspath()};'
+        'export BUILDDIR=${SRC[1].parent.abspath()};'
+        'python -m unittest discover -s test -p "*.py" -t . -v',
+        source=['test/simple.py', 'zerogw'],
+        always=True)
+
+class test(BuildContext):
+    cmd = 'test'
+    fun = 'build_tests'
+    variant = 'test'
