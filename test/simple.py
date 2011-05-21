@@ -27,11 +27,7 @@ class Base(unittest.TestCase):
                 os.unlink(i)
             except OSError:
                 pass
-        if os.environ.get('RUN_WITH_GDB'):
-            self.proc = subprocess.Popen(['gdb', '-x', 'test/run.gdb',
-                '--args', ZEROGW_BINARY, '-c', self.config])
-        else:
-            self.proc = subprocess.Popen([ZEROGW_BINARY, '-c', self.config])
+        self.proc = subprocess.Popen([ZEROGW_BINARY, '-c', self.config])
 
     def http(self, host='localhost'):
         conn = http.HTTPConnection(host, timeout=1.0)
