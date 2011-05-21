@@ -239,9 +239,11 @@ class Chat(Base):
         ws2.subscribe('chat')
         ws1.set_cookie('u1')
         ws2.set_cookie('u2')
+        time.sleep(0.01)
         ws1.client_send2('hello utwo!')  #checks cookie internally
         ws2.client_send2('hello uone!')
         ws1.set_cookie('u3')
+        time.sleep(0.01)
         ws1.client_send2('i am uthree!')
         ws1.close()
         ws2.close()
