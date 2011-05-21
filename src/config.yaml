@@ -82,6 +82,12 @@ __types__:
       description: >
         Underlying kernel transmit buffer size. Refer to operating system
         documentation for the SO_RCVBUF socket option
+    linger: !UInt
+      =: 10000
+      description: >
+        Amount of time zeromq tries to send messages already put into
+        the buffers. Zerogw will probably stay alive at most this amount
+        of time when got SIGTERM. Time is expressed in miliseconds
     _sock: !_VoidPtr ~
     _watch: !CStruct ev_io
     _queue: !CStruct queue_s

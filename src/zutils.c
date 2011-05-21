@@ -93,6 +93,9 @@ int zmq_open(config_zmqsocket_t *sock, int kinds, int defkind,
         uint64_t sndbuf = sock->sndbuf;
         SNIMPL(zmq_setsockopt(result, ZMQ_SNDBUF, &sndbuf, sizeof(sndbuf)));
     }
+    int linger = sock->linger;
+    SNIMPL(zmq_setsockopt(result, ZMQ_LINGER, &linger, sizeof(linger)));
+
     sock->_sock = result;
     if(callback) {
         int fd;
