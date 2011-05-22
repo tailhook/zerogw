@@ -10,7 +10,6 @@
  + Make Push by default (probably in the 0.6 or 1.0)
  - Make a way to send message to all users (?)
  - Implement a command which returns all conection id's (to sync periodically with backend)
- - Implement changing of connection id by backend, to simplify it a bit
 
  Static:
  * implement directory index
@@ -19,7 +18,6 @@
  * implement expires (cache-age)
  * implement If-Modified-Since and If-None-Match
 
- + Add test command to wscript to run tests add check to pkgbuild
  + Check EINTR in all zmq_send
  + Check what happens on ECONNRESET, EPIPE
  + Check working server with ZMQ_HWM's set on sockets
