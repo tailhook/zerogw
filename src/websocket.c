@@ -641,6 +641,10 @@ static int socket_unvisitor(config_Route_t *route) {
         }
         free_queue(&route->websocket.forward._queue);
     }
+    CONFIG_STRING_ZMQSOCKET_LOOP(item, route->websocket.named_outputs) {
+        SNIMPL(z_close(&item->value, root.loop));
+        free_queue(&item->value._queue);
+    }
     CONFIG_ROUTE_LOOP(item, route->children) {
         SNIMPL(socket_unvisitor(&item->value));
     }
