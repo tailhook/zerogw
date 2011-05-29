@@ -110,7 +110,7 @@ int zmq_open(config_zmqsocket_t *sock, int kinds, int defkind,
 }
 
 void skip_message(void * sock) {
-    size_t opt = 1;
+    int64_t opt = 1;
     size_t len = sizeof(opt);
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init(&msg));
