@@ -5,7 +5,7 @@ from waflib.Build import BuildContext
 from waflib.Scripting import Dist
 
 APPNAME='zerogw'
-VERSION='0.5.6'
+VERSION='0.5.9'
 
 top = '.'
 out = 'build'
