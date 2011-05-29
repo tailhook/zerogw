@@ -20,14 +20,14 @@ run::
 The easy way is to use `zerogw bundle`_. It includes some dependencies.
 Then you execute following steps::
 
-    tar -xjf zerogw-bundle-0.5.6.tar.bz2
+    tar -xjf zerogw-bundle-0.5.9.tar.bz2
     cd zerogw
     ./waf configure --prefix=/usr
     ./waf build
     sudo ./waf install
 
 .. _Archlinux: http://archlinux.org
-.. _`zerogw bundle`: https://github.com/downloads/tailhook/zerogw/zerogw-bundle-0.5.6.tar.bz2
+.. _`zerogw bundle`: https://github.com/downloads/tailhook/zerogw/zerogw-bundle-0.5.9.tar.bz2
 
 Hard Way
 --------
