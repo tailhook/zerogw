@@ -138,6 +138,13 @@ class CheckingWebsock(object):
         resp = self.http.getresponse()
         self.testcase.assertEqual(resp.getheader('X-Connection'), 'close')
         self.http.close()
+        val = self.testcase.backend_recv()
+        if hasattr(self, 'cookie'):
+            self.testcase.assertEqual(val,
+                [self.intid, b'disconnect', self.cookie.encode('ascii')])
+        else:
+            self.testcase.assertEqual(val,
+                [self.intid, b'disconnect'])
 
 class Chat(Base):
     timeout = 1  # in zmq.select units (seconds)

@@ -96,12 +96,14 @@ int backend_send(config_zmqsocket_t *sock, hybi_t *hybi, void *msg, bool force) 
         }
         SNIMPL(zmq_msg_init_size(&zmsg, len));
         memcpy(zmq_msg_data(&zmsg), kind, len);
-        SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | (is_msg ? ZMQ_SNDMORE : 0)));
-        if(is_msg) {  // Yeah, i really mean that
-            if(hybi->flags & WS_HAS_COOKIE) {
-                SNIMPL(zmq_msg_copy(&zmsg, &hybi->cookie));
-                SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK|ZMQ_SNDMORE));
-            }
+        int flag = (is_msg || hybi->flags & WS_HAS_COOKIE) ? ZMQ_SNDMORE : 0;
+        SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | flag));
+        if(hybi->flags & WS_HAS_COOKIE) {
+            flag = is_msg ? ZMQ_SNDMORE : 0;
+            SNIMPL(zmq_msg_copy(&zmsg, &hybi->cookie));
+            SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | flag));
+        }
+        if(is_msg) {
             if(hybi->type == HYBI_COMET) {
                 request_t *req = msg;
                 SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
