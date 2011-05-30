@@ -146,9 +146,14 @@ which we will call arguments in the text below.</p>
 <dt><tt class="docutils literal"><span class="pre">connect</span></tt></dt>
 <dd>is sent when new connection established, no arguments</dd>
 <dt><tt class="docutils literal"><span class="pre">disconnect</span></tt></dt>
-<dd>is sent when connection disconnected. All subscriptions
+<dd><p class="first">is sent when connection disconnected. All subscriptions
 (see below) are already cancelled so you don&#8217;t need to remove them,
-but you can cleanup some application-specific data. No arguments</dd>
+but you can cleanup some application-specific data. No arguments</p>
+<p class="last">Starting with v0.5.10: disconnect appends an cookie (see below)
+as an argument, if cookie is set (it breaks compatibility somewhat
+with versions starting with v0.5.8, which did not return cookie
+on the disconnect)</p>
+</dd>
 </dl>
 </div>
 <div class="section" id="messages">
@@ -237,8 +242,10 @@ using <tt class="docutils literal"><span class="pre">msgfrom</span></tt> message
 </dl>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">only <tt class="docutils literal"><span class="pre">msgfrom</span></tt> messages will contain cookie, <tt class="docutils literal"><span class="pre">disconnect</span></tt>
-will be sent without cookie and <tt class="docutils literal"><span class="pre">connect</span></tt> can never contain one</p>
+<p class="last">starting with v0.5.10 cookie set with <tt class="docutils literal"><span class="pre">set_cookie</span></tt> are
+sent in <tt class="docutils literal"><span class="pre">disconnect</span></tt> messages. Since disconnect can occur before
+you were able to set cookie you must tolerate different number of
+arguments in <tt class="docutils literal"><span class="pre">disconnect</span></tt> messsages.</p>
 </div>
 </div>
 </div>
