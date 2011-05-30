@@ -111,6 +111,11 @@ Connection Messages
     (see below) are already cancelled so you don't need to remove them,
     but you can cleanup some application-specific data. No arguments
 
+    Starting with v0.5.10: disconnect appends an cookie (see below)
+    as an argument, if cookie is set (it breaks compatibility somewhat
+    with versions starting with v0.5.8, which did not return cookie
+    on the disconnect)
+
 Messages
 ~~~~~~~~
 
@@ -200,6 +205,8 @@ using ``msgfrom`` message type with cookie and data.
 :samp:`set_cookie, {conn_id}, {cookie}`
     set cookie for the connection, cookie is an opaque string
 
-.. note:: only ``msgfrom`` messages will contain cookie, ``disconnect``
-   will be sent without cookie and ``connect`` can never contain one
+.. note:: starting with v0.5.10 cookie set with ``set_cookie`` are
+   sent in ``disconnect`` messages. Since disconnect can occur before
+   you were able to set cookie you must tolerate different number of
+   arguments in ``disconnect`` messsages.
 
