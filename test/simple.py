@@ -4,6 +4,7 @@ import subprocess
 import unittest
 import time
 import os
+import signal
 
 import zmq
 
@@ -256,6 +257,15 @@ class Chat(Base):
         ws1.client_send2('i am uthree!')
         ws1.close()
         ws2.close()
+
+    def testCrash(self):
+        ws = self.websock()
+        ws.connect()
+        self.proc.send_signal(signal.SIGSTOP)
+        self.backend_send('add_output', ws.intid, 'hello-', 'test')
+        self.backend_send('publish', 'hello', 'world')
+        self.proc.send_signal(signal.SIGCONT)
+        ws.client_send('hello_world')
 
 if __name__ == '__main__':
     unittest.main()

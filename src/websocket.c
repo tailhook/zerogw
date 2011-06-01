@@ -384,9 +384,9 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     config_Route_t *route = (config_Route_t *)((char *)watch
         - offsetof(config_Route_t, websocket.subscribe._watch));
     size_t opt, optlen = sizeof(opt);
-    output_t *output = NULL;
     SNIMPL(zmq_getsockopt(route->websocket.subscribe._sock, ZMQ_EVENTS, &opt, &optlen));
     while(TRUE) {
+        output_t *output = NULL;
         Z_SEQ_INIT(msg, route->websocket.subscribe._sock);
         Z_RECV_START(msg, break);
         char *cmd = zmq_msg_data(&msg);
