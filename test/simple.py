@@ -91,9 +91,15 @@ class CheckingWebsock(object):
         self.intid = val[0]
 
     def client_send(self, body, name=None):
+        self.client_send_only(body, name=name)
+        self.client_send_check(body, name=name)
+
+    def client_send_only(self, body, name=None):
         self.http.request("GET",
             '/chat?limit=0&timeout=0&id=' + self.id, body=body)
         self.testcase.assertEqual(b'', self.http.getresponse().read())
+
+    def client_send_check(self, body, name=None):
         self.testcase.assertEqual(self.testcase.backend_recv(name),
             [self.intid, b'message', body.encode('utf-8')])
 
@@ -266,6 +272,21 @@ class Chat(Base):
         self.backend_send('publish', 'hello', 'world')
         self.proc.send_signal(signal.SIGCONT)
         ws.client_send('hello_world')
+
+    def testBackendStop(self):
+        ws1 = self.websock()
+        ws1.connect()
+        ws1.subscribe('chat')
+        ws1.client_send('hello_world')
+        self.chatfw.close()
+        time.sleep(0.1)
+        ws1.client_send_only('test1')
+        time.sleep(0.1)
+        self.chatfw = self.zmq.socket(zmq.PULL)
+        self.chatfw.connect(CHAT_FW)
+        ws1.client_send_check('test1')
+        ws1.client_send('ok')
+        ws1.close()
 
 if __name__ == '__main__':
     unittest.main()

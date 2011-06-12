@@ -10,6 +10,7 @@
  + Make Push by default (probably in the 0.6 or 1.0)
  - Make a way to send message to all users (?)
  - Implement a command which returns all conection id's (to sync periodically with backend)
+ + Add named routes to resume visitor
 
  Static:
  * implement directory index

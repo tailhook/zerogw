@@ -61,59 +61,94 @@ void websock_free_message(void *data, void *hint) {
     ws_MESSAGE_DECREF(&msg->ws);
 }
 
+int backend_send_real(config_zmqsocket_t *sock, hybi_t *hybi, void *msg) {
+    zmq_msg_t zmsg;
+    SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
+    memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
+    if(zmq_send(sock->_sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+        if(errno == EAGAIN || errno == EINTR)
+            return -1;
+        SNIMPL(-1);
+    }
+    int len;
+    char *kind;
+    bool is_msg = FALSE;
+    if(msg == MSG_CONNECT) {
+        kind = "connect";
+        len = strlen("connect");  // compiler will take care
+    } else if(msg == MSG_DISCONNECT) {
+        kind = "disconnect";
+        len = strlen("disconnect");  // we have a smart compiler
+    } else {
+        is_msg = TRUE;
+        if(hybi->flags & WS_HAS_COOKIE) {
+            kind = "msgfrom";
+            len = strlen("msgfrom");   // still compiler is smart
+        } else {
+            kind = "message";
+            len = strlen("message");  // compiler is smarter than you
+        }
+    }
+    SNIMPL(zmq_msg_init_size(&zmsg, len));
+    memcpy(zmq_msg_data(&zmsg), kind, len);
+    int flag = (is_msg || hybi->flags & WS_HAS_COOKIE) ? ZMQ_SNDMORE : 0;
+    SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | flag));
+    if(hybi->flags & WS_HAS_COOKIE) {
+        flag = is_msg ? ZMQ_SNDMORE : 0;
+        SNIMPL(zmq_msg_copy(&zmsg, &hybi->cookie));
+        SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | flag));
+    }
+    if(is_msg) {
+        if(hybi->type == HYBI_COMET) {
+            request_t *req = msg;
+            SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
+                request_decref, req));
+        } else {
+            message_t *wmsg = msg;
+            SNIMPL(zmq_msg_init_data(&zmsg, wmsg->ws.data, wmsg->ws.length,
+                websock_free_message, wmsg));
+        }
+        SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK));
+    }
+    return 0;
+}
+
+void backend_unqueue(struct ev_loop *loop, struct ev_io *watch, int rev) {
+    ADEBUG(rev == EV_READ);
+    config_zmqsocket_t *socket = SHIFT(watch, config_zmqsocket_t, _watch);
+    int64_t opt;
+    size_t size = sizeof(opt);
+    SNIMPL(zmq_getsockopt(socket->_sock, ZMQ_EVENTS, &opt, &size));
+    if(!(opt & EV_WRITE && socket->_queue.size && !root.hybi.paused)) {
+        return;  // Just have nothing to do
+    }
+    queue_item_t *cur = TAILQ_FIRST(&socket->_queue.items), *nxt;
+    for(;cur; cur = nxt) {
+        nxt = TAILQ_NEXT(cur, list);
+
+        backend_msg_t *ptr = (backend_msg_t *)cur;
+        while(backend_send_real(socket, ptr->hybi, ptr->msg) < 0) {
+            if(errno == EINTR) continue;
+            else if (errno == EAGAIN) return;
+            SNIMPL(-1);
+        }
+
+        root.stat.websock_backend_queued -= 1;
+        queue_remove(&socket->_queue, cur);
+    }
+}
+
 // This method needs own reference to msg (if refcounted)
 int backend_send(config_zmqsocket_t *sock, hybi_t *hybi, void *msg, bool force) {
-    while(!root.hybi.paused && !sock->_queue.size) {  // not while, but can break
-        zmq_msg_t zmsg;
-        SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
-        memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
-        if(zmq_send(sock->_sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+    while(!root.hybi.paused && !sock->_queue.size) {
+        if(backend_send_real(sock, hybi, msg) < 0) {
             if(errno == EAGAIN) {
                 LWARN("Can't send a message, started queueing");
                 break;
+            } else if(errno == EINTR) {
+                continue;
             }
-            if(errno == EINTR) continue;
             SNIMPL(-1);
-        }
-        int len;
-        char *kind;
-        bool is_msg = FALSE;
-        if(msg == MSG_CONNECT) {
-            kind = "connect";
-            len = strlen("connect");  // compiler will take care
-        } else if(msg == MSG_DISCONNECT) {
-            kind = "disconnect";
-            len = strlen("disconnect");  // we have a smart compiler
-        } else {
-            is_msg = TRUE;
-            if(hybi->flags & WS_HAS_COOKIE) {
-                kind = "msgfrom";
-                len = strlen("msgfrom");   // still compiler is smart
-            } else {
-                kind = "message";
-                len = strlen("message");  // compiler is smarter than you
-            }
-        }
-        SNIMPL(zmq_msg_init_size(&zmsg, len));
-        memcpy(zmq_msg_data(&zmsg), kind, len);
-        int flag = (is_msg || hybi->flags & WS_HAS_COOKIE) ? ZMQ_SNDMORE : 0;
-        SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | flag));
-        if(hybi->flags & WS_HAS_COOKIE) {
-            flag = is_msg ? ZMQ_SNDMORE : 0;
-            SNIMPL(zmq_msg_copy(&zmsg, &hybi->cookie));
-            SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | flag));
-        }
-        if(is_msg) {
-            if(hybi->type == HYBI_COMET) {
-                request_t *req = msg;
-                SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
-                    request_decref, req));
-            } else {
-                message_t *wmsg = msg;
-                SNIMPL(zmq_msg_init_data(&zmsg, wmsg->ws.data, wmsg->ws.length,
-                    websock_free_message, wmsg));
-            }
-            SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK));
         }
         return 0;
     }
@@ -128,6 +163,7 @@ int backend_send(config_zmqsocket_t *sock, hybi_t *hybi, void *msg, bool force) 
         errno = EAGAIN;
         return -1;
     }
+    root.stat.websock_backend_queued += 1;
     hybi_INCREF(hybi);
     q->hybi = hybi;
     q->msg = msg;
@@ -601,7 +637,7 @@ static int socket_visitor(config_Route_t *route) {
     }
     if(route->websocket.forward.value_len) {
         SNIMPL(zmq_open(&route->websocket.forward,
-            ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, NULL, NULL));
+            ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, backend_unqueue, root.loop));
         if(route->websocket.heartbeat_interval) {
             ev_timer_init(&route->websocket._heartbeat_timer, heartbeat,
                 route->websocket.heartbeat_interval,
@@ -613,7 +649,7 @@ static int socket_visitor(config_Route_t *route) {
     }
     CONFIG_STRING_ZMQSOCKET_LOOP(item, route->websocket.named_outputs) {
         SNIMPL(zmq_open(&item->value,
-            ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, NULL, NULL));
+            ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, backend_unqueue, root.loop));
         init_queue(&item->value._queue,
             route->websocket.max_backend_queue, &root.hybi.backend_pool);
     }
