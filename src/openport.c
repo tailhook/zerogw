@@ -21,6 +21,8 @@ int main(int argc, char **argv) {
     char **cmd = &argv[6];
     int ofd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(ofd < 0) { perror("Error creating socket"); exit(1); }
+    int optval = 1;
+    if(setsockopt(ofd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) { perror("Can't reuse"); exit(1); }
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
@@ -29,6 +31,7 @@ int main(int argc, char **argv) {
     if(listen(ofd, 128 << 10) < 0) { perror("Can't listen"); exit(1); }
     if(setgid(gid) < 0) { perror("Can't set gid"); exit(1); }
     if(setuid(uid) < 0) { perror("Can't set uid"); exit(1); }
+    if(dup2(ofd, fd) < 0) { perror("Cant' dup"); exit(1); }
     if(execvp(cmd[0], cmd) < 0) { perror("Can't exec"); exit(127); }
     perror("Something wrong"); exit(127);
 }
