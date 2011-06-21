@@ -702,6 +702,9 @@ static void resume_visitor(config_Route_t *route) {
     CONFIG_STRING_ROUTE_LOOP(item, route->map) {
         resume_visitor(&item->value);
     }
+    CONFIG_STRING_ZMQSOCKET_LOOP(item, route->websocket.named_outputs) {
+        ev_feed_event(root.loop, &item->value._watch, EV_READ);
+    }
 }
 
 int pause_websockets(bool pause) {

@@ -20,6 +20,10 @@ MINIGAME = "ipc:///tmp/zerogw-test-minigame"
 
 HTTP_ADDR = "/tmp/zerogw-test"
 STATUS_ADDR = "ipc:///tmp/zerogw-test-status"
+CONTROL_ADDR = "ipc:///tmp/zerogw-test-control"
+
+class TimeoutError(Exception):
+    pass
 
 class Base(unittest.TestCase):
     config = CONFIG
@@ -167,6 +171,17 @@ class Chat(Base):
         self.minigame.connect(MINIGAME)
         time.sleep(0.2)  # sorry, need for zmq sockets
 
+    def control(self, *args):
+        sock = self.zmq.socket(zmq.REQ)
+        try:
+            sock.connect(CONTROL_ADDR)
+            sock.send_multipart([a.encode('utf-8') for a in args])
+            self.assertEqual(([sock], [], []),
+                zmq.select([sock], [], [], timeout=self.timeout))
+            return sock.recv_multipart()
+        finally:
+            sock.close()
+
     def backend_send(self, *args):
         self.assertEqual(([], [self.chatout], []),
             zmq.select([], [self.chatout], [], timeout=self.timeout))
@@ -179,8 +194,9 @@ class Chat(Base):
             sock = self.chatfw
         else:
             sock = self.minigame
-        self.assertEqual(([sock], [], []),
-            zmq.select([sock], [], [], timeout=self.timeout))
+        if (([sock], [], []) !=
+            zmq.select([sock], [], [], timeout=self.timeout)):
+            raise TimeoutError()
         val =  sock.recv_multipart()
         if val[1] == b'heartbeat':
             return self.backend_recv(backend=backend)
@@ -272,6 +288,7 @@ class Chat(Base):
         self.backend_send('publish', 'hello', 'world')
         self.proc.send_signal(signal.SIGCONT)
         ws.client_send('hello_world')
+        ws.close()
 
     def testBackendStop(self):
         ws1 = self.websock()
@@ -285,6 +302,36 @@ class Chat(Base):
         self.chatfw = self.zmq.socket(zmq.PULL)
         self.chatfw.connect(CHAT_FW)
         ws1.client_send_check('test1')
+        ws1.client_send('ok')
+        ws1.close()
+
+    def testPauseWebsockets(self):
+        ws1 = self.websock()
+        ws1.connect()
+        ws1.subscribe('chat')
+        ws1.client_send('hello_world')
+        self.control('pause_websockets')
+        time.sleep(0.1)
+        ws1.client_send_only('test1')
+        with self.assertRaises(TimeoutError):
+            ws1.client_send_check('test1')
+        self.control('resume_websockets')
+        ws1.client_send_check('test1')
+        ws1.client_send('ok')
+        ws1.close()
+
+    def testPauseNamed(self):
+        ws1 = self.websock()
+        ws1.connect()
+        ws1.subscribe('chat')
+        self.backend_send('add_output', ws1.intid, 'hello-', 'minigame')
+        self.control('pause_websockets')
+        time.sleep(0.1)
+        ws1.client_send_only('hello-test1')
+        with self.assertRaises(TimeoutError):
+            ws1.client_send_check('hello-test1', 'minigame')
+        self.control('resume_websockets')
+        ws1.client_send_check('hello-test1', 'minigame')
         ws1.client_send('ok')
         ws1.close()
 
