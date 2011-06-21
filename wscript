@@ -3,13 +3,18 @@
 from waflib import Utils, Options
 from waflib.Build import BuildContext
 from waflib.Scripting import Dist
+import subprocess
+import os.path
 
 APPNAME='zerogw'
-VERSION='0.5.9'
+if os.path.exists('.git'):
+    VERSION=subprocess.getoutput('git describe').lstrip('v').replace('-', '_')
+else:
+    VERSION='0.5.9'
 
 # Bundled versions
 LIBWEBSITE_VERSION = '0.2.11'
-COYAML_VERSION = '0.3.6'
+COYAML_VERSION = '0.3.7'
 
 top = '.'
 out = 'build'
