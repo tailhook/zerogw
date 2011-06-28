@@ -98,7 +98,7 @@ void timedwarn(time_t *tt, char *file, int line, char *msg, ...) {
         idx += vsnprintf(buf + idx, 4096 - idx, msg, args);
         idx = min(idx, 4094);
         if(tt[WT_LASTCALL] > tm - logconfig->warning_timeout) {
-            idx += snprintf(buf + idx, 4096 - idx, " (repeated %d times)", tt[WT_COUNTER]);
+            idx += snprintf(buf + idx, 4096 - idx, " (repeated %ld times)", tt[WT_COUNTER]);
         }
         buf[idx++] = '\n';
         write(logfile, buf, idx);

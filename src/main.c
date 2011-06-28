@@ -32,7 +32,7 @@ int format_statistics(char *buf) {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     int res = snprintf(buf, STAT_MAXLEN,
-        "%lu.%06d\n"
+        "%lu.%06ld\n"
         "connects: %lu\n"
         "disconnects: %lu\n"
         "http_requests: %lu\n"

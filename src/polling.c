@@ -337,7 +337,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
         if(comet->cur_format == FMT_SINGLE) {
             root.stat.comet_sent_messages += 1;
             char buf[24];
-            sprintf(buf, "%lu", comet->first_index);
+            sprintf(buf, "%i", comet->first_index);
             ws_statusline(req, "200 OK");
             ws_add_header(req, "X-Messages", "1");
             ws_add_header(req, "X-Format", "single");
@@ -358,9 +358,9 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             }
             char buf[128];
             ws_statusline(req, "200 OK");
-            sprintf(buf, "%lu", num);
+            sprintf(buf, "%i", num);
             ws_add_header(req, "X-Messages", buf);
-            sprintf(buf, "%lu", comet->first_index + comet->queue.size);
+            sprintf(buf, "%i", comet->first_index + comet->queue.size);
             ws_add_header(req, "X-Last-ID", buf);
             ws_add_header(req, "X-Format", "multipart");
             sprintf(buf, "multipart/mixed; boundary=\"%s\"", boundary);
@@ -381,7 +381,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
                         "X-Message-ID: ",
                     strlen("\r\nContent-Type: application/octed-stream\r\n"
                         "X-Message-ID "));
-                int len = sprintf(buf, "%lu", comet->first_index + i);
+                int len = sprintf(buf, "%i", comet->first_index + i);
                 obstack_grow(&req->pieces, buf, len);
                 obstack_grow(&req->pieces, "\r\n\r\n", 4);
                 obstack_grow(&req->pieces, zmq_msg_data(&msg->zmsg),
