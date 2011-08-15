@@ -6,9 +6,9 @@ pkgrel=1
 pkgdesc="A http/zeromq gateway"
 arch=('i686' 'x86_64')
 url="http://github.com/tailhook/zerogw"
-license=('GPL')
+license=('MIT')
 depends=('zeromq' 'libyaml' 'openssl' 'libev' 'mime-types')
-makedepends=('coyaml>=0.3.7' 'libwebsite>=0.2.11' 'mime-types')
+makedepends=('coyaml' 'libwebsite' 'pyzmq-git' 'mime-types')
 backup=("etc/zerogw.yaml")
 source=(https://github.com/downloads/tailhook/zerogw/$pkgname-$pkgver.tar.bz2)
 md5sums=('${DIST_MD5}')
@@ -27,4 +27,5 @@ check() {
 package() {
   cd $srcdir/$pkgname-$pkgver
   ./waf install --destdir=$pkgdir
+  install -D -m644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
