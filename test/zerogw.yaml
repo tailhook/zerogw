@@ -49,4 +49,12 @@ Routing:
               <cross-domain-policy>
                   <allow-access-from domain="*" />
               </cross-domain-policy>
-
+      "/test/*":
+        static:
+          enabled: yes
+          root: ./
+          restrict-root: no  # can't restrict local
+          deny-suffixes:
+          - .py
+          deny-prefixes:
+          - .
