@@ -579,7 +579,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             SNIMPL(zmq_msg_move(&hybi->cookie, &msg));
             hybi->flags |= WS_HAS_COOKIE;
         } else {
-            TWARN("Wrong command [%d]``%s''", cmdlen, cmd);
+            TWARN("Wrong command ``%.*s''", cmdlen, cmd);
             goto msg_error;
         }
     msg_finish:
