@@ -507,6 +507,100 @@ __types__:
           This limit works only for Push sockets with either high water mark set
           or having no connections at the moment. Also it works when server was
           paused by user.
+      frontend-commands:
+        enabled: !Bool no
+        pattern: !String
+          default: "%s"
+          description: >
+            sscanf pattern to match against, for a frontend command. Anything
+            not matched with it will be forwarded to a backend (if exists).
+            This allows you to adapt frontend commands to your normal message
+            stream. But be aware that very generic pattern (as default one) can
+            capture your commands too (usually that means you want to have
+            unique prefix for frontend commands). Also if you use json objects
+            to call commands ensure they come in right order always (usually
+            that means you must either have a single-key object or construct
+            json by string concatenation). Pattern can have one or two
+            conversions both are string-like type (usually %s or %[^abc]).
+            First is a name of the command and second is either argument
+            or arbitrary string which can be used in reply
+        commands:
+          echo:
+            enabled: !Bool yes
+            name: !String echo
+            response: !String
+              default: "%s"
+              description: >
+                printf-like format for echo command, can have contain either
+                %1$s -- full message string or %2$s -- echo argument (see
+                description of pattern).
+          timestamp:
+            enabled: !Bool yes
+            name: !String timestamp
+            response: !String
+              default: "%s"
+              description: >
+                printf-like format for timestamp command, can contain
+                either %1$f -- timestamp or %2$s -- command argument (see
+                description of pattern)
+          subscribe:
+            enabled: !Bool
+              default: no
+              description: >
+                Warning: if you enable this command you can have server-less
+                communication, but your server is more vulnerable to DoS
+                attacks. You probably also want to limit topic names by
+                prefixing them by something like 'user:' or similar, in
+                all three (subscribe, unsubscribe, publish) commands
+            name: !String subscribe
+            topic-name: !String
+              default: "%s"
+              description: >
+                printf-like format for subscribed topic, can contain
+                %1$s -- command argument. Also you will probably want
+                to
+            limit: !UInt
+              default: 100
+              description: >
+                Limits number of client-defined subscriptions.
+          unsubscribe:
+            enabled: !Bool no
+            name: !String unsubscribe
+            topic-name: !String
+              default: "%s"
+              description: >
+                printf-like format for subscribed topic, can contain
+                %1$s -- command argument. Only client-defined subscriptions
+                can be removed. So you probably want to have this value
+                sychronized with subscribe's one.
+          publish:
+            enabled: !Bool
+              default: no
+              description: >
+                Warning: if you enable this command you can have server-less
+                communication, but your server is more vulnerable to DoS
+                attacks. You probably want to limit topic names by
+                prefixing them by something like 'user:' or similar, in
+                all three (subscribe, unsubscribe, publish) commands. Also some
+                of your users can confuse other users by sending bad-looking
+                messages. Also publishing messages with frontend commands is
+                not scalable to multiple boxes (zerogw instances).
+                You have been warned.
+            name: !String publish
+            topic-name: !String
+              default: "%s"
+              description: >
+                printf-like format for publishing topic, can contain
+                %1$s -- command argument. Can publish messages into any
+                topics, unless sprintf pattern contain some prefix or similar.
+            message: !String
+              default: "%2$s"
+              description: >
+                printf-like format for published message, can contain %1$s --
+                full message string, %1$s -- command argument. You can only
+                put there full message body got from user (or topic name which
+                is mostly useless). It's by design, because we can't reliably
+                match escaped strings using sprintf patterns.
       disable-websocket: !Bool
         =: no
         description: >
