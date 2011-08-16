@@ -179,6 +179,17 @@ static void nocache_headers(ws_request_t *req) {
     ws_add_header(req, "Expires", "Sat, 01 Dec 2001 00:00:00 GMT");
 }
 
+static void timestamp_headers(request_t *req) {
+    if(req->route->websocket.polling_fallback.timestamps) {
+        char buf[32];
+        req->outgoing_time = ev_now(root.loop);
+        sprintf(buf, "%f", req->outgoing_time);
+        ws_add_header(&req->ws, "X-Timestamp", buf);
+        sprintf(buf, "%f", req->outgoing_time - req->incoming_time);
+        ws_add_header(&req->ws, "X-Wait-Time", buf);
+    }
+}
+
 static void empty_reply(hybi_t *hybi) {
     root.stat.comet_empty_replies += 1;
     request_t *mreq = hybi->comet->cur_request;
@@ -189,6 +200,7 @@ static void empty_reply(hybi_t *hybi) {
     ws_statusline(req, "200 OK");
     ws_add_header(req, "X-Messages", "0");
     nocache_headers(req);
+    timestamp_headers(mreq);
     ws_reply_data(req, "", 0);
     mreq->hybi = NULL;
     REQ_DECREF(mreq);
@@ -221,6 +233,7 @@ static void close_reply(hybi_t *hybi) {
     ws_add_header(req, "X-Messages", "0");
     ws_add_header(req, "X-Connection", "close");
     nocache_headers(req);
+    timestamp_headers(mreq);  // for consistency
     ws_reply_data(req, "", 0);
     mreq->hybi = NULL;
     REQ_DECREF(mreq);
@@ -336,13 +349,14 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
         root.stat.comet_sent_batches += 1;
         if(comet->cur_format == FMT_SINGLE) {
             root.stat.comet_sent_messages += 1;
-            char buf[24];
+            char buf[64];
             sprintf(buf, "%i", comet->first_index);
             ws_statusline(req, "200 OK");
             ws_add_header(req, "X-Messages", "1");
             ws_add_header(req, "X-Format", "single");
             ws_add_header(req, "X-Message-ID", buf);
             nocache_headers(req);
+            timestamp_headers(mreq);
             ws_finish_headers(req);
             mreq->flags |= REQ_HAS_MESSAGE;
             SNIMPL(zmq_msg_init(&mreq->response_msg));
@@ -366,6 +380,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             sprintf(buf, "multipart/mixed; boundary=\"%s\"", boundary);
             ws_add_header(req, "Content-Type", buf);
             nocache_headers(req);
+            timestamp_headers(mreq);
             ws_finish_headers(req);
             obstack_blank(&req->pieces, 0);
             obstack_grow(&req->pieces,
@@ -421,6 +436,7 @@ static int comet_connect(request_t *req) {
     ev_timer_start(root.loop, &hybi->comet->inactivity);
     ws_statusline(&req->ws, "200 OK");
     nocache_headers(&req->ws);
+    timestamp_headers(req);
     ws_finish_headers(&req->ws);
     char *uid = obstack_alloc(&req->ws.pieces, UID_LEN*2);
     char mask[MD5_DIGEST_LENGTH];
@@ -538,6 +554,7 @@ int comet_request(request_t *req) {
         ws_statusline(wreq, "200 OK");
         ws_add_header(wreq, "X-Messages", "0");
         nocache_headers(wreq);
+        timestamp_headers(req);
         ws_reply_data(wreq, "", 0);
     }
     return 0;

@@ -516,6 +516,12 @@ __types__:
       polling-fallback:
         enabled: !Bool
           =: yes
+        timestamps: !Bool
+          default: no
+          description: >
+            Enable timestamp in X-Timestamp header, and time of waiting for
+            message to come inside X-Wait-Time. Former is time since epoch,
+            both are floating point seconds.
         queue-limit: !UInt
           default: 100
           min: 2

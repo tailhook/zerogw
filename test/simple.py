@@ -5,6 +5,7 @@ import unittest
 import time
 import os
 import signal
+import datetime
 
 import zmq
 
@@ -82,14 +83,28 @@ class WebSocket(Base):
 
 class CheckingWebsock(object):
 
-    def __init__(self, testcase):
+    def __init__(self, testcase, timestamp=False):
         self.testcase = testcase
         self.http = testcase.http()
         self.ack = ''
+        self.timestamp = timestamp
+
+    def _request(self, *args, **kw):
+        self.last_request = time.time()
+        return self.http.request(*args, **kw)
+
+    def _getresponse(self):
+        resp = self.http.getresponse()
+        if self.timestamp:
+            resptime = time.time()
+            self.last_timestamp = float(resp.headers['X-Timestamp'])
+            assert self.last_request < self.last_timestamp < resptime
+        return resp
 
     def connect(self):
-        self.http.request('GET', '/chat?action=CONNECT')
-        self.id = self.http.getresponse().read().decode('utf-8')
+        self._request('GET', '/chat?action=CONNECT')
+        req = self._getresponse()
+        self.id = req.read().decode('utf-8')
         val = self.testcase.backend_recv()
         self.testcase.assertEqual(val[1], b'connect')
         self.intid = val[0]
@@ -99,9 +114,10 @@ class CheckingWebsock(object):
         self.client_send_check(body, name=name)
 
     def client_send_only(self, body, name=None):
-        self.http.request("GET",
+        self._request("GET",
             '/chat?limit=0&timeout=0&id=' + self.id, body=body)
-        self.testcase.assertEqual(b'', self.http.getresponse().read())
+        self.testcase.assertEqual(b'',
+            self._getresponse().read())
 
     def client_send_check(self, body, name=None):
         self.testcase.assertEqual(self.testcase.backend_recv(name),
@@ -110,7 +126,8 @@ class CheckingWebsock(object):
     def client_send2(self, body, name=None):
         self.http.request("GET",
             '/chat?limit=0&timeout=0&id=' + self.id, body=body)
-        self.testcase.assertEqual(b'', self.http.getresponse().read())
+        self.testcase.assertEqual(b'',
+            self._getresponse().read())
         self.testcase.assertEqual(self.testcase.backend_recv(name),
             [self.intid, b'msgfrom', self.cookie.encode('utf-8'), body.encode('utf-8')])
 
@@ -202,8 +219,8 @@ class Chat(Base):
             return self.backend_recv(backend=backend)
         return val
 
-    def websock(self):
-        return CheckingWebsock(self)
+    def websock(self, **kw):
+        return CheckingWebsock(self, **kw)
 
     def tearDown(self):
         self.chatout.close()
@@ -333,6 +350,14 @@ class Chat(Base):
         self.control('resume_websockets')
         ws1.client_send_check('hello-test1', 'minigame')
         ws1.client_send('ok')
+        ws1.close()
+
+    def testTimestamp(self):
+        ws1 = self.websock(timestamp=True)
+        ws1.connect()
+        ws1.subscribe('chat')
+        ws1.client_send('ok')
+        self.assertAlmostEqual(ws1.last_timestamp, time.time(), 2)
         ws1.close()
 
 if __name__ == '__main__':

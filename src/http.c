@@ -344,6 +344,7 @@ static void request_timeout(struct ev_loop *loop, struct ev_timer *tm, int rev){
 }
 
 int http_headers(request_t *req) {
+    req->incoming_time = ev_now(root.loop);
     config_Route_t *route = preliminary_resolve(req);
     if(route && req->ws.bodylen > route->limits.max_body_size) {
         TWARN("Request size too big");

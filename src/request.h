@@ -26,6 +26,8 @@ typedef struct request_s {
     int refcnt;
     int retries;
     int flags;
+    ev_tstamp incoming_time;
+    ev_tstamp outgoing_time;  // Currently keeped only for comet
     zmq_msg_t response_msg;
 } request_t;
 

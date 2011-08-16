@@ -39,6 +39,8 @@ Routing:
           named-outputs:
             minigame:
             - !zmq.Bind "ipc:///tmp/zerogw-test-minigame"
+          polling-fallback:
+            timestamps: yes
       "/crossdomain.xml":
         responses:
           default:
