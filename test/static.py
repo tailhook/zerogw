@@ -5,16 +5,22 @@ class Static(Base):
     def testJustFile(self):
         conn = self.http()
         conn.request('GET', '/test/testfile.txt')
-        txt = conn.getresponse().read().decode('ascii')
+        resp = conn.getresponse()
+        self.assertEqual(resp.headers['Content-Type'], 'text/plain')
+        txt = resp.read().decode('ascii')
         self.assertEqual(txt, 'test\nfile\n')
 
     def testQuery(self):
         conn = self.http()
         conn.request('GET', '/test/testfile.txt?justquery')
-        txt = conn.getresponse().read().decode('ascii')
+        resp = conn.getresponse()
+        self.assertEqual(resp.headers['Content-Type'], 'text/plain')
+        txt = resp.read().decode('ascii')
         self.assertEqual(txt, 'test\nfile\n')
         conn.request('GET', '/test/testfile.txt?another=query&var2=1')
-        txt = conn.getresponse().read().decode('ascii')
+        resp = conn.getresponse()
+        self.assertEqual(resp.headers['Content-Type'], 'text/plain')
+        txt = resp.read().decode('ascii')
         self.assertEqual(txt, 'test\nfile\n')
 
     def testDenied(self):

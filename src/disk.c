@@ -54,7 +54,10 @@ static char *check_base(disk_request_t *req) {
         return config->Server.mime_types.no_extension;
     ++ext; // need next after '.' character
     char *mime;
-    if(ws_imatch(config->Server.mime_types._match, ext, (size_t *)&mime))
+    char ext0[pathend - ext + 1];
+    memcpy(ext0, ext, pathend - ext);
+    ext0[pathend - ext] = 0;
+    if(ws_imatch(config->Server.mime_types._match, ext0, (size_t *)&mime))
         return mime;
     return config->Server.mime_types.default_type;
 }
@@ -371,7 +374,7 @@ static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents)
 static int read_mime_types(struct obstack *buf, void *matcher, char *filename) {
     FILE *file = fopen(filename, "r");
     if(!file) return -1;
-    
+
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
@@ -418,7 +421,7 @@ int prepare_disk(config_main_t *config) {
         SNIMPL(pthread_create(&root.disk_threads[i], NULL, disk_loop, NULL));
     }
     LWARN("%d disk threads ready", config->Server.disk_io_threads);
-    
+
     void *matcher = ws_match_new();
     // User-specified values override mime.types
     CONFIG_STRING_STRING_LOOP(item, config->Server.mime_types.extra) {
@@ -430,7 +433,7 @@ int prepare_disk(config_main_t *config) {
     }
     SNIMPL(read_mime_types(&config->head.pieces,
         matcher, config->Server.mime_types.file));
-    
+
     ws_match_compile(matcher);
     config->Server.mime_types._match = matcher;
     return 0;
