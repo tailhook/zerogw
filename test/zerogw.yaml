@@ -41,6 +41,13 @@ Routing:
             - !zmq.Bind "ipc:///tmp/zerogw-test-minigame"
           polling-fallback:
             timestamps: yes
+          frontend-commands:
+            pattern: '["frontend.%[^"]", "%[^"]"]'
+            commands:
+              echo:
+                response: '["pong", "%2$s"]'
+              timestamp:
+                response: '["timestamp", %f, "%s"]'
       "/crossdomain.xml":
         responses:
           default:

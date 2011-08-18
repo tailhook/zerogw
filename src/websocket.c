@@ -239,6 +239,8 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
 }
 
 config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
+    if(hybi->route->websocket.frontend_commands.enabled) {
+    }
     output_t *item;
     LIST_FOREACH(item, &hybi->outputs, list) {
         if(item->prefix_len <= length &&

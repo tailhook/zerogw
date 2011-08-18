@@ -52,6 +52,9 @@ class Base(unittest.TestCase):
             raise RuntimeError("Can't connect to zerogw")
         return conn
 
+    def websock(self, **kw):
+        return CheckingWebsock(self, **kw)
+
     def tearDown(self):
         self.proc.terminate()
         self.proc.wait()
@@ -101,10 +104,13 @@ class CheckingWebsock(object):
             assert self.last_request < self.last_timestamp < resptime
         return resp
 
-    def connect(self):
+    def connect_only(self):
         self._request('GET', '/chat?action=CONNECT')
         req = self._getresponse()
         self.id = req.read().decode('utf-8')
+
+    def connect(self):
+        self.connect_only()
         val = self.testcase.backend_recv()
         self.testcase.assertEqual(val[1], b'connect')
         self.intid = val[0]
@@ -131,13 +137,16 @@ class CheckingWebsock(object):
         self.testcase.assertEqual(self.testcase.backend_recv(name),
             [self.intid, b'msgfrom', self.cookie.encode('utf-8'), body.encode('utf-8')])
 
-    def client_got(self, body):
-        body = body.encode('utf-8')
+    def client_read(self):
         self.http.request("GET",
             '/chat?limit=1&timeout=1.0&ack='+self.ack+'&id=' + self.id)
         resp = self.http.getresponse()
         self.ack = resp.getheader('X-Message-ID')
-        rbody = resp.read()
+        return resp.read()
+
+    def client_got(self, body):
+        body = body.encode('utf-8')
+        rbody = self.client_read()
         self.testcase.assertEqual(rbody, body)
 
     def set_cookie(self, cookie):
@@ -218,9 +227,6 @@ class Chat(Base):
         if val[1] == b'heartbeat':
             return self.backend_recv(backend=backend)
         return val
-
-    def websock(self, **kw):
-        return CheckingWebsock(self, **kw)
 
     def tearDown(self):
         self.chatout.close()
