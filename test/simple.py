@@ -307,6 +307,15 @@ class Chat(Base):
         ws.client_send('hello_world')
         ws.close()
 
+    def testDisconnect(self):
+        ws = self.websock()
+        ws.connect()
+        self.backend_send('disconnect', ws.intid)
+        self.backend_send('publish', 'hello', 'world')
+        # sorry, zerogw lacks user-friendly errors on websock errors
+        with self.assertRaisesRegex(http.BadStatusLine, "''"):
+            ws.client_send('hello_world')
+
     def testBackendStop(self):
         ws1 = self.websock()
         ws1.connect()

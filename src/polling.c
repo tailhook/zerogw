@@ -240,6 +240,14 @@ static void close_reply(hybi_t *hybi) {
     hybi->comet->cur_request = NULL;
 }
 
+void comet_close(hybi_t *hybi) {
+    if(hybi->comet->cur_request) {
+        close_reply(hybi);
+    }
+    free_comet(hybi);
+}
+
+
 static void send_message(hybi_t *hybi, request_t *req) {
     root.stat.comet_received_batches += 1;
     root.stat.comet_received_messages += 1;
@@ -513,8 +521,7 @@ int comet_request(request_t *req) {
         }
         REQ_INCREF(req);
         hybi->comet->cur_request = req;
-        close_reply(hybi);
-        free_comet(hybi);
+        comet_close(hybi);
         return 0;
     }
     if(args.action == ACT_POST || args.action == ACT_BIDI)  {
@@ -565,10 +572,7 @@ int comet_send(hybi_t *hybi, message_t *msg) {
     frontend_msg_t *qitem = (frontend_msg_t *)queue_push(&hybi->comet->queue);
     if(!qitem) {
         LWARN("Queue overflowed with %d", hybi->comet->queue.size);
-        if(hybi->comet->cur_request) {
-            close_reply(hybi);
-        }
-        free_comet(hybi);
+        comet_close(hybi);
         errno = EOVERFLOW;
         return -1;
     }

@@ -19,6 +19,7 @@ typedef struct comet_s {
 } comet_t;
 
 int comet_send(struct hybi_s *hybi, struct message_s *msg);
+void comet_close(struct hybi_s *hybi);
 int comet_request(struct request_s *req);
 void comet_request_aborted(request_t *req);
 
