@@ -208,6 +208,7 @@ int websock_start(connection_t *conn, config_Route_t *route) {
     conn->hybi = hybi;
     ws_DISCONNECT_CB(&conn->ws, websock_stop);
     root.stat.websock_connects += 1;
+    return 0;
 }
 
 hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
