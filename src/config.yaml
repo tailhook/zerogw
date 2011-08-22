@@ -39,7 +39,7 @@ __types__:
       zmq.Connect: 2
     __value__: !String ""
 
-  zmqsocket:
+  zmqsocket: &zmqsocket
     __tags__:
       __property__: kind
       __default__: auto
@@ -91,6 +91,23 @@ __types__:
     _sock: !_VoidPtr ~
     _watch: !CStruct ev_io
     _queue: !CStruct queue_s
+
+  namedoutput:
+    <<: *zmqsocket
+    heartbeat-interval: !UInt
+      default: 0
+      max: 86400
+      description: >
+        Server will send `heartbeat` messages at this interval. This is
+        intended to detect gateway crashes. Zero means no heartbeats.
+    sync-interval: !UInt
+      default: 0
+      max: 86400
+      description: >
+        Server will send list of websockets which have at least one output
+        channel attached to this named output. List starts with `sync` and
+        consists of pairs of connection id and cookie. Latter is empty if no
+        cookie set. Zero means no sync messages will be sent.
 
   listenaddr:
     host: !String ""
@@ -472,13 +489,13 @@ __types__:
         inheritance: no
       named-outputs: !Mapping
         key-element: !String ~
-        value-element: !Struct zmqsocket
+        value-element: !Struct namedoutput
       heartbeat-interval: !UInt
         default: 5
         max: 86400
         description: >
           Server will send `heartbeat` messages at this interval. This is
-          intended to detect gateway crashes
+          intended to detect gateway crashes. Zero means no heartbeats.
         inheritance: yes
       topic-hash-size: !UInt
         min: 4
