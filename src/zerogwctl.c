@@ -45,11 +45,9 @@ void parse_arguments(zerogwctl_flags_t *flags, int argc, char **argv) {
             flags->socket = optarg;
             break;
         case 'h':
-            printf("SHIT\n");
             print_usage(stdout);
             exit(0);
         default:
-            fprintf(stderr, ">> %c <<\n", opt);
             print_usage(stderr);
             exit(1);
         }
