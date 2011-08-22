@@ -7,6 +7,9 @@ Server:
   status:
     socket:
     - !zmq.Bind ipc:///tmp/zerogw
+  control:
+    socket:
+    - !zmq.Bind ipc:///tmp/zerogw-ctl
   error-log:
     level: 5
     warning-timeout: 300

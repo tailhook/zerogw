@@ -29,7 +29,7 @@ void recv_command(struct ev_loop *loop, struct ev_io *io, int rev) {
             len = zmq_msg_size(&msg);
             REPLY_COMMAND(sock, msg, TRUE);
             if(!len) break;
-            Z_RECV(msg);
+            Z_RECV_NEXT(msg);
         }
         Z_RECV(msg);
         len = zmq_msg_size(&msg);
