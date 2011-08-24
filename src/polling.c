@@ -261,7 +261,7 @@ static void send_message(hybi_t *hybi, request_t *req) {
             return;
         }
     } else {
-        LNIMPL("Can't find route for mesage (what?)");
+        // This is frontend command
         return;
     }
     return;

@@ -509,40 +509,11 @@ __types__:
           paused by user.
       frontend-commands:
         enabled: !Bool no
-        pattern: !String
-          default: "%s"
-          description: >
-            sscanf pattern to match against, for a frontend command. Anything
-            not matched with it will be forwarded to a backend (if exists).
-            This allows you to adapt frontend commands to your normal message
-            stream. But be aware that very generic pattern (as default one) can
-            capture your commands too (usually that means you want to have
-            unique prefix for frontend commands). Also if you use json objects
-            to call commands ensure they come in right order always (usually
-            that means you must either have a single-key object or construct
-            json by string concatenation). Pattern can have one or two
-            conversions both are string-like type (usually %s or %[^abc]).
-            First is a name of the command and second is either argument
-            or arbitrary string which can be used in reply
         commands:
           echo:
             enabled: !Bool yes
-            name: !String echo
-            response: !String
-              default: "%s"
-              description: >
-                printf-like format for echo command, can have contain either
-                %1$s -- full message string or %2$s -- echo argument (see
-                description of pattern).
           timestamp:
             enabled: !Bool yes
-            name: !String timestamp
-            response: !String
-              default: "%s"
-              description: >
-                printf-like format for timestamp command, can contain
-                either %1$f -- timestamp or %2$s -- command argument (see
-                description of pattern)
           subscribe:
             enabled: !Bool
               default: no
@@ -592,15 +563,8 @@ __types__:
               description: >
                 printf-like format for publishing topic, can contain
                 %1$s -- command argument. Can publish messages into any
-                topics, unless sprintf pattern contain some prefix or similar.
-            message: !String
-              default: "%2$s"
-              description: >
-                printf-like format for published message, can contain %1$s --
-                full message string, %1$s -- command argument. You can only
-                put there full message body got from user (or topic name which
-                is mostly useless). It's by design, because we can't reliably
-                match escaped strings using sprintf patterns.
+                topics, unless sprintf pattern contain some prefix or suffix.
+
       disable-websocket: !Bool
         =: no
         description: >

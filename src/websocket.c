@@ -238,8 +238,53 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
     }
 }
 
+static void do_send(hybi_t *hybi, message_t *msg) {
+    root.stat.websock_sent += 1;
+    if(hybi->type == HYBI_WEBSOCKET) {
+        int r = ws_message_send(&hybi->conn->ws, &msg->ws);
+        if(r < 0) {
+            if(errno == EXFULL) {
+                ws_connection_close(&hybi->conn->ws);
+            } else {
+                SNIMPL(r);
+            }
+        }
+    } else if(hybi->type == HYBI_COMET) {
+        comet_send(hybi, msg);
+    } else {
+        LNIMPL("Unknown connection type");
+    }
+}
+
 config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
-    if(hybi->route->websocket.frontend_commands.enabled) {
+    if(hybi->route->websocket.frontend_commands.enabled
+        && length >= 8 /*strlen("ZEROGW:")+1*/
+        && !memcmp(data, "ZEROGW:", 7)) {
+        if(length >= 11 && !memcmp(data+7, "echo", 4)) {
+            message_t *mm = (message_t*)malloc(sizeof(message_t));
+            ANIMPL(mm);
+            SNIMPL(ws_message_init(&mm->ws));
+            zmq_msg_init_size(&mm->zmq, length);
+            char *zdata = zmq_msg_data(&mm->zmq);
+            memcpy(zdata, data, length);
+            ws_MESSAGE_DATA(&mm->ws, zdata, length, NULL);
+            do_send(hybi, mm);
+            ws_MESSAGE_DECREF(&mm->ws);
+        } else if(length >= 16 && !memcmp(data+7, "timestamp", 9)) {
+            message_t *mm = (message_t*)malloc(sizeof(message_t));
+            ANIMPL(mm);
+            SNIMPL(ws_message_init(&mm->ws));
+            zmq_msg_init_size(&mm->zmq, length+15);
+            char *zdata = zmq_msg_data(&mm->zmq);
+            memcpy(zdata, data, length);
+            int tlen = sprintf(zdata + length,
+                ":%14.3f", ev_now(root.loop));
+            ANIMPL(tlen == 15);
+            ws_MESSAGE_DATA(&mm->ws, zdata, length+tlen, NULL);
+            do_send(hybi, mm);
+            ws_MESSAGE_DECREF(&mm->ws);
+        }
+        return NULL;
     }
     output_t *item;
     LIST_FOREACH(item, &hybi->outputs, list) {
@@ -259,7 +304,7 @@ int websock_message(connection_t *conn, message_t *msg) {
         ws_MESSAGE_INCREF(&msg->ws);
         return backend_send(sock, conn->hybi, msg, FALSE);
     }
-    return -1;
+    return 0; // No socket means it's frontend command
 }
 
 hybi_t *hybi_find(char *data) {
@@ -405,14 +450,7 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
         // Subscribers, and whole topic can be deleted while traversing
         // list of subscribers. Note that topic can be deleted only
         // after each of the subscribers are deleted
-        root.stat.websock_sent += 1;
-        if(sub->connection->type == HYBI_WEBSOCKET) {
-            ws_message_send(&sub->connection->conn->ws, &msg->ws);
-        } else if(sub->connection->type == HYBI_COMET) {
-            comet_send(sub->connection, msg);
-        } else {
-            LNIMPL("Uknown connection type");
-        }
+        do_send(sub->connection, msg);
     }
     ws_MESSAGE_DECREF(&msg->ws); // we own a single reference
 }
@@ -484,20 +522,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             ws_MESSAGE_DATA(&mm->ws, (char *)zmq_msg_data(&mm->zmq),
                 zmq_msg_size(&mm->zmq), websock_message_free);
             root.stat.websock_sent += 1;
-            if(hybi->type == HYBI_WEBSOCKET) {
-                int r = ws_message_send(&hybi->conn->ws, &mm->ws);
-                if(r < 0) {
-                    if(errno == EXFULL) {
-                        ws_connection_close(&hybi->conn->ws);
-                    } else {
-                        SNIMPL(r);
-                    }
-                }
-            } else if(hybi->type == HYBI_COMET) {
-                comet_send(hybi, mm);
-            } else {
-                LNIMPL("Uknown connection type");
-            }
+            do_send(hybi, mm);
             ws_MESSAGE_DECREF(&mm->ws);
         } else if(cmdlen == 4 && !strncmp(cmd, "drop", cmdlen)) {
             LDEBUG("Websocket got DROP request");

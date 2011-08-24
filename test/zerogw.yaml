@@ -42,12 +42,7 @@ Routing:
           polling-fallback:
             timestamps: yes
           frontend-commands:
-            pattern: '["frontend.%[^"]", "%[^"]"]'
-            commands:
-              echo:
-                response: '["pong", "%2$s"]'
-              timestamp:
-                response: '["timestamp", %f, "%s"]'
+            enabled: yes
       "/crossdomain.xml":
         responses:
           default:
