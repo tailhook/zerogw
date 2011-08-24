@@ -27,7 +27,8 @@ typedef struct subscriber_s {
 } subscriber_t;
 
 typedef struct output_s {
-    LIST_ENTRY(output_s) list;
+    LIST_ENTRY(output_s) client_list;
+    LIST_ENTRY(output_s) output_list;
     config_zmqsocket_t *socket;
     int prefix_len;
     char prefix[];

@@ -188,8 +188,9 @@ void hybi_stop(hybi_t *hybi) {
         pool_free(&root.hybi.subscriber_pool, sub);
     }
     for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt; out; out=nxt) {
-        nxt = LIST_NEXT(out, list);
-        LIST_REMOVE(out, list);
+        nxt = LIST_NEXT(out, client_list);
+        LIST_REMOVE(out, client_list);
+        // TODO(tailhook) insert output list removal, and backend msg queueing
         free(out);
     }
     if(hybi->flags & WS_HAS_COOKIE) {
@@ -287,7 +288,7 @@ config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
         return NULL;
     }
     output_t *item;
-    LIST_FOREACH(item, &hybi->outputs, list) {
+    LIST_FOREACH(item, &hybi->outputs, client_list) {
         if(item->prefix_len <= length &&
                 !strncmp(data, item->prefix, item->prefix_len)) {
             return item->socket;
@@ -540,11 +541,12 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             int len = zmq_msg_size(&msg);
             char *data = zmq_msg_data(&msg);
             output_t *iter = NULL;
-            LIST_FOREACH(iter, &hybi->outputs, list) {
+            LIST_FOREACH(iter, &hybi->outputs, client_list) {
                 if(iter->prefix_len == len && !memcmp(data, iter->prefix, len)) {
                     break;
                 }
             }
+            // TODO(tailhook) insert output list checking
             if(!iter) {
                 output = malloc(sizeof(output_t) + len + 1);
                 ANIMPL(output);
@@ -572,7 +574,8 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 }
             } else {
                 if(!iter) {
-                    LIST_INSERT_HEAD(&hybi->outputs, output, list);
+                    LIST_INSERT_HEAD(&hybi->outputs, output, client_list);
+                    // TODO(tailhook) insert output list addition
                 }
             }
         } else if(cmdlen == 10 && !memcmp(cmd, "del_output", cmdlen)) {
@@ -584,9 +587,10 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             int len = zmq_msg_size(&msg);
             char *data = zmq_msg_data(&msg);
             for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt; out; out=nxt) {
-                nxt = LIST_NEXT(out, list);
+                nxt = LIST_NEXT(out, client_list);
                 if(out->prefix_len == len && !memcmp(data, out->prefix, len)) {
-                    LIST_REMOVE(out, list);
+                    LIST_REMOVE(out, client_list);
+                    // TODO(tailhook) insert output list removal, and backend msg queueing
                     free(out);
                     len = 0;
                     break;
