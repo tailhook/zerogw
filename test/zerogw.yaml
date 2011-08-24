@@ -43,6 +43,10 @@ Routing:
             timestamps: yes
           frontend-commands:
             enabled: yes
+            commands:
+              paused:
+                enabled: yes
+
       "/crossdomain.xml":
         responses:
           default:

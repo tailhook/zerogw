@@ -514,6 +514,15 @@ __types__:
             enabled: !Bool yes
           timestamp:
             enabled: !Bool yes
+          paused:
+            enabled: !Bool
+              default: no
+              description: >
+                If this command is enabled, users will receive
+                ``ZEROGW:paused`` and ``ZEROGW:resumed`` commands when
+                control commands ``pause_websockets`` and ``resume_websockets``
+                are sent. This is useful to notify users that something
+                happens (server software updated) on the server.
           subscribe:
             enabled: !Bool
               default: no

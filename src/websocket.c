@@ -745,12 +745,41 @@ static void resume_visitor(config_Route_t *route) {
 }
 
 int pause_websockets(bool pause) {
+    if(root.hybi.paused == pause) return 0;
+
+    message_t *mm = (message_t*)malloc(sizeof(message_t));
+    ANIMPL(mm);
+    SNIMPL(ws_message_init(&mm->ws));
+
+    if(pause) {
+        zmq_msg_init_size(&mm->zmq, 13 /*strlen("ZEROGW:paused")*/);
+        char *zdata = zmq_msg_data(&mm->zmq);
+        memcpy(zdata, "ZEROGW:paused", 13);
+        ws_MESSAGE_DATA(&mm->ws, zdata, 13, NULL);
+    } else {
+        zmq_msg_init_size(&mm->zmq, 14 /*strlen("ZEROGW:resumed")*/);
+        char *zdata = zmq_msg_data(&mm->zmq);
+        memcpy(zdata, "ZEROGW:resumed", 14);
+        ws_MESSAGE_DATA(&mm->ws, zdata, 14, NULL);
+    }
+
+    for(int i = 0; i < root.hybi.sieve->max; i++) {
+        hybi_t *hybi = root.hybi.sieve->items[i];
+        if(!hybi) continue;
+        if(hybi->route->websocket.frontend_commands.enabled
+           && hybi->route->websocket.frontend_commands.commands.paused.enabled) {
+            do_send(hybi, mm);
+        }
+    }
+    ws_MESSAGE_DECREF(&mm->ws);
+
     if(pause) {
         root.hybi.paused = TRUE;
     } else {
         root.hybi.paused = FALSE;
         resume_visitor(&root.config->Routing);
     }
+    return 0;
 }
 
 int prepare_websockets(config_main_t *config, config_Route_t *rroot) {
