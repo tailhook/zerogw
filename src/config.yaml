@@ -95,12 +95,6 @@ __types__:
 
   namedoutput:
     <<: *zmqsocket
-    heartbeat-interval: !UInt
-      default: 0
-      max: 86400
-      description: >
-        Server will send `heartbeat` messages at this interval. This is
-        intended to detect gateway crashes. Zero means no heartbeats.
     sync-interval: !UInt
       default: 0
       max: 86400

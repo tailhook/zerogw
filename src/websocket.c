@@ -560,9 +560,10 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             }
             len = zmq_msg_size(&msg);
             data = zmq_msg_data(&msg);
-            CONFIG_STRING_ZMQSOCKET_LOOP(item, route->websocket.named_outputs) {
+            CONFIG_STRING_NAMEDOUTPUT_LOOP(item,
+                route->websocket.named_outputs) {
                 if(item->key_len == len && !memcmp(data, item->key, len)) {
-                    output->socket = &item->value;
+                    output->socket = (config_zmqsocket_t*)&item->value;
                     len = 0;
                     break;
                 }
@@ -688,8 +689,8 @@ static int socket_visitor(config_Route_t *route) {
         init_queue(&route->websocket.forward._queue,
             route->websocket.max_backend_queue, &root.hybi.backend_pool);
     }
-    CONFIG_STRING_ZMQSOCKET_LOOP(item, route->websocket.named_outputs) {
-        SNIMPL(zmq_open(&item->value,
+    CONFIG_STRING_NAMEDOUTPUT_LOOP(item, route->websocket.named_outputs) {
+        SNIMPL(zmq_open((config_zmqsocket_t*)&item->value,
             ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, backend_unqueue, root.loop));
         init_queue(&item->value._queue,
             route->websocket.max_backend_queue, &root.hybi.backend_pool);
@@ -720,8 +721,8 @@ static int socket_unvisitor(config_Route_t *route) {
         }
         free_queue(&route->websocket.forward._queue);
     }
-    CONFIG_STRING_ZMQSOCKET_LOOP(item, route->websocket.named_outputs) {
-        SNIMPL(z_close(&item->value, root.loop));
+    CONFIG_STRING_NAMEDOUTPUT_LOOP(item, route->websocket.named_outputs) {
+        SNIMPL(z_close((config_zmqsocket_t *)&item->value, root.loop));
         free_queue(&item->value._queue);
     }
     CONFIG_ROUTE_LOOP(item, route->children) {
@@ -743,7 +744,7 @@ static void resume_visitor(config_Route_t *route) {
     CONFIG_STRING_ROUTE_LOOP(item, route->map) {
         resume_visitor(&item->value);
     }
-    CONFIG_STRING_ZMQSOCKET_LOOP(item, route->websocket.named_outputs) {
+    CONFIG_STRING_NAMEDOUTPUT_LOOP(item, route->websocket.named_outputs) {
         ev_feed_event(root.loop, &item->value._watch, EV_READ);
     }
 }
