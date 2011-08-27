@@ -189,8 +189,14 @@ void hybi_stop(hybi_t *hybi) {
     }
     for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt; out; out=nxt) {
         nxt = LIST_NEXT(out, client_list);
-        backend_send((config_zmqsocket_t *)out->socket,
-            hybi, MSG_DISCONNECT, TRUE);
+        if(nxt && nxt->socket != out->socket) {
+            // We send on the last one, because we don't care on which one
+            // but do care to send only once for each output
+            // Subscriptions are guaranteed to have single output in subsequent
+            // list entries
+            backend_send((config_zmqsocket_t *)out->socket,
+                hybi, MSG_DISCONNECT, TRUE);
+        }
         LIST_REMOVE(out, output_list);
         LIST_REMOVE(out, client_list);
         free(out);
@@ -584,23 +590,27 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                     output->prefix_len = len;
                     output->prefix[len] = 0;
                     output->socket = outsock;
-                    LIST_INSERT_HEAD(&hybi->outputs, output, client_list);
-                    if(prev_output) {
-                        LIST_INSERT_AFTER(prev_output, output, output_list);
-                    } else {
-                        LIST_INSERT_HEAD(&outsock->_int.outputs,
-                            output, output_list);
-                    }
                 } else if(old_prefix->socket != outsock) {
                     output = old_prefix;
                     LIST_REMOVE(output, output_list);
+                    // The following is to ensure proper order (see below)
+                    LIST_REMOVE(output, client_list);
                     output->socket = outsock;
-                    if(prev_output) {
-                        LIST_INSERT_AFTER(prev_output, output, output_list);
-                    } else {
-                        LIST_INSERT_HEAD(&outsock->_int.outputs,
-                            output, output_list);
-                    }
+                } else {
+                    goto msg_finish;
+                }
+                // Need to guarantee that single output will use
+                // subsequent list entries for a single socket, to rule
+                // out duplicates on disconnect, similarly subscriptions
+                // for a single socket must be on subsequent entries to
+                // eliminate duplicates on sync
+                if(prev_output) {
+                    LIST_INSERT_AFTER(prev_output, output, client_list);
+                    LIST_INSERT_AFTER(prev_output, output, output_list);
+                } else {
+                    LIST_INSERT_HEAD(&hybi->outputs, output, client_list);
+                    LIST_INSERT_HEAD(&outsock->_int.outputs,
+                        output, output_list);
                 }
             }
         } else if(cmdlen == 10 && !memcmp(cmd, "del_output", cmdlen)) {
@@ -711,7 +721,8 @@ static void send_sync(struct ev_loop *loop,
     output_t *item;
     output_t *prev = NULL;
     LIST_FOREACH(item, &socket->_int.outputs, output_list) {
-        if(prev == item) continue;
+        // Same users are guaranteed to be on subsequent entries on the list
+        if(prev && prev->connection == item->connection) continue;
         prev = item;
         SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE));
         SNIMPL(zmq_msg_init_size(&msg, UID_LEN));
