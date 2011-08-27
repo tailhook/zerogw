@@ -38,7 +38,9 @@ Routing:
           - !zmq.Bind "ipc:///tmp/zerogw-test-chat"
           named-outputs:
             minigame:
-            - !zmq.Bind "ipc:///tmp/zerogw-test-minigame"
+              =:
+              - !zmq.Bind "ipc:///tmp/zerogw-test-minigame"
+              sync-interval: 100
           polling-fallback:
             timestamps: yes
           frontend-commands:

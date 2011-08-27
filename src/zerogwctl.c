@@ -31,6 +31,7 @@ void print_usage(FILE *out) {
     fprintf(out, "  resume_websockets Pauses forwarding messages from\n");
     fprintf(out, "                    websockets to backends (useful to\n");
     fprintf(out, "                    restart backend)\n");
+    fprintf(out, "  sync_now          Synchonize connected users now");
     fprintf(out, "\n");
 }
 

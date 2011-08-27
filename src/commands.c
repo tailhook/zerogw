@@ -40,7 +40,8 @@ void recv_command(struct ev_loop *loop, struct ev_io *io, int rev) {
             REPLY_SHORT(sock, msg, "get_statistics", TRUE);
             REPLY_SHORT(sock, msg, "list_commands", TRUE);
             REPLY_SHORT(sock, msg, "pause_websockets", TRUE);
-            REPLY_SHORT(sock, msg, "resume_websockets", FALSE);
+            REPLY_SHORT(sock, msg, "resume_websockets", TRUE);
+            REPLY_SHORT(sock, msg, "sync_now", FALSE);
         } else if COMMAND(get_statistics) {
             char buf[4096];
             len = format_statistics(buf);
@@ -55,6 +56,10 @@ void recv_command(struct ev_loop *loop, struct ev_io *io, int rev) {
             LWARN("Resuming websockets because of command");
             pause_websockets(FALSE);
             REPLY_SHORT(sock, msg, "resumed", FALSE);
+        } else if COMMAND(sync_now) {
+            LWARN("Forcing users sync");
+            websockets_sync_now();
+            REPLY_SHORT(sock, msg, "sync_sent", FALSE);
         } else {
             REPLY_SHORT(sock, msg, "error", FALSE);
         }

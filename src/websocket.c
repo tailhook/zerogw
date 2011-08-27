@@ -580,6 +580,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                     output = malloc(sizeof(output_t) + len + 1);
                     ANIMPL(output);
                     memcpy(output->prefix, zmq_msg_data(&prefix), len);
+                    output->connection = hybi;
                     output->prefix_len = len;
                     output->prefix[len] = 0;
                     output->socket = outsock;
@@ -690,6 +691,38 @@ static void heartbeat(struct ev_loop *loop,
     }
 }
 
+static void send_sync(struct ev_loop *loop,
+    struct ev_timer *watch, int revents) {
+    ANIMPL(!(revents & EV_ERROR));
+    config_namedoutput_t *socket = SHIFT(watch,
+        config_namedoutput_t, _int.sync_tm);
+    if(!LIST_FIRST(&socket->_int.outputs)) return;
+    zmq_msg_t msg;
+    SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
+    if(zmq_send(socket->_sock, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+        if(errno != EAGAIN) { //TODO: EINTR???
+            SNIMPL(-1);
+        } else {
+            return; // nevermind
+        }
+    }
+    SNIMPL(zmq_msg_init_data(&msg, "sync", 4, NULL, NULL));
+
+    output_t *item;
+    output_t *prev = NULL;
+    LIST_FOREACH(item, &socket->_int.outputs, output_list) {
+        if(prev == item) continue;
+        prev = item;
+        SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE));
+        SNIMPL(zmq_msg_init_size(&msg, UID_LEN));
+        memcpy(zmq_msg_data(&msg), item->connection->uid, UID_LEN);
+        SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE));
+        zmq_msg_copy(&msg, &item->connection->cookie);
+    }
+
+    SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK));
+}
+
 static int socket_visitor(config_Route_t *route) {
     if(route->websocket.subscribe.value_len) {
         SNIMPL(zmq_open(&route->websocket.subscribe,
@@ -717,6 +750,12 @@ static int socket_visitor(config_Route_t *route) {
             ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, backend_unqueue, root.loop));
         init_queue(&item->value._queue,
             route->websocket.max_backend_queue, &root.hybi.backend_pool);
+        if(item->value.sync_interval) {
+            ev_timer_init(&item->value._int.sync_tm, send_sync,
+                item->value.sync_interval,
+                item->value.sync_interval);
+            ev_timer_start(root.loop, &item->value._int.sync_tm);
+        }
     }
     CONFIG_ROUTE_LOOP(item, route->children) {
         SNIMPL(socket_visitor(&item->value));
@@ -770,6 +809,23 @@ static void resume_visitor(config_Route_t *route) {
     CONFIG_STRING_NAMEDOUTPUT_LOOP(item, route->websocket.named_outputs) {
         ev_feed_event(root.loop, &item->value._watch, EV_READ);
     }
+}
+
+static void sync_visitor(config_Route_t *route) {
+    CONFIG_ROUTE_LOOP(item, route->children) {
+        sync_visitor(&item->value);
+    }
+    CONFIG_STRING_ROUTE_LOOP(item, route->map) {
+        sync_visitor(&item->value);
+    }
+    CONFIG_STRING_NAMEDOUTPUT_LOOP(item, route->websocket.named_outputs) {
+        ev_feed_event(root.loop, &item->value._int.sync_tm, EV_READ);
+    }
+}
+
+
+void websockets_sync_now() {
+    sync_visitor(&root.config->Routing);
 }
 
 int pause_websockets(bool pause) {

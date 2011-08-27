@@ -30,6 +30,7 @@ typedef struct output_s {
     LIST_ENTRY(output_s) client_list;
     LIST_ENTRY(output_s) output_list;
     config_namedoutput_t *socket;
+    struct hybi_s *connection;
     int prefix_len;
     char prefix[];
 } output_t;
@@ -79,6 +80,7 @@ int start_websocket(request_t *req);
 int prepare_websockets(config_main_t *config, config_Route_t *root);
 int release_websockets(config_main_t *config, config_Route_t *root);
 int pause_websockets(bool pause);
+void websockets_sync_now();
 
 hybi_t *hybi_start(config_Route_t *route, hybi_enum type);
 void hybi_stop(hybi_t *hybi);

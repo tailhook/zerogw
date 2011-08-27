@@ -285,6 +285,30 @@ class Chat(Base):
         wa.close()
         wb.close()
 
+    def checkSync(self, data, connections):
+        it = iter(data)
+        zgw_id = next(it)
+        self.assertEqual(next(it), b'sync')
+        self.assertEqual(set(zip(it, it)),
+            set((c.intid, getattr(c, 'cookie', '').encode('ascii'))
+                for c in connections))
+
+    def testSync(self):
+        wa = self.websock()
+        wb = self.websock()
+        wa.connect()
+        wb.connect()
+        wa.set_cookie('u1')
+        wa.add_output('game1', 'minigame')
+        wb.add_output('game2', 'minigame')
+        self.assertEquals(self.control('sync_now'), [b'sync_sent'])
+        self.checkSync(self.backend_recv('minigame'), [wa, wb])
+        wa.del_output('game1')
+        self.assertEquals(self.control('sync_now'), [b'sync_sent'])
+        self.checkSync(self.backend_recv('minigame'), [wb])
+        wa.close()
+        wb.close()
+
     def testCookie(self):
         ws1 = self.websock()
         ws2 = self.websock()

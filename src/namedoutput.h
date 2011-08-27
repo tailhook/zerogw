@@ -3,7 +3,6 @@
 
 typedef struct namedoutput_s {
     LIST_HEAD(nout_clients_s, output_s) outputs;
-    struct ev_timer heartbeat_tm;
     struct ev_timer sync_tm;
 } namedoutput_t;
 
