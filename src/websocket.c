@@ -189,8 +189,10 @@ void hybi_stop(hybi_t *hybi) {
     }
     for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt; out; out=nxt) {
         nxt = LIST_NEXT(out, client_list);
+        backend_send((config_zmqsocket_t *)out->socket,
+            hybi, MSG_DISCONNECT, TRUE);
+        LIST_REMOVE(out, output_list);
         LIST_REMOVE(out, client_list);
-        // TODO(tailhook) insert output list removal, and backend msg queueing
         free(out);
     }
     if(hybi->flags & WS_HAS_COOKIE) {
@@ -291,7 +293,7 @@ config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
     LIST_FOREACH(item, &hybi->outputs, client_list) {
         if(item->prefix_len <= length &&
                 !strncmp(data, item->prefix, item->prefix_len)) {
-            return item->socket;
+            return (config_zmqsocket_t *)item->socket;
         }
     }
     return &hybi->route->websocket.forward;
@@ -538,45 +540,66 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
             if(!hybi) goto msg_error;
             Z_RECV_NEXT(msg);
+            zmq_msg_t prefix;
+            zmq_msg_init(&prefix);
+            zmq_msg_move(&prefix, &msg);
+            Z_RECV(msg); \
+            if(msg_opt) {
+                zmq_msg_close(&prefix);
+                goto msg_error;
+            }
+
+            config_namedoutput_t *outsock = NULL;
             int len = zmq_msg_size(&msg);
             char *data = zmq_msg_data(&msg);
-            output_t *iter = NULL;
-            LIST_FOREACH(iter, &hybi->outputs, client_list) {
-                if(iter->prefix_len == len && !memcmp(data, iter->prefix, len)) {
-                    break;
-                }
-            }
-            // TODO(tailhook) insert output list checking
-            if(!iter) {
-                output = malloc(sizeof(output_t) + len + 1);
-                ANIMPL(output);
-                memcpy(output->prefix, zmq_msg_data(&msg), len);
-                output->prefix_len = len;
-                output->prefix[len] = 0;
-            }
-            Z_RECV_LAST(msg);
-            if(iter) {
-                output = iter; // It's now safe to assign
-            }
-            len = zmq_msg_size(&msg);
-            data = zmq_msg_data(&msg);
             CONFIG_STRING_NAMEDOUTPUT_LOOP(item,
                 route->websocket.named_outputs) {
                 if(item->key_len == len && !memcmp(data, item->key, len)) {
-                    output->socket = (config_zmqsocket_t*)&item->value;
+                    outsock = &item->value;
                     len = 0;
                     break;
                 }
             }
-            if(len) {
+            if(!outsock) {
                 TWARN("Can't find named path ``%.*s''", len, data);
-                if(!iter) {
-                    free(output);
-                }
             } else {
-                if(!iter) {
+                len = zmq_msg_size(&prefix);
+                data = zmq_msg_data(&prefix);
+                output_t *old_prefix = NULL;
+                output_t *prev_output = NULL;
+                output_t *cur;
+                LIST_FOREACH(cur, &hybi->outputs, client_list) {
+                    if(cur->prefix_len == len && !memcmp(data, cur->prefix, len)) {
+                        old_prefix = cur;
+                    }
+                    if(cur->socket == outsock) {
+                        prev_output = cur;
+                    }
+                }
+                if(!old_prefix) {
+                    output = malloc(sizeof(output_t) + len + 1);
+                    ANIMPL(output);
+                    memcpy(output->prefix, zmq_msg_data(&prefix), len);
+                    output->prefix_len = len;
+                    output->prefix[len] = 0;
+                    output->socket = outsock;
                     LIST_INSERT_HEAD(&hybi->outputs, output, client_list);
-                    // TODO(tailhook) insert output list addition
+                    if(prev_output) {
+                        LIST_INSERT_AFTER(prev_output, output, output_list);
+                    } else {
+                        LIST_INSERT_HEAD(&outsock->_int.outputs,
+                            output, output_list);
+                    }
+                } else if(old_prefix->socket != outsock) {
+                    output = old_prefix;
+                    LIST_REMOVE(output, output_list);
+                    output->socket = outsock;
+                    if(prev_output) {
+                        LIST_INSERT_AFTER(prev_output, output, output_list);
+                    } else {
+                        LIST_INSERT_HEAD(&outsock->_int.outputs,
+                            output, output_list);
+                    }
                 }
             }
         } else if(cmdlen == 10 && !memcmp(cmd, "del_output", cmdlen)) {
@@ -591,7 +614,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 nxt = LIST_NEXT(out, client_list);
                 if(out->prefix_len == len && !memcmp(data, out->prefix, len)) {
                     LIST_REMOVE(out, client_list);
-                    // TODO(tailhook) insert output list removal, and backend msg queueing
+                    LIST_REMOVE(out, output_list);
                     free(out);
                     len = 0;
                     break;
