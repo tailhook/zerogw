@@ -10,9 +10,10 @@ APPNAME='zerogw'
 if os.path.exists('.git'):
     VERSION=subprocess.getoutput('git describe').lstrip('v').replace('-', '_')
 else:
-    VERSION='0.5.10'
+    VERSION='0.5.11'
 
 # Bundled versions
+# TODO(tailhook) remove this crap
 LIBWEBSITE_VERSION = '0.2.11'
 COYAML_VERSION = '0.3.7'
 
