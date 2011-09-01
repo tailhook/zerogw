@@ -29,6 +29,17 @@ Routing:
           timeout: 2
           retry: !RetryFirst
             count: 3
+      "/echo2*":
+        headers:
+          Cache-Control: no-cache
+          Pragma: no-cache
+        zmq-forward:
+          enabled: yes
+          socket:
+          - !zmq.Bind "ipc:///tmp/zerogw-test-echo2"
+          contents:
+          - !Method ~
+          - !Uri ~
       "/chat*":
         websocket:
           enabled: yes

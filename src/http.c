@@ -107,6 +107,9 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         } else {
             ws_statusline(&req->ws, "200 OK");
         }
+        CONFIG_STRING_STRING_LOOP(line, route->headers) {
+            SNIMPL(ws_add_header(&req->ws, line->key, line->value));
+        }
         ws_finish_headers(&req->ws);
         // the last part is always a body
         ANIMPL(!(req->flags & REQ_HAS_MESSAGE));

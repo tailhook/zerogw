@@ -10,11 +10,13 @@ import datetime
 import zmq
 
 builddir = os.environ.get("BUILDDIR", './build')
+START_TIMEOUT = float(os.environ.get("ZEROGW_START_TIMEOUT", 0.2))
 
 ZEROGW_BINARY=builddir + "/zerogw"
 CONFIG="./test/zerogw.yaml"
 
 ECHO_SOCKET = "ipc:///tmp/zerogw-test-echo"
+ECHO2_SOCKET = "ipc:///tmp/zerogw-test-echo2"
 CHAT_FW = "ipc:///tmp/zerogw-test-chatfw"
 CHAT_SOCK = "ipc:///tmp/zerogw-test-chat"
 MINIGAME = "ipc:///tmp/zerogw-test-minigame"
@@ -60,6 +62,35 @@ class Base(unittest.TestCase):
         self.proc.wait()
 
 class HTTP(Base):
+    timeout = 1
+
+    def setUp(self):
+        super().setUp()
+        self.zmq = zmq.Context(1)
+        self.addCleanup(self.zmq.term)
+        self.echo = self.zmq.socket(zmq.REP)
+        self.addCleanup(self.echo.close)
+        self.echo.connect(ECHO_SOCKET)
+        self.echo2 = self.zmq.socket(zmq.REP)
+        self.addCleanup(self.echo2.close)
+        self.echo2.connect(ECHO2_SOCKET)
+        time.sleep(START_TIMEOUT)  # sorry, need for zmq sockets
+
+    def backend_send(self, *args, backend='echo'):
+        sock = getattr(self, backend)
+        self.assertEqual(([], [sock], []),
+            zmq.select([], [sock], [], timeout=self.timeout))
+        sock.send_multipart([
+            a if isinstance(a, bytes) else a.encode('utf-8')
+            for a in args], zmq.NOBLOCK)
+
+    def backend_recv(self, backend='echo'):
+        sock = getattr(self, backend)
+        if (([sock], [], []) !=
+            zmq.select([sock], [], [], timeout=self.timeout)):
+            raise TimeoutError()
+        val = sock.recv_multipart(zmq.NOBLOCK)
+        return val
 
     def testHttp(self):
         conn = self.http()
@@ -67,6 +98,49 @@ class HTTP(Base):
         resp = conn.getresponse()
         self.assertTrue(b'cross-domain-policy' in resp.read())
         conn.close()
+
+    def testEcho(self):
+        conn = self.http()
+        conn.request('GET', '/echo/test')
+        self.assertEqual(self.backend_recv(),
+                          [b'/echo/test', b''])
+        self.backend_send(b'hello')
+        resp = conn.getresponse()
+        self.assertEqual(b'hello', resp.read())
+        self.assertEqual(resp.headers['Content-Type'], None)
+
+    def testHeadersEcho(self):
+        conn = self.http()
+        conn.request('GET', '/echo/test')
+        self.assertEqual(self.backend_recv(),
+                          [b'/echo/test', b''])
+        self.backend_send(b'200 OK', 'Content-Type\0text/plain\0', b'hello')
+        resp = conn.getresponse()
+        self.assertEqual(b'hello', resp.read())
+        self.assertEqual(resp.headers['Content-Type'], 'text/plain')
+
+    def testExtraHeaders(self):
+        conn = self.http()
+        conn.request('GET', '/echo2/test')
+        self.assertEqual(self.backend_recv('echo2'),
+                          [b'GET', b'/echo2/test'])
+        self.backend_send(b'hellohello', backend='echo2')
+        resp = conn.getresponse()
+        self.assertEqual(b'hellohello', resp.read())
+        self.assertEqual(resp.headers['Cache-Control'], 'no-cache')
+        self.assertEqual(resp.headers['Content-Type'], None)
+
+    def testMoreHeaders(self):
+        conn = self.http()
+        conn.request('GET', '/echo2/test')
+        self.assertEqual(self.backend_recv('echo2'),
+                          [b'GET', b'/echo2/test'])
+        self.backend_send(b'200 OK', 'Content-Type\0text/plain\0', b'test2',
+                          backend='echo2')
+        resp = conn.getresponse()
+        self.assertEqual(b'test2', resp.read())
+        self.assertEqual(resp.headers['Cache-Control'], 'no-cache')
+        self.assertEqual(resp.headers['Content-Type'], 'text/plain')
 
 class WebSocket(Base):
 
