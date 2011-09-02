@@ -38,10 +38,13 @@ static char *check_base(disk_request_t *req) {
         }
     }
     config_main_t *config = root.config;
-    char *ext;
+    char *ext, *ext0 = NULL;
     if(!*base || pathend[-1] == '/') {
         if(route->static_.index_file) {
-            ext = strrchr(route->static_.index_file, '.');
+            ext0 = strrchr(route->static_.index_file, '.');
+            if(ext0) {
+                ext = ext0 = ext0+1;
+            }
         } else if(route->static_.dir_index) {
             return "text/html";
         } else {
@@ -54,9 +57,11 @@ static char *check_base(disk_request_t *req) {
         return config->Server.mime_types.no_extension;
     ++ext; // need next after '.' character
     char *mime;
-    char ext0[pathend - ext + 1];
-    memcpy(ext0, ext, pathend - ext);
-    ext0[pathend - ext] = 0;
+    if(!ext0) {
+        ext0 = alloca(pathend - ext + 1);
+        memcpy(ext0, ext, pathend - ext);
+        ext0[pathend - ext] = 0;
+    }
     if(ws_imatch(config->Server.mime_types._match, ext0, (size_t *)&mime))
         return mime;
     return config->Server.mime_types.default_type;
