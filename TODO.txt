@@ -9,8 +9,6 @@
  + Fix simple polling (timeout=0)
  + Make Push by default (probably in the 0.6 or 1.0)
  - Make a way to send message to all users (?)
- - Implement a command which returns all conection id's (to sync periodically with backend)
- + Add named routes to resume visitor
 
  Static:
  * implement directory index
@@ -24,7 +22,6 @@
  + Check working server with ZMQ_HWM's set on sockets
  * Strip `?` from uri before matching
  - Implement fallback routes
- + Setuid, chroot, etc.
  + Maintainance page
  + Allowed methods, and max-body-size
  + Add access logging
