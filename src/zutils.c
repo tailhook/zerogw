@@ -53,12 +53,14 @@ int zmq_open(config_zmqsocket_t *sock, int kinds, int defkind,
         if(addr->value.kind == CONFIG_zmq_Bind) {
             LDEBUG("Binding 0x%x to ``%s''", result, addr->value.value);
             if(zmq_bind(result, addr->value.value) < 0) {
+                LERR("Can't bind to ``%s'': %m", addr->value.value);
                 zmq_close(result);
                 return -1;
             }
         } else if(addr->value.kind == CONFIG_zmq_Connect) {
             LDEBUG("Connecting 0x%x to ``%s''", result, addr->value.value);
             if(zmq_connect(result, addr->value.value) < 0) {
+                LERR("Can't connect to ``%s'': %m", addr->value.value);
                 zmq_close(result);
                 return -1;
             }

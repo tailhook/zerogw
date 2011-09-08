@@ -150,13 +150,22 @@ int main(int argc, char **argv) {
             SNIMPL(ws_add_fd(&root.ws, slisten->value.fd));
         } else if(slisten->value.unix_socket && *slisten->value.unix_socket) {
             LDEBUG("Using unix socket \"%s\"", slisten->value.unix_socket);
-            SNIMPL(ws_add_unix(&root.ws, slisten->value.unix_socket,
-                slisten->value.unix_socket_len));
+            int rc = ws_add_unix(&root.ws, slisten->value.unix_socket,
+                slisten->value.unix_socket_len);
+            if(rc < 0) {
+                LALERT("Can't listen unix socket ``%.*s'': %m",
+                    slisten->value.unix_socket_len,
+                    slisten->value.unix_socket);
+            }
         } else {
             LDEBUG("Using host %s port %d",
                 slisten->value.host, slisten->value.port);
-            SNIMPL(ws_add_tcp(&root.ws, inet_addr(slisten->value.host),
-                slisten->value.port));
+            int rc = ws_add_tcp(&root.ws, inet_addr(slisten->value.host),
+                slisten->value.port);
+            if(rc < 0) {
+                LALERT("Can't listen tcp %s:%d: %m",
+                    slisten->value.host, slisten->value.port);
+            }
         }
     }
     ws_REQUEST_STRUCT(&root.ws, request_t);
