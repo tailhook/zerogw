@@ -15,6 +15,9 @@
 #include "http.h"
 #include "resolve.h"
 
+const char content_type[] = "Content-Type";
+const char last_modified[] = "Last-Modified";
+
 static char *check_base(disk_request_t *req) {
     char *path = req->path;
     char *pathend = strchrnul(req->path, '?');
@@ -119,7 +122,7 @@ static char *join_paths(disk_request_t *req) {
     return realpath(fullpath, NULL);
 }
 
-static int get_file(char *path, zmq_msg_t *msg) {
+static int get_file(char *path, zmq_msg_t *msg, char *if_mod, char *lastmod) {
     int fd;
     do {
         fd = open(path, O_RDONLY);
@@ -140,6 +143,13 @@ static int get_file(char *path, zmq_msg_t *msg) {
         TWARN("Path ``%s'' is a directory", path);
         SNIMPL(close(fd));
         return -1;
+    }
+    struct tm tmstruct;
+    gmtime_r(&statinfo.st_mtime, &tmstruct);
+    strftime(lastmod, 32, "%a, %d %b %Y %T GMT", &tmstruct);
+    if(if_mod && !strcmp(if_mod, lastmod)) {
+        zmq_msg_init(msg); // empty body for 304 reply
+        return 1;
     }
     size_t to_read = statinfo.st_size;
     if(zmq_msg_init_size(msg, to_read)) {
@@ -211,18 +221,40 @@ void *disk_loop(void *_) {
         zmq_msg_close(&msg);
         zmq_msg_t result;
         zmq_msg_init(&result);
-        if(get_file(realpath, &result)) {
+        char lastmod[64];
+        int rc = get_file(realpath, &result, req->if_modified, lastmod);
+        if(rc == 1) {
             zmq_msg_close(&result);
-            SNIMPL(zmq_msg_init_data(&result, "500", 4, NULL, NULL));
+            SNIMPL(zmq_msg_init_data(&result,
+                "304 Not Modified", strlen("304 Not Modified"), NULL, NULL));
+            SNIMPL(zmq_send(sock, &result, ZMQ_SNDMORE));
+            SNIMPL(zmq_msg_init(&result));
+            SNIMPL(zmq_send(sock, &result, 0));
+            continue;
+        } else if(rc) {
+            zmq_msg_close(&result);
+            SNIMPL(zmq_msg_init_data(&result,
+                "500 Internal Server Error",
+                strlen("500 Internal Server Error"), NULL, NULL));
+            SNIMPL(zmq_send(sock, &result, ZMQ_SNDMORE));
+            SNIMPL(zmq_msg_init(&result));
             SNIMPL(zmq_send(sock, &result, 0));
             continue;
         }
+        int mimelen = strlen(mime)+1;
+        int modlen = strlen(lastmod)+1;
         SNIMPL(zmq_msg_init_data(&msg, "200 OK", 6, NULL, NULL));
         SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE));
-        SNIMPL(zmq_msg_init_size(&msg, strlen("Content-Type")+strlen(mime)+2));
+        SNIMPL(zmq_msg_init_size(&msg, sizeof(content_type) + mimelen
+            + sizeof(last_modified) + modlen));
         void *data = zmq_msg_data(&msg);
-        memcpy(data, "Content-Type", strlen("Content-Type")+1);
-        strcpy(data + strlen("Content-Type")+1, mime);
+        memcpy(data, content_type, sizeof(content_type));
+        data += sizeof(content_type);
+        memcpy(data, mime, mimelen);
+        data += mimelen;
+        memcpy(data, last_modified, sizeof(last_modified));
+        data += sizeof(last_modified);
+        memcpy(data, lastmod, modlen);
         SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE));
         SNIMPL(zmq_send(sock, &result, 0));
         free(realpath);
@@ -265,6 +297,12 @@ int disk_request(request_t *req) {
     SNIMPL(zmq_msg_init_size(&msg, sizeof(disk_request_t)));
     disk_request_t *dreq = zmq_msg_data(&msg);
     dreq->route = req->route;
+    if(req->ws.headerindex[root.IF_MODIFIED]) {
+        strncpy(dreq->if_modified, req->ws.headerindex[root.IF_MODIFIED],
+            sizeof(dreq->if_modified));
+    } else {
+        dreq->if_modified[0] = 0;
+    }
     if(req->route->static_.single_uri_len) {
         dreq->path = req->route->static_.single_uri;
     } else {
@@ -412,6 +450,7 @@ int prepare_disk(config_main_t *config) {
         root.disk_socket = NULL;
         return 0;
     }
+    root.IF_MODIFIED = ws_index_header(&root.ws, "If-Modified-Since");
     root.disk_socket = zmq_socket(root.zmq, ZMQ_XREQ);
     SNIMPL(root.disk_socket == NULL);
     SNIMPL(zmq_bind(root.disk_socket, "inproc://disk"));

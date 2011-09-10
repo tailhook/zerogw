@@ -1,3 +1,4 @@
+import os
 from .simple import Base
 
 class Static(Base):
@@ -9,6 +10,29 @@ class Static(Base):
         self.assertEqual(resp.headers['Content-Type'], 'text/plain')
         txt = resp.read().decode('ascii')
         self.assertEqual(txt, 'test\nfile\n')
+
+    def testIfModifiedSince(self):
+        conn = self.http()
+        conn.request('GET', '/test/testfile.txt')
+        resp = conn.getresponse()
+        self.assertEqual(resp.headers['Content-Type'], 'text/plain')
+        lm = resp.headers['Last-Modified']
+        txt = resp.read().decode('ascii')
+        self.assertEqual(txt, 'test\nfile\n')
+        conn.request('GET', '/test/testfile.txt',
+            headers={'If-Modified-Since': lm})
+        resp = conn.getresponse()
+        self.assertEqual(resp.code, 304)
+        txt = resp.read().decode('ascii')
+        self.assertEqual(txt, '')
+        os.utime("test/testfile.txt", None)
+        conn.request('GET', '/test/testfile.txt',
+            headers={'If-Modified-Since': lm})
+        resp = conn.getresponse()
+        lm1 = resp.headers['Last-Modified']
+        txt = resp.read().decode('ascii')
+        self.assertEqual(txt, 'test\nfile\n')
+        self.assertNotEqual(lm, lm1)
 
     def testQuery(self):
         conn = self.http()

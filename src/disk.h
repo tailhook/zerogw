@@ -50,6 +50,7 @@ typedef struct url_cache_s {
 typedef struct disk_request_s {
     config_Route_t *route;
     bool gzipped;
+    char if_modified[32];
     char *path;
 } disk_request_t;
 
