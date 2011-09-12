@@ -1,5 +1,3 @@
-#define _BSD_SOURCE
-#define _GNU_SOURCE
 #include "log.h"
 #include "config.h"
 #include <time.h>
@@ -69,10 +67,7 @@ void logstd(int level, char *file, int line, char *msg, ...) {
     if(idx < 4093) {
         buf[idx++] = ':';
         buf[idx++] = ' ';
-        char *res = strerror_r(local_errno, buf + idx, 4096-idx);
-        if(res != buf+idx) {
-            strncpy(buf+idx, res, 4096-idx);
-        }
+        strerror_r(local_errno, buf + idx, 4096-idx);
         idx += strlen(buf + idx);
     }
     idx = min(idx, 4094);

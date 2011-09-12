@@ -52,7 +52,7 @@ def build(bld):
         defines      = [
             'LOG_STRIP_PATH="../src/"',
             ],
-        cflags      = ['-std=c99'],
+        cflags      = ['-std=gnu99'],
         lib          = ['yaml', 'zmq', 'ev', 'coyaml', 'website', 'ssl'],
         )
     bld(
@@ -63,7 +63,7 @@ def build(bld):
             ],
         target       = 'zerogwctl',
         includes     = ['src'],
-        cflags       = ['-std=c99'],
+        cflags       = ['-std=gnu99'],
         lib          = ['yaml', 'zmq', 'coyaml'],
         )
     bld(
