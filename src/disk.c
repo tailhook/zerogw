@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <zmq.h>
+#include <errno.h>
 
 #include "disk.h"
 #include "main.h"
@@ -17,6 +18,71 @@
 
 const char content_type[] = "Content-Type";
 const char last_modified[] = "Last-Modified";
+
+static mime_table_t *mime_new() {
+    int sz = 4096;
+    mime_table_t *mt = malloc(sizeof(mime_table_t) + sizeof(mime_entry_t)*sz);
+    mt->size = sz;
+    obstack_init(&mt->pieces);
+    memset((char *)mt + sizeof(mime_table_t), 0, sizeof(mime_entry_t)*sz);
+    return mt;
+}
+
+static void mime_free(mime_table_t *mt) {
+    obstack_free(&mt->pieces, NULL);
+    free(mt);
+}
+
+static char *mime_add(mime_table_t *mt, char *key, char *value) {
+    char *s = key;
+    size_t h = 0;
+    while (*s) {
+        h += (h<<1) + (h<<4) + (h<<7) + (h<<8) + (h<<24);
+        h ^= (size_t)*s++;
+    }
+    int cell = h % mt->size;
+    mime_entry_t *entry = LIST_FIRST(&mt->entries[cell]);
+    mime_entry_t *prev = NULL;
+    while(entry) {
+        LDEBUG("HAS ``%s''-``%s''", entry->name, key);
+        if(!strcmp(entry->name, key)) {
+            return entry->mime;
+        }
+        prev = entry;
+        entry = LIST_NEXT(entry, lst);
+    }
+    int klen = strlen(key);
+    int vlen = strlen(value);
+    entry = obstack_alloc(&mt->pieces, sizeof(mime_entry_t) + klen+1 + vlen+1);
+    memcpy(entry->name, key, klen+1);
+    entry->mime = entry->name + klen + 1;
+    memcpy(entry->mime, value, vlen+1);
+    if(prev) {
+        LDEBUG("DUP ``%s''-``%s''", prev->name, key);
+        LIST_INSERT_AFTER(prev, entry, lst);
+    } else {
+        LDEBUG("INSERTING ``%s''-``%s''", entry->name, entry->mime);
+        LIST_INSERT_HEAD(&mt->entries[cell], entry, lst);
+    }
+    return NULL;
+}
+
+static char *mime_find(mime_table_t *mt, char *key) {
+    char *s = key;
+    size_t h = 0;
+    while (*s) {
+        h += (h<<1) + (h<<4) + (h<<7) + (h<<8) + (h<<24);
+        h ^= (size_t)*s++;
+    }
+    int cell = h % mt->size;
+    mime_entry_t *entry;
+    LIST_FOREACH(entry, &mt->entries[cell], lst) {
+        if(!strcmp(entry->name, key)) {
+            return entry->mime;
+        }
+    }
+    return NULL;
+}
 
 static char *check_base(disk_request_t *req) {
     char *path = req->path;
@@ -65,8 +131,9 @@ static char *check_base(disk_request_t *req) {
         memcpy(ext0, ext, pathend - ext);
         ext0[pathend - ext] = 0;
     }
-    if(ws_imatch(config->Server.mime_types._match, ext0, (size_t *)&mime))
-        return mime;
+
+    mime = mime_find(root.disk.mime_table, ext0);
+    if(mime) return mime;
     return config->Server.mime_types.default_type;
 }
 
@@ -265,21 +332,21 @@ void *disk_loop(void *_) {
 }
 
 int disk_request(request_t *req) {
-    if(!root.disk_socket) {
+    if(!root.disk.socket) {
         TWARN("Configured static route with non-positive `disk-io-threads`");
         http_static_response(req,
             &req->route->responses.internal_error);
         return 0;
     }
     // Must wake up reading and on each send, because the way zmq sockets work
-    ev_feed_event(root.loop, &root.disk_watch, EV_READ);
+    ev_feed_event(root.loop, &root.disk.watch, EV_READ);
     zmq_msg_t msg;
     REQ_INCREF(req);
     make_hole_uid(req, req->uid, root.request_sieve, FALSE);
     req->flags |= REQ_IN_SIEVE;
     root.stat.disk_requests += 1;
     SNIMPL(zmq_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
-    while(zmq_send(root.disk_socket, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+    while(zmq_send(root.disk.socket, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
         if(errno == EAGAIN) {
             http_static_response(req,
                 &req->route->responses.service_unavailable);
@@ -293,12 +360,12 @@ int disk_request(request_t *req) {
         }
     }
     SNIMPL(zmq_msg_init(&msg));
-    SNIMPL(zmq_send(root.disk_socket, &msg, ZMQ_SNDMORE));
+    SNIMPL(zmq_send(root.disk.socket, &msg, ZMQ_SNDMORE));
     SNIMPL(zmq_msg_init_size(&msg, sizeof(disk_request_t)));
     disk_request_t *dreq = zmq_msg_data(&msg);
     dreq->route = req->route;
-    if(req->ws.headerindex[root.IF_MODIFIED]) {
-        strncpy(dreq->if_modified, req->ws.headerindex[root.IF_MODIFIED],
+    if(req->ws.headerindex[root.disk.IF_MODIFIED]) {
+        strncpy(dreq->if_modified, req->ws.headerindex[root.disk.IF_MODIFIED],
             sizeof(dreq->if_modified));
     } else {
         dreq->if_modified[0] = 0;
@@ -309,7 +376,7 @@ int disk_request(request_t *req) {
         dreq->path = req->ws.uri;
     }
     dreq->gzipped = FALSE; //TODO
-    SNIMPL(zmq_send(root.disk_socket, &msg, 0));
+    SNIMPL(zmq_send(root.disk.socket, &msg, 0));
     return 0;
 }
 
@@ -317,7 +384,7 @@ int disk_request(request_t *req) {
 static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     ANIMPL(!(revents & EV_ERROR));
     while(TRUE) {
-        Z_SEQ_INIT(msg, root.disk_socket);
+        Z_SEQ_INIT(msg, root.disk.socket);
         LDEBUG("Checking disk...");
         Z_RECV_START(msg, break);
         LDEBUG("Got something from disk");
@@ -414,7 +481,8 @@ static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents)
     LDEBUG("Out of disk...");
 }
 
-static int read_mime_types(struct obstack *buf, void *matcher, char *filename) {
+static int read_mime_types(struct obstack *buf, mime_table_t *matcher,
+                           char *filename) {
     FILE *file = fopen(filename, "r");
     if(!file) return -1;
 
@@ -432,9 +500,9 @@ static int read_mime_types(struct obstack *buf, void *matcher, char *filename) {
         mtype = obstack_copy0(buf, mtype, strlen(mtype));
         do {
             LDEBUG("Adding mime ``%s'' -> ``%s''", tok, mtype);
-            char *res = (char*)ws_match_iadd(matcher, tok, (size_t)mtype);
-            if(res != mtype) {
-                LWARN("Conflicting mime for ``%s'' using ``%s''", tok, res);
+            char *old = mime_add(root.disk.mime_table, tok, mtype);
+            if(old) {
+                LWARN("Conflicting mime for ``%s'' using ``%s''", tok, old);
             }
             tok = strtok_r(NULL, " \t\r\n", &tokptr);
         } while(tok);
@@ -447,39 +515,37 @@ static int read_mime_types(struct obstack *buf, void *matcher, char *filename) {
 
 int prepare_disk(config_main_t *config) {
     if(config->Server.disk_io_threads <= 0) {
-        root.disk_socket = NULL;
+        root.disk.socket = NULL;
         return 0;
     }
-    root.IF_MODIFIED = ws_index_header(&root.ws, "If-Modified-Since");
-    root.disk_socket = zmq_socket(root.zmq, ZMQ_XREQ);
-    SNIMPL(root.disk_socket == NULL);
-    SNIMPL(zmq_bind(root.disk_socket, "inproc://disk"));
+    root.disk.IF_MODIFIED = ws_index_header(&root.ws, "If-Modified-Since");
+    root.disk.socket = zmq_socket(root.zmq, ZMQ_XREQ);
+    SNIMPL(root.disk.socket == NULL);
+    SNIMPL(zmq_bind(root.disk.socket, "inproc://disk"));
     int64_t fd;
     size_t fdsize = sizeof(fd);
-    SNIMPL(zmq_getsockopt(root.disk_socket, ZMQ_FD, &fd, &fdsize));
-    ev_io_init(&root.disk_watch, disk_process, fd, EV_READ);
-    ev_io_start(root.loop, &root.disk_watch);
-    root.disk_threads =malloc(sizeof(pthread_t)*config->Server.disk_io_threads);
-    ANIMPL(root.disk_threads);
+    SNIMPL(zmq_getsockopt(root.disk.socket, ZMQ_FD, &fd, &fdsize));
+    ev_io_init(&root.disk.watch, disk_process, fd, EV_READ);
+    ev_io_start(root.loop, &root.disk.watch);
+    root.disk.threads =malloc(sizeof(pthread_t)*config->Server.disk_io_threads);
+    ANIMPL(root.disk.threads);
     for(int i = 0; i < config->Server.disk_io_threads; ++i) {
-        SNIMPL(pthread_create(&root.disk_threads[i], NULL, disk_loop, NULL));
+        SNIMPL(pthread_create(&root.disk.threads[i], NULL, disk_loop, NULL));
     }
     LWARN("%d disk threads ready", config->Server.disk_io_threads);
 
-    void *matcher = ws_match_new();
+    root.disk.mime_table = mime_new();
     // User-specified values override mime.types
     CONFIG_STRING_STRING_LOOP(item, config->Server.mime_types.extra) {
         LDEBUG("Adding mime ``%s'' -> ``%s''", item->key, item->value);
-        char *r = (char*)ws_match_iadd(matcher, item->key, (size_t)item->value);
-        if(r != item->value) {
-            LWARN("Conflicting mime for ``%s'' using ``%s''", item->key, r);
+        char *old = mime_add(root.disk.mime_table, item->key, item->value);
+        if(old) {
+            LWARN("Conflicting mime for ``%s'' using ``%s''", item->key, old);
         }
     }
     SNIMPL(read_mime_types(&config->head.pieces,
-        matcher, config->Server.mime_types.file));
-
-    ws_match_compile(matcher);
-    config->Server.mime_types._match = matcher;
+        root.disk.mime_table,
+        config->Server.mime_types.file));
     return 0;
 }
 
@@ -487,21 +553,21 @@ int release_disk(config_main_t *config) {
     while(TRUE) {
         zmq_msg_t msg;
         SNIMPL(zmq_msg_init(&msg));
-        if(zmq_send(root.disk_socket, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE) < 0) {
+        if(zmq_send(root.disk.socket, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE) < 0) {
             if(errno == EAGAIN) break;
             SNIMPL(-1);
         }
         SNIMPL(zmq_msg_init_size(&msg, 8));
         memcpy(zmq_msg_data(&msg), "shutdown", 8);
-        zmq_send(root.disk_socket, &msg, ZMQ_NOBLOCK); // don't care if fails
+        zmq_send(root.disk.socket, &msg, ZMQ_NOBLOCK); // don't care if fails
     }
     for(int i = 0; i < config->Server.disk_io_threads; ++i) {
-        SNIMPL(pthread_join(root.disk_threads[i], NULL));
+        SNIMPL(pthread_join(root.disk.threads[i], NULL));
     }
-    ev_io_stop(root.loop, &root.disk_watch);
-    SNIMPL(zmq_close(root.disk_socket));
-    free(root.disk_threads);
-    ws_match_free(config->Server.mime_types._match);
+    ev_io_stop(root.loop, &root.disk.watch);
+    SNIMPL(zmq_close(root.disk.socket));
+    free(root.disk.threads);
+    mime_free(root.disk.mime_table);
     return 0;
 }
 

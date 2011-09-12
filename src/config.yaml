@@ -776,7 +776,6 @@ Server:
       =: "application/octed-stream"
       description: >
         Default mime type for files which has extension not found in mapping
-    _match: !_VoidPtr ~
 
   error-log: *errorlog # not struct because command-line
   pools:

@@ -269,7 +269,7 @@ class Chat(Base):
         self.chatout.connect(CHAT_SOCK)
         self.minigame = self.zmq.socket(zmq.PULL)
         self.minigame.connect(MINIGAME)
-        time.sleep(0.2)  # sorry, need for zmq sockets
+        time.sleep(START_TIMEOUT)  # sorry, need for zmq sockets
 
     def control(self, *args):
         sock = self.zmq.socket(zmq.REQ)

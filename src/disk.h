@@ -4,7 +4,6 @@
 #include <zmq.h>
 
 #include "config.h"
-#include "main.h"
 
 /*
 typedef enum {
@@ -53,6 +52,29 @@ typedef struct disk_request_s {
     char if_modified[32];
     char *path;
 } disk_request_t;
+
+typedef struct mime_entry_s {
+    LIST_ENTRY(mime_entry_s) lst;
+    char *mime;
+    char name[];
+} mime_entry_t;
+
+typedef struct mime_table_s {
+    int size;
+    struct obstack pieces;
+    LIST_HEAD(mime_table_head_s, mime_entry_s) entries[];
+} mime_table_t;
+
+typedef struct disk_global_s {
+    void *socket;
+    struct ev_io watch;
+    struct ev_async async;
+    pthread_t *threads;
+    int IF_MODIFIED;
+    mime_table_t *mime_table;
+} disk_global_t;
+
+#include "main.h"
 
 void *disk_loop(void *);
 int disk_request(request_t *req);

@@ -17,6 +17,7 @@
 #include "zutils.h"
 #include "uidgen.h"
 #include "polling.h"
+#include "disk.h"
 
 typedef struct statistics_s {
     size_t connects;
@@ -57,13 +58,6 @@ typedef struct serverroot_s {
     void *zmq;
     struct ev_loop *loop;
 
-    // TODO: refactor to external struct
-    void *disk_socket;
-    struct ev_io disk_watch;
-    struct ev_async disk_async;
-    pthread_t *disk_threads;
-    int IF_MODIFIED;
-
     char instance_id[IID_LEN];
     char random_data[RANDOM_LENGTH];
     config_main_t *config;
@@ -71,6 +65,7 @@ typedef struct serverroot_s {
     sieve_t *request_sieve;
 
     hybi_global_t hybi;
+    disk_global_t disk;
 
     statistics_t stat;
 } serverroot_t;
