@@ -231,7 +231,9 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
     hybi->type = type;
     hybi->refcnt = 1;
     hybi->flags = 0;
-    SNIMPL(make_hole_uid(hybi, hybi->uid, root.hybi.sieve, type == HYBI_COMET));
+    if(make_hole_uid(hybi, hybi->uid, root.hybi.sieve, type==HYBI_COMET) < 0) {
+        return NULL;
+    }
     LIST_INIT(&hybi->subscribers);
     hybi->route = route;
     LIST_INIT(&hybi->outputs);

@@ -1,5 +1,6 @@
 #include <strings.h>
 #include <malloc.h>
+#include <errno.h>
 
 #include "sieve.h"
 #include "log.h"
@@ -27,6 +28,7 @@ int sieve_find_hole(sieve_t *sieve, void *item, size_t *index, size_t *hole) {
             return 0;
         }
     }
+    errno = EAGAIN;
     return -1;
 }
 
