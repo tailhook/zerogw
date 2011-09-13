@@ -189,7 +189,7 @@ void hybi_stop(hybi_t *hybi) {
     }
     for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt; out; out=nxt) {
         nxt = LIST_NEXT(out, client_list);
-        if(nxt && nxt->socket != out->socket) {
+        if(!nxt || nxt->socket != out->socket) {
             // We send on the last one, because we don't care on which one
             // but do care to send only once for each output
             // Subscriptions are guaranteed to have single output in subsequent

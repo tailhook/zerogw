@@ -420,6 +420,14 @@ class Chat(Base):
         with self.assertRaisesRegex(http.BadStatusLine, "''"):
             ws.client_send('hello_world')
 
+    def testDisconnectBackendMsg(self):
+        ws = self.websock()
+        ws.connect()
+        self.backend_send('add_output', ws.intid, 'test', 'minigame')
+        self.backend_send('disconnect', ws.intid)
+        self.assertEquals([ws.intid, b'disconnect'],
+            self.backend_recv('minigame'))
+
     def testBackendStop(self):
         ws1 = self.websock()
         ws1.connect()
