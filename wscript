@@ -119,4 +119,3 @@ def build_tests(bld):
 class test(BuildContext):
     cmd = 'test'
     fun = 'build_tests'
-    variant = 'test'
