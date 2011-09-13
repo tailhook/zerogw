@@ -6,7 +6,6 @@
  + Implement or disable more output and input formats for polling
  - Review ws.js, limit number of requests, introduce queue, data batching
  - Implement pseudo peer-to-peer communication support (?)
- + Fix simple polling (timeout=0)
  + Make Push by default (probably in the 0.6 or 1.0)
  - Make a way to send message to all users (?)
 
@@ -14,13 +13,11 @@
  * implement directory index
  * implement cache
  * implement gzip
- * implement expires (cache-age)
- * implement If-Modified-Since and If-None-Match
+ * implement If-None-Match (maybe)
 
  + Check EINTR in all zmq_send
  + Check what happens on ECONNRESET, EPIPE
  + Check working server with ZMQ_HWM's set on sockets
- * Strip `?` from uri before matching
  - Implement fallback routes
  + Maintainance page
  + Allowed methods, and max-body-size
@@ -29,7 +26,6 @@
  * Configuration reloading
  - HTTPS
  - Add server name-version header
- + Check server in low memory, and requests > max conditions
  - Configuration of zeromq devices in zerogw config
  - Figure out how to implement SDCH
  - Replace ugly offsetof's to SHIFT macro
