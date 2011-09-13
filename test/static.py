@@ -8,6 +8,7 @@ class Static(Base):
         conn.request('GET', '/test/testfile.txt')
         resp = conn.getresponse()
         self.assertEqual(resp.headers['Content-Type'], 'text/plain')
+        self.assertTrue(resp.headers['Date'])
         txt = resp.read().decode('ascii')
         self.assertEqual(txt, 'test\nfile\n')
 

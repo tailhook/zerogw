@@ -459,6 +459,10 @@ static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents)
                 }
             }
         }
+        http_common_headers(req);
+        CONFIG_STRING_STRING_LOOP(line, req->route->headers) {
+            SNIMPL(ws_add_header(&req->ws, line->key, line->value));
+        }
         ws_finish_headers(&req->ws);
         root.stat.disk_reads += 1;
         root.stat.disk_bytes_read = zmq_msg_size(&msg);

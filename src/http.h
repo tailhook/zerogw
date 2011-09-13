@@ -12,4 +12,6 @@ int prepare_http(config_main_t *config, config_Route_t *root);
 int release_http(config_main_t *config, config_Route_t *root);
 void request_decref(void *_data, void *request);
 
+int http_common_headers(request_t *req);
+
 #endif // _H_HTTP

@@ -62,7 +62,7 @@ class Base(unittest.TestCase):
         self.proc.wait()
 
 class HTTP(Base):
-    timeout = 1
+    timeout = 2
 
     def setUp(self):
         super().setUp()
@@ -97,6 +97,7 @@ class HTTP(Base):
         conn.request('GET', '/crossdomain.xml')
         resp = conn.getresponse()
         self.assertTrue(b'cross-domain-policy' in resp.read())
+        self.assertTrue(resp.headers['Date'])
         conn.close()
 
     def testEcho(self):
@@ -108,6 +109,7 @@ class HTTP(Base):
         resp = conn.getresponse()
         self.assertEqual(b'hello', resp.read())
         self.assertEqual(resp.headers['Content-Type'], None)
+        self.assertTrue(resp.headers['Date'])
 
     def testHeadersEcho(self):
         conn = self.http()
@@ -258,7 +260,7 @@ class CheckingWebsock(object):
                 [self.intid, b'disconnect'])
 
 class Chat(Base):
-    timeout = 1  # in zmq.select units (seconds)
+    timeout = 2  # in zmq.select units (seconds)
 
     def setUp(self):
         self.zmq = zmq.Context(1)

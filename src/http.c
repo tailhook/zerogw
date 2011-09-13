@@ -8,19 +8,28 @@
 #include "resolve.h"
 #include "disk.h"
 
+int http_common_headers(request_t *req) {
+    char buf[32];
+    struct tm tmstruct;
+    time_t inctime = req->incoming_time;
+    if(!gmtime_r(&inctime, &tmstruct))
+        return -1;
+    int tlen = strftime(buf, 32, "%a, %d %b %Y %T GMT", &tmstruct);
+    if(tlen <= 0)
+        return -1;
+    ANIMPL(tlen < 32);
+    if(ws_add_header(&req->ws, "Date", buf) < 0)
+        return -1;
+    //ws_add_header(&req->ws, "Server", config.Server.header);
+    return 0;
+}
+
+    //ws_add_header(&req->ws, "Server", config.Server.header);
 void http_static_response(request_t *req, config_StaticResponse_t *resp) {
     char status[resp->status_len + 5];
     sprintf(status, "%03ld %s", resp->code, resp->status);
     SNIMPL(ws_statusline(&req->ws, status));
-
-    char buf[32];
-    struct tm tmstruct;
-    time_t inctime = req->incoming_time;
-    gmtime_r(&inctime, &tmstruct);
-    strftime(buf, 32, "%a, %d %b %Y %T GMT", &tmstruct);
-    ws_add_header(&req->ws, "Date", buf);
-
-    //ws_add_header(&req->ws, "Server", config.Server.header);
+    SNIMPL(http_common_headers(req));
     CONFIG_STRING_STRING_LOOP(line, resp->headers) {
         SNIMPL(ws_add_header(&req->ws, line->key, line->value));
     }
@@ -116,15 +125,7 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         } else {
             ws_statusline(&req->ws, "200 OK");
         }
-
-        char buf[32];
-        struct tm tmstruct;
-        time_t inctime = req->incoming_time;
-        gmtime_r(&inctime, &tmstruct);
-        strftime(buf, 32, "%a, %d %b %Y %T GMT", &tmstruct);
-        ws_add_header(&req->ws, "Date", buf);
-
-        //ws_add_header(&req->ws, "Server", config.Server.header);
+        http_common_headers(req);
         CONFIG_STRING_STRING_LOOP(line, route->headers) {
             SNIMPL(ws_add_header(&req->ws, line->key, line->value));
         }
