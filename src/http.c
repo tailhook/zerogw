@@ -392,7 +392,8 @@ int http_request(request_t *req) {
     }
     if(route->zmq_forward.enabled) {
         // Ok, it's zeromq forward
-        make_hole_uid(req, req->uid, root.request_sieve, FALSE);
+        if(make_hole_uid(req, req->uid, root.request_sieve, FALSE) < 0)
+            return -1;
         req->flags |= REQ_IN_SIEVE;
         root.stat.zmq_requests += 1;
         if(!do_forward(req)) {
