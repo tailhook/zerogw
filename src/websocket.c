@@ -651,10 +651,14 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             LDEBUG("Setting connection cookie");
             Z_RECV_LAST(msg);
             hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
-            if(hybi->type == HYBI_COMET) {
-                comet_close(hybi);
-            } else if(hybi->type == HYBI_WEBSOCKET) {
-                ws_connection_close(&hybi->conn->ws);
+            if(hybi) {
+                if(hybi->type == HYBI_COMET) {
+                    comet_close(hybi);
+                } else if(hybi->type == HYBI_WEBSOCKET) {
+                    ws_connection_close(&hybi->conn->ws);
+                } else {
+                    LNIMPL("Wrong hybi type %ld", hybi->type);
+                }
             }
         } else {
             TWARN("Wrong command ``%.*s''", cmdlen, cmd);
