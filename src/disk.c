@@ -46,7 +46,6 @@ static char *mime_add(mime_table_t *mt, char *key, char *value) {
     mime_entry_t *entry = LIST_FIRST(&mt->entries[cell]);
     mime_entry_t *prev = NULL;
     while(entry) {
-        LDEBUG("HAS ``%s''-``%s''", entry->name, key);
         if(!strcmp(entry->name, key)) {
             return entry->mime;
         }
@@ -60,10 +59,8 @@ static char *mime_add(mime_table_t *mt, char *key, char *value) {
     entry->mime = entry->name + klen + 1;
     memcpy(entry->mime, value, vlen+1);
     if(prev) {
-        LDEBUG("DUP ``%s''-``%s''", prev->name, key);
         LIST_INSERT_AFTER(prev, entry, lst);
     } else {
-        LDEBUG("INSERTING ``%s''-``%s''", entry->name, entry->mime);
         LIST_INSERT_HEAD(&mt->entries[cell], entry, lst);
     }
     return NULL;
@@ -395,7 +392,6 @@ int disk_request(request_t *req) {
     dreq->gzipped = FALSE;
     if(req->route->static_.gzip_enabled) {
         char *ae = req->ws.headerindex[root.disk.ACCEPT_ENCODING];
-        LDEBUG("HEADER: %s", ae);
         if(ae) {
             char *next = ae;
             while(*next) {
@@ -405,7 +401,6 @@ int disk_request(request_t *req) {
                 --end;
                 while(start < end && isspace(*start)) ++ start;
                 while(end > start && isspace(*end)) -- end;
-                LDEBUG("ITEM: ``%.*s''", end - start+1, start);
                 if(start == end) {
                     continue;
                 }
