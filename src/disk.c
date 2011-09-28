@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <zmq.h>
 #include <errno.h>
+#include <ctype.h>
 
 #include "disk.h"
 #include "main.h"
@@ -18,6 +19,7 @@
 
 const char content_type[] = "Content-Type";
 const char last_modified[] = "Last-Modified";
+const char gzip_encoding[] = "Content-Encoding\000gzip";
 
 static mime_table_t *mime_new() {
     int sz = 4096;
@@ -189,9 +191,16 @@ static char *join_paths(disk_request_t *req) {
     return realpath(fullpath, NULL);
 }
 
-static int get_file(char *path, zmq_msg_t *msg, char *if_mod, char *lastmod) {
-    int fd;
-    do {
+static int get_file(char *path, zmq_msg_t *msg,
+    char *if_mod, char *lastmod, int *gzip) {
+    int fd = -1;
+    if(*gzip) {
+        char *npath = alloca(strlen(path) + 4);
+        strcpy(npath, path);
+        strcat(npath, ".gz");
+        fd = open(path, O_RDONLY);
+    }
+    while(fd < 0) {
         fd = open(path, O_RDONLY);
         if(fd < 0) {
             if(errno != EINTR) {
@@ -199,7 +208,7 @@ static int get_file(char *path, zmq_msg_t *msg, char *if_mod, char *lastmod) {
                 return -1;
             }
         }
-    } while(fd < 0);
+    };
     struct stat statinfo;
     if(fstat(fd, &statinfo)) {
         TWARN("Can't stat file ``%s''", path);
@@ -289,7 +298,8 @@ void *disk_loop(void *_) {
         zmq_msg_t result;
         zmq_msg_init(&result);
         char lastmod[64];
-        int rc = get_file(realpath, &result, req->if_modified, lastmod);
+        int gz = req->gzipped;
+        int rc = get_file(realpath, &result, req->if_modified, lastmod, &gz);
         if(rc == 1) {
             zmq_msg_close(&result);
             SNIMPL(zmq_msg_init_data(&result,
@@ -310,10 +320,12 @@ void *disk_loop(void *_) {
         }
         int mimelen = strlen(mime)+1;
         int modlen = strlen(lastmod)+1;
+        int totsize = sizeof(content_type) + mimelen
+            + sizeof(last_modified) + modlen;
+        if(gz) totsize += sizeof(gzip_encoding);
         SNIMPL(zmq_msg_init_data(&msg, "200 OK", 6, NULL, NULL));
         SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE));
-        SNIMPL(zmq_msg_init_size(&msg, sizeof(content_type) + mimelen
-            + sizeof(last_modified) + modlen));
+        SNIMPL(zmq_msg_init_size(&msg, totsize));
         void *data = zmq_msg_data(&msg);
         memcpy(data, content_type, sizeof(content_type));
         data += sizeof(content_type);
@@ -322,6 +334,11 @@ void *disk_loop(void *_) {
         memcpy(data, last_modified, sizeof(last_modified));
         data += sizeof(last_modified);
         memcpy(data, lastmod, modlen);
+        data += modlen;
+        if(gz) {
+            memcpy(data, gzip_encoding, sizeof(gzip_encoding));
+            data += sizeof(gzip_encoding);
+        }
         SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE));
         SNIMPL(zmq_send(sock, &result, 0));
         free(realpath);
@@ -375,7 +392,30 @@ int disk_request(request_t *req) {
     } else {
         dreq->path = req->ws.uri;
     }
-    dreq->gzipped = FALSE; //TODO
+    dreq->gzipped = FALSE;
+    if(req->route->static_.gzip_enabled) {
+        char *ae = req->ws.headerindex[root.disk.ACCEPT_ENCODING];
+        LDEBUG("HEADER: %s", ae);
+        if(ae) {
+            char *next = ae;
+            while(*next) {
+                char *start = next;
+                char *end = strchrnul(next, ',');
+                next = *end ? end+1 : end;
+                --end;
+                while(start < end && isspace(*start)) ++ start;
+                while(end > start && isspace(*end)) -- end;
+                LDEBUG("ITEM: ``%.*s''", end - start+1, start);
+                if(start == end) {
+                    continue;
+                }
+                if(!strncmp(start, "gzip", end-start+1)) {
+                    dreq->gzipped = TRUE;
+                    break;
+                } // TODO(tailhook) implement gzip; q=0.xx
+            }
+        }
+    }
     SNIMPL(zmq_send(root.disk.socket, &msg, 0));
     return 0;
 }
@@ -523,6 +563,7 @@ int prepare_disk(config_main_t *config) {
         return 0;
     }
     root.disk.IF_MODIFIED = ws_index_header(&root.ws, "If-Modified-Since");
+    root.disk.ACCEPT_ENCODING = ws_index_header(&root.ws, "Accept-Encoding");
     root.disk.socket = zmq_socket(root.zmq, ZMQ_XREQ);
     SNIMPL(root.disk.socket == NULL);
     SNIMPL(zmq_bind(root.disk.socket, "inproc://disk"));

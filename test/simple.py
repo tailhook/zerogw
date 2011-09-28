@@ -420,6 +420,7 @@ class Chat(Base):
         ws = self.websock()
         ws.connect()
         self.backend_send('disconnect', ws.intid)
+        time.sleep(0.1)
         self.backend_send('publish', 'hello', 'world')
         # sorry, zerogw lacks user-friendly errors on websock errors
         with self.assertRaisesRegex(http.BadStatusLine, "''"):

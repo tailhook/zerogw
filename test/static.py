@@ -1,4 +1,5 @@
 import os
+import gzip
 from .simple import Base
 
 class Static(Base):
@@ -34,6 +35,18 @@ class Static(Base):
         txt = resp.read().decode('ascii')
         self.assertEqual(txt, 'test\nfile\n')
         self.assertNotEqual(lm, lm1)
+
+    def testGzipped(self):
+        conn = self.http()
+        conn.request('GET', '/test/testfile.txt', headers={
+            'Accept-Encoding': 'gzip',
+            })
+        resp = conn.getresponse()
+        self.assertEqual(resp.headers['Content-Type'], 'text/plain')
+        self.assertEqual(resp.headers['Content-Encoding'], 'gzip')
+        self.assertTrue(resp.headers['Date'])
+        txt = resp.read().decode('ascii')
+        self.assertEqual(txt, 'test\nfile\n')
 
     def testQuery(self):
         conn = self.http()

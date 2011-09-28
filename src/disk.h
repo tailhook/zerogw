@@ -71,6 +71,7 @@ typedef struct disk_global_s {
     struct ev_async async;
     pthread_t *threads;
     int IF_MODIFIED;
+    int ACCEPT_ENCODING;
     mime_table_t *mime_table;
 } disk_global_t;
 

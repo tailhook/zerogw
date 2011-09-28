@@ -394,15 +394,11 @@ __types__:
       deny-prefixes: !Array
         element: !String ~
         inheritance: append-default
-      cache-age: !Int
-        default: -1
-        min: 0
-        max: 31622400
+      gzip-enabled: !Bool
+        default: no
         description: >
-          Sets `Cache-Control: max-age=NUM` and `Expires` headers with
-          appropriate date. If you want more precise control of what's going on
-          set this value to -1 and use `headers` to set them as you wish.
-        inheritance: yes
+          Try to serve .gz file as a file when browser supports gzip encoding,
+          and such file exists
       max-size: !Int
         default: 1Mi
         min: 1

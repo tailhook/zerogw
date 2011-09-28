@@ -73,6 +73,7 @@ Routing:
       "/test/*":
         static:
           enabled: yes
+          gzip-enabled: yes
           root: ./
           restrict-root: no  # can't restrict local
           deny-suffixes:
