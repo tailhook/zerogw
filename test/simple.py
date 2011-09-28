@@ -32,6 +32,10 @@ class Base(unittest.TestCase):
     config = CONFIG
 
     def setUp(self):
+        self.do_init()
+        time.sleep(START_TIMEOUT)
+
+    def do_init(self):
         for i in (HTTP_ADDR,):
             try:
                 os.unlink(i)
@@ -64,8 +68,8 @@ class Base(unittest.TestCase):
 class HTTP(Base):
     timeout = 2
 
-    def setUp(self):
-        super().setUp()
+    def do_init(self):
+        super().do_init()
         self.zmq = zmq.Context(1)
         self.addCleanup(self.zmq.term)
         self.echo = self.zmq.socket(zmq.REP)
@@ -74,7 +78,6 @@ class HTTP(Base):
         self.echo2 = self.zmq.socket(zmq.REP)
         self.addCleanup(self.echo2.close)
         self.echo2.connect(ECHO2_SOCKET)
-        time.sleep(START_TIMEOUT)  # sorry, need for zmq sockets
 
     def backend_send(self, *args, backend='echo'):
         sock = getattr(self, backend)
@@ -262,9 +265,9 @@ class CheckingWebsock(object):
 class Chat(Base):
     timeout = 2  # in zmq.select units (seconds)
 
-    def setUp(self):
+    def do_init(self):
         self.zmq = zmq.Context(1)
-        super().setUp()
+        super().do_init()
         self.chatfw = self.zmq.socket(zmq.PULL)
         self.chatfw.connect(CHAT_FW)
         self.chatout = self.zmq.socket(zmq.PUB)
