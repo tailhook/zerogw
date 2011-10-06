@@ -225,6 +225,7 @@ static int get_file(char *path, zmq_msg_t *msg,
     strftime(lastmod, 32, "%a, %d %b %Y %T GMT", &tmstruct);
     if(if_mod && !strcmp(if_mod, lastmod)) {
         zmq_msg_init(msg); // empty body for 304 reply
+        SNIMPL(close(fd));
         return 1;
     }
     size_t to_read = statinfo.st_size;
