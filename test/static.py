@@ -45,8 +45,20 @@ class Static(Base):
         self.assertEqual(resp.headers['Content-Type'], 'text/plain')
         self.assertEqual(resp.headers['Content-Encoding'], 'gzip')
         self.assertTrue(resp.headers['Date'])
-        txt = resp.read().decode('ascii')
+        txt = gzip.decompress(resp.read()).decode('ascii')
         self.assertEqual(txt, 'test\nfile\n')
+
+    def testNoGzipped(self):
+        conn = self.http()
+        conn.request('GET', '/test/test_nogz.txt', headers={
+            'Accept-Encoding': 'gzip',
+            })
+        resp = conn.getresponse()
+        self.assertEqual(resp.headers['Content-Type'], 'text/plain')
+        self.assertEqual(resp.headers['Content-Encoding'], None)
+        self.assertTrue(resp.headers['Date'])
+        txt = resp.read().decode('ascii')
+        self.assertEqual(txt, 'NO GZIP\n')
 
     def testQuery(self):
         conn = self.http()

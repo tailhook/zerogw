@@ -195,7 +195,10 @@ static int get_file(char *path, zmq_msg_t *msg,
         char *npath = alloca(strlen(path) + 4);
         strcpy(npath, path);
         strcat(npath, ".gz");
-        fd = open(path, O_RDONLY);
+        fd = open(npath, O_RDONLY);
+    }
+    if(fd < 0) {
+        *gzip = FALSE;
     }
     while(fd < 0) {
         fd = open(path, O_RDONLY);
