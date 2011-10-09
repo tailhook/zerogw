@@ -1,5 +1,8 @@
 #include <stdlib.h>
 #include <openssl/md5.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 
 #include "polling.h"
 #include "log.h"
@@ -548,6 +551,12 @@ int comet_request(request_t *req) {
         if(hybi->comet->queue.size) {
             ev_idle_start(root.loop, &hybi->comet->sendlater);
         } else {
+            // libwebsite works under TCP_CORK if there are unanswered requests
+            // which is ok for most cases but not for COMET, so we flush
+            // buffers when timing out request. It's cheap if buffer is empty
+            int opt = 1;
+            setsockopt(req->ws.conn->watch.fd,
+                IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
             double timeout = hybi->route->websocket.polling_fallback.max_timeout;
             if(args.timeout >= 0 && timeout > args.timeout) {
                 timeout = args.timeout;
