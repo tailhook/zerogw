@@ -317,6 +317,7 @@ static int move_queue(hybi_t *hybi, size_t msgid) {
         for(int i = 0; i < amount; cur = nxt, i += 1) {
             ANIMPL(cur);
             nxt = TAILQ_NEXT(cur, list);
+            zmq_msg_close(&((frontend_msg_t *)cur)->zmsg);
             queue_remove(&hybi->comet->queue, cur);
         }
         hybi->comet->first_index += amount;
@@ -368,7 +369,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             ws_finish_headers(req);
             mreq->flags |= REQ_HAS_MESSAGE;
             SNIMPL(zmq_msg_init(&mreq->response_msg));
-            SNIMPL(zmq_msg_move(&mreq->response_msg,
+            SNIMPL(zmq_msg_copy(&mreq->response_msg,
                 &((frontend_msg_t *)TAILQ_FIRST(&comet->queue.items))->zmsg));
             SNIMPL(ws_reply_data(req, zmq_msg_data(&mreq->response_msg),
                 zmq_msg_size(&mreq->response_msg)));
