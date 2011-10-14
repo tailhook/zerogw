@@ -119,7 +119,10 @@ static char *check_base(disk_request_t *req) {
             ext = NULL;
         }
     } else {
-        ext = strrchr(base, '.');
+        ext = pathend;
+        while(*--ext != '.' && ext > base);
+        if(ext > base)
+            ext = NULL;
     }
     if(!ext)
         return config->Server.mime_types.no_extension;

@@ -72,6 +72,11 @@ class Static(Base):
         self.assertEqual(resp.headers['Content-Type'], 'text/plain')
         txt = resp.read().decode('ascii')
         self.assertEqual(txt, 'test\nfile\n')
+        conn.request('GET', '/test/testfile.txt?strange.query')
+        resp = conn.getresponse()
+        self.assertEqual(resp.headers['Content-Type'], 'text/plain')
+        txt = resp.read().decode('ascii')
+        self.assertEqual(txt, 'test\nfile\n')
 
     def testDenied(self):
         conn = self.http()
