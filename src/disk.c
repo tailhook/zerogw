@@ -121,7 +121,7 @@ static char *check_base(disk_request_t *req) {
     } else {
         ext = pathend;
         while(*--ext != '.' && ext > base);
-        if(ext > base)
+        if(ext <= base)
             ext = NULL;
     }
     if(!ext)
