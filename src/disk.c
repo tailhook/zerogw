@@ -298,12 +298,12 @@ void *disk_loop(void *_) {
             SNIMPL(zmq_send(sock, &msg, 0));
             continue;
         }
-        zmq_msg_close(&msg);
         zmq_msg_t result;
         zmq_msg_init(&result);
         char lastmod[64];
         int gz = req->gzipped;
         int rc = get_file(realpath, &result, req->if_modified, lastmod, &gz);
+        zmq_msg_close(&msg); // frees req
         if(rc == 1) {
             zmq_msg_close(&result);
             SNIMPL(zmq_msg_init_data(&result,
