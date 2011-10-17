@@ -288,9 +288,10 @@ config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
             zmq_msg_init_size(&mm->zmq, length+15);
             char *zdata = zmq_msg_data(&mm->zmq);
             memcpy(zdata, data, length);
-            int tlen = sprintf(zdata + length,
-                ":%14.3f", ev_now(root.loop));
-            ANIMPL(tlen == 15);
+            char printbuf[16];
+            int tlen = snprintf(printbuf, 16, ":%14.3f", ev_now(root.loop));
+            ADEBUG2(tlen == 15, "LENGTH %d (need 15) ``%s''", tlen, printbuf);
+            memcpy(zdata+length, printbuf, 15);
             ws_MESSAGE_DATA(&mm->ws, zdata, length+tlen, NULL);
             do_send(hybi, mm);
             ws_MESSAGE_DECREF(&mm->ws);
