@@ -12,8 +12,6 @@
  Static:
  * implement directory index
  * implement cache
- * implement gzip
- * implement If-None-Match (maybe)
 
  + Check EINTR in all zmq_send
  + Check what happens on ECONNRESET, EPIPE
