@@ -12,23 +12,26 @@ def encode_command(buf, parts):
     for part in parts:
         if isinstance(part, str):
             part = part.encode('ascii')
-        add(('$%d\r\n' % len(parts)).encode('ascii'))
-        add(value)
+        add(('$%d\r\n' % len(part)).encode('ascii'))
+        add(part)
         add(b'\r\n')
     return buf
 
+class ReplyError(Exception):
+    """ERR-style replies from redis are wrapped in this exception"""
+
 class Redis(object):
 
-    def __init__(self, socket):
+    def __init__(self, socket_path):
         self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._sock.connect(socket)
+        self._sock.connect(socket_path)
         self._buf = bytearray()
 
     def execute(self, *args):
         buf = bytearray()
         encode_command(buf, args)
-        self.sendall(buf)
-        res = self.recv_command()
+        self._sock.sendall(buf)
+        res = self._read_one()
         if isinstance(res, ReplyError):
             raise res
         return res
@@ -54,7 +57,7 @@ class Redis(object):
         elif ch == 43: # b'+'
             return line[1:].decode('ascii')
         elif ch == 45: # b'-'
-            return RedisError(line[1:].decode('ascii'))
+            return ReplyError(line[1:].decode('ascii'))
         elif ch == 58: # b':'
             return int(line[1:])
         elif ch == 36: # b'$'
@@ -74,14 +77,14 @@ class Redis(object):
                 line = self._buf[:idx]
                 del self._buf[idx+2:]
                 return line
-            chunk = self.recv(16384)
+            chunk = self._sock.recv(16384)
             if not chunk:
                 raise EOFError("End of file")
             self._buf += chunk
 
     def _read_slice(self, size):
         while len(self._buf) < size:
-            chunk = self.recv(16384)
+            chunk = self._sock.recv(16384)
             if not chunk:
                 raise EOFError("End of file")
             self._buf += chunk

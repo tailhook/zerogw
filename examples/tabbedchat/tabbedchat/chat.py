@@ -6,3 +6,6 @@ class Service(object):
 
     def __call__(self, msg):
         print(msg)
+
+    def configure(self, loop):
+        pass

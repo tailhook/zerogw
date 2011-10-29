@@ -1,6 +1,8 @@
 import zmq
 import json
 
+from . import redis
+
 
 def utf(val):
     """Little helper function which turns strings to utf-8 encoded bytes"""
@@ -41,18 +43,28 @@ class Loop(object):
         self._ctx = zmq.Context(1)
         self._poller = zmq.Poller()
         self._handlers = {}
+        self._redises = {}
+        self._outputs = {}
 
     def add_service(self, name, obj, **settings):
         sock = self._make_socket(zmq.PULL, settings)
         self._poller.register(sock, zmq.POLLIN)
         self._handlers[sock] = obj
+        obj.configure(self)
 
     def add_output(self, name, **settings):
         sock = self._make_socket(zmq.PUB, settings)
-        self._outputs = Output(sock)
+        self._outputs[name] = Output(sock)
 
-    def add_redis(self, name, socket=None):
-        pass
+    def add_redis(self, name, *, socket):
+        self._redises[name] = redis.Redis(socket_path=socket)
+
+    def get(self, name):
+        if name in self._outputs:
+            return self._outputs[name]
+        if name in self._redises:
+            return self._redises[name]
+        raise KeyError(name)
 
     def _make_socket(self, kind, settings):
         sock = self._ctx.socket(kind)
@@ -86,22 +98,23 @@ class Output(object):
     def drop(self, topic):
         self._do_send((b'drop', utf(topic)))
 
-    def send(self, user, data):
+    def send(self, conn, data):
         self._do_send((b'send', cid(conn), blob(data)))
 
     def publish(self, topic, data):
         self._do_send((b'publish', utf(topic), blob(data)))
 
-    def add_output(self, user, prefix, name):
+    def add_output(self, conn, prefix, name):
         self._do_send((b'add_output', cid(conn), utf(prefix), utf(name)))
 
-    def del_output(self, user, prefix, name):
+    def del_output(self, conn, prefix, name):
         self._do_send((b'del_output', cid(conn), utf(prefix), utf(name)))
 
-    def disconnect(self, user):
+    def disconnect(self, conn):
         self._do_send((b'disconnect', cid(conn)))
 
     def _do_send(self, data):
         # TODO(tailhook) handle errors
-        self.send_multipart(data)
+        print("SENDING", data)
+        self._sock.send_multipart(data)
 

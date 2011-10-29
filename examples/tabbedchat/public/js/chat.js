@@ -4,12 +4,12 @@ $(function() {
         $("#nobuttons").hide();
         $("#login, #register").show();
     }
+    websock.onmessage = function(ev) {
+        if(window.console) console.log("GOT", ev);
+    }
     function call() {
         if(window.console) console.log("CALLING", arguments);
         websock.send(JSON.stringify(Array.prototype.slice.call(arguments, 0)));
-    }
-    function recv(ev) {
-        if(window.console) console.log("GOT", ev);
     }
 
     $("#preloader").hide();

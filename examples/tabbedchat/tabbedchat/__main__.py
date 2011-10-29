@@ -39,7 +39,7 @@ def main():
         connect=options.output_connect,
         bind=options.output_bind,
         )
-    lp.add_redis('main', socket='./run/redis.sock')
+    lp.add_redis('redis', socket='./run/redis.sock')
     lp.add_service('auth', auth.Service(),
         connect=options.auth_connect,
         bind=options.auth_bind,

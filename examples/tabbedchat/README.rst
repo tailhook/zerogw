@@ -26,7 +26,8 @@ Redis Data Layout
 * ``user:<id>:rooms`` -- currently joined rooms for this user
 * ``user:<id>:bookmarks`` -- rooms for last session, to recover on login
 * ``session:<sid>`` -- id of user with specified session (until expires)
-* ``niknames`` -- hash of nikname to user id
+* ``nicknames`` -- hash of nickname to user id
+* ``next:user_id`` -- next user id counter
 * ``room:<id>:name`` -- name of the room
 * ``room:<id>:topic`` -- topic of the room
 * ``room:<id>:users`` -- redis set of user id's of participants
