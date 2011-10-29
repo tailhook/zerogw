@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Tabbed chat zerogw example</title>
+        <link rel="stylesheet" href="/css/main.css">
+        <link rel="stylesheet" href="/css/ui-lightness/tabs.css">
+        <script src="/js/jquery.js"></script>
+        <script src="/js/jquery-ui.js"></script>
+        <script src="/js/ws.js"></script>
+        <script src="/js/chat.js"></script>
+    </head>
+    <body>
+        <div id="preloader">
+        Hi fellow visitor! You need some javascript to run this page. In case
+        you have, you may need to wait a little bit.
+        </div>
+
+        <div id="tabs" style="display:none">
+            <ul>
+                <li><a href="#tabs-1">Register</a></li>
+            </ul>
+            <div id="tabs-1">
+                <form id="loginform">
+                    <ul>
+                        <li>
+                            <label for="a_login">Login</label>
+                            <input type="text" name="login" id="a_login">
+                        </li>
+                        <li>
+                            <label for="a_login">Password</label>
+                            <input type="password" name="password" id="a_password">
+                        </li>
+                        <li id="nobuttons">
+                            Will be able to login when connection established
+                        </li>
+                        <li>
+                            <button id="login">login</button>
+                            <button id="register">register</button>
+                        </li>
+                    </ul>
+                </form>
+            </div>
+            <script>
+            </script>
+        </div>
+
+        <div id="confirm" style="display:none">
+            <ul>
+                <li><input type="password" id="c_password1"></li>
+                <li><input type="password" id="c_password2"></li>
+                <li><button id="c_ok">OK</button></li>
+            </ul>
+        </div>
+
+    </body>
+</html>

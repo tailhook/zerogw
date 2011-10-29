@@ -1,0 +1,54 @@
+# Zerogw's configuration library allows you to override variables
+# from a command line, so we create one, to be able to override port and socket
+# directory. See ./scale.sh for example of how to use it
+# (we use yaml anchors and $-style variables interchangeably with coyaml)
+_port: &port 8000
+_dir: &dir ./run
+
+Server:
+  zmq-io-threads: 1
+  disk-io-threads: 1
+  listen:
+    - host: 0.0.0.0
+      port: *port
+  status:
+    socket:
+    - !zmq.Bind ipc://$dir/zerogw
+  control:
+    socket:
+    - !zmq.Bind ipc://$dir/zerogw-ctl
+  error-log:
+    level: 3
+    warning-timeout: 300
+    error: ./run/error.log
+
+Routing:
+  routing: !Prefix ~
+  routing-by: !Uri ~
+  map:
+    "/":
+      static:
+        enabled: yes
+        root: ./public
+        restrict-root: no  # bad for production
+        index-file: index.html
+    "/ws*":
+      websocket:
+        enabled: yes
+        forward: !zmq.Push
+        - !zmq.Bind "ipc://$dir/auth.sock"
+        named-outputs:
+          chat: !zmq.Push
+            sync-interval: 30
+            =:
+            - !zmq.Bind "ipc://$dir/chat.sock"
+        subscribe: !zmq.Pull
+        - !zmq.Bind "ipc://$dir/output.sock"
+  children:
+    - match:
+      - "/js/*"
+      - "/css/*"
+      static:
+        enabled: yes
+        root: ./public
+        restrict-root: no  # bad for production

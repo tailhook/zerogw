@@ -3,6 +3,8 @@
 .waf*
 .lock-*
 *.pyc
+*.pyo
+__pycache__
 zerogw-*.tar.bz2
 *~
 *.swp

@@ -1,0 +1,21 @@
+button {
+    width: 150px;
+}
+
+html, body {
+    min-height: 100%;
+}
+ul {
+    list-style: none;
+}
+#loginform label {
+    width: 128px;
+    display: inline-block;
+}
+#tabs {
+    position: fixed;
+    top: 5px;
+    bottom: 5px;
+    left: 5px;
+    right: 5px;
+}
