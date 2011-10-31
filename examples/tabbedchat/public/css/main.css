@@ -1,6 +1,9 @@
 button {
     width: 150px;
 }
+#n_add {
+    width: auto;
+}
 
 html, body {
     min-height: 100%;
@@ -19,3 +22,17 @@ ul {
     left: 5px;
     right: 5px;
 }
+#my_nickname:before {
+    content: "name:";
+    width: 64px;
+    display: inline-block;
+    color: gray;
+    font: 200px;
+}
+#my_mood:before {
+    content: "mood:";
+    width: 64px;
+    display: inline-block;
+    color: gray;
+}
+

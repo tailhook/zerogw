@@ -32,7 +32,7 @@ def main():
     ap = get_options()
     options = ap.parse_args()
 
-    logging.basicConfig(filename="./run/python.log", level=logging.INFO)
+    logging.basicConfig(filename="./run/python.log", level=logging.DEBUG)
 
     lp = loop.Loop()
     lp.add_output('output',

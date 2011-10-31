@@ -34,3 +34,4 @@ Redis Data Layout
 * ``room:<id>:moderators`` -- redis set of user id's of moderators
 * ``room:<id>:history`` -- redis list of room's history (last 100 messages)
 * ``rooms`` -- hash of room names to room ids
+* ``next:room_id`` -- next user id counter

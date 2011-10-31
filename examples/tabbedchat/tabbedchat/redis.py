@@ -40,9 +40,9 @@ class Redis(object):
         buf = bytearray()
         for cmd in commands:
             encode_command(buf, cmd)
-        self.sendall(buf)
+        self._sock.sendall(buf)
         result = []
-        for i in range(commands):
+        for i in range(len(commands)):
             result.append(self._read_one())
         if any(isinstance(r, ReplyError) for r in result):
             raise ReplyError()
@@ -65,7 +65,7 @@ class Redis(object):
             if ln < 0:
                 return None
             res = self._read_slice(ln)
-            assert self._readline() == b''
+            assert self._read_line() == b''
             return res
         else:
             raise NotImplementedError(ch)
@@ -75,7 +75,7 @@ class Redis(object):
             idx = self._buf.find(b'\r\n')
             if idx >= 0:
                 line = self._buf[:idx]
-                del self._buf[idx+2:]
+                del self._buf[:idx+2]
                 return line
             chunk = self._sock.recv(16384)
             if not chunk:
@@ -88,7 +88,9 @@ class Redis(object):
             if not chunk:
                 raise EOFError("End of file")
             self._buf += chunk
-
+        res = self._buf[:size]
+        del self._buf[:size]
+        return res
 
 
 

@@ -17,9 +17,12 @@
 
         <div id="tabs" style="display:none">
             <ul>
-                <li><a href="#tabs-1">Register</a></li>
+                <li><a href="#tabs-register">Register</a></li>
+                <li><a href="#tabs-profile">Profile</a></li>
+                <li><a href="#tabs-add">+</a></li>
             </ul>
-            <div id="tabs-1">
+
+            <div id="tabs-register">
                 <form id="loginform">
                     <ul>
                         <li>
@@ -40,8 +43,15 @@
                     </ul>
                 </form>
             </div>
-            <script>
-            </script>
+
+            <div id="tabs-profile">
+                <p id="my_nickname"></p>
+                <p id="my_mood"></p>
+            </div>
+            <div id="tabs-add">
+            <input type="text" placeholder="channel" id="n_channel">
+            <button id="n_add">Create or Join</button>
+            </div>
         </div>
 
         <div id="confirm" style="display:none">

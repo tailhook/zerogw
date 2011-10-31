@@ -4,6 +4,10 @@ import json
 from . import redis
 
 
+import logging
+log = logging.getLogger(__name__)
+
+
 def utf(val):
     """Little helper function which turns strings to utf-8 encoded bytes"""
     if isinstance(val, str):
@@ -81,6 +85,7 @@ class Loop(object):
             socks = self._poller.poll()
             for s, _ in socks:
                 msg = s.recv_multipart()
+                log.debug("Received from zerogw: %r", msg)
                 self._handlers[s](msg)
 
 
@@ -104,6 +109,9 @@ class Output(object):
     def publish(self, topic, data):
         self._do_send((b'publish', utf(topic), blob(data)))
 
+    def set_cookie(self, conn, cookie):
+        self._do_send((b'set_cookie', cid(conn), utf(cookie)))
+
     def add_output(self, conn, prefix, name):
         self._do_send((b'add_output', cid(conn), utf(prefix), utf(name)))
 
@@ -114,7 +122,7 @@ class Output(object):
         self._do_send((b'disconnect', cid(conn)))
 
     def _do_send(self, data):
+        log.debug("Sending to zerogw: %r", data)
         # TODO(tailhook) handle errors
-        print("SENDING", data)
         self._sock.send_multipart(data)
 
