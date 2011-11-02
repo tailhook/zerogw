@@ -23,7 +23,7 @@ class BaseService(object):
             return False
         if not val.startswith(self._method_prefix):
             return False
-        val = val[len('auth.'):]
+        val = val[len(self._method_prefix):]
         if val.startswith('_'):
             return False
         return True
@@ -47,7 +47,8 @@ class BaseService(object):
                 return
             try:
                 usr = User(cid=msg[0])
-                getattr(self, data[0][len('auth.'):])(usr, *data[1:])
+                meth = getattr(self, data[0][len(self._method_prefix):])
+                meth(usr, *data[1:])
             except Exception:
                 log.exception("Error handling %r", data[0])
         elif msg[1] == b'msgfrom':

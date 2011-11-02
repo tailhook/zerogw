@@ -2,6 +2,9 @@ import json
 
 from .service import BaseService
 
+import logging
+log = logging.getLogger(__name__)
+
 
 class Service(BaseService):
     _method_prefix = 'chat.'
@@ -27,13 +30,14 @@ class Service(BaseService):
         assert username, id
         self._output.subscribe(usr, 'room:{0}'.format(id))
         room_history = 'room:{0}:history'.format(id)
-        ul, _, _, _, hist = self._redis.bulk((
+        ul, _, _, _, _, hist = self._redis.bulk((
             (b"SORT", 'room:{0}:users'.format(id), b'BY', b'nosort',
                 b'GET', b'#', b'GET', b'user:*:name', b'GET', b'user:*:mood'),
             (b"SADD", 'room:{0}:users'.format(id), str(usr.uid)),
-            (b"LPUSH", room_history, json.dumps(
+            (b"SADD", 'user:{0}:rooms'.format(usr.uid), str(id)),
+            (b"RPUSH", room_history, json.dumps(
                 {"kind": "join", "author": username, "uid": usr.uid})),
-            (b"LTRIM", room_history, b'100', b'-1'),
+            (b"LTRIM", room_history, b'-100', b'-1'),
             (b"LRANGE", room_history, b'0', b'-1'),
             ))
         uit = iter(ul)
@@ -60,15 +64,18 @@ class Service(BaseService):
 
     def message(self, usr, room, txt):
         username, ismem = self._redis.bulk((
-            (b'GET', 'user:{0}:name'.format(usr.uid))
+            (b'GET', 'user:{0}:name'.format(usr.uid)),
             (b'SISMEMBER', 'user:{0}:rooms'.format(usr.uid), str(room)),
             ))
         if not ismem:
-            log.warning("Trying to wring in non-subscribed room")
+            log.warning("Trying to write in non-subscribed room")
             return
+        username = username.decode('utf-8')
+        room_history = 'room:{0}:history'.format(id)
         self._redis.bulk((
-            (b"LPUSH", 'room:{0}:history'.format(room), json.dumps(
+            (b"RPUSH", room_history, json.dumps(
                 {"text": txt, "author": username, "uid": usr.uid})),
+            (b"LTRIM", room_history, b'-100', b'-1'),
             ))
         self._output.publish('room:{0}'.format(room), ['chat.message', room, {
             'author': username,

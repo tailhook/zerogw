@@ -56,6 +56,28 @@ $(function() {
         call('chat.join', $("#n_channel").val());
     })
 
+    function userclick() {
+        var ib = $(".inputbox input", $(this).parents('.room'));
+        var v = ib.val();
+        var u = $(this).data('username');
+        if(v.length && v.trim().match(/\w$/))
+            v += ', ' + u + ', ';
+        else
+            v += u + ', ';
+        ib.val(v);
+    }
+    function mkmessage(msg) {
+        if(msg.kind == 'join') {
+            msg.text = "... joined room";
+        }
+        var res = $('<div class="msg">')
+            .text(msg.text)
+            .prepend($('<span class="user">')
+                .text(msg.author)
+                .data('username', msg.author));
+        return res;
+    }
+
     handlers['auth.ok'] = handlers['auth.registered'] = function(info) {
         $("#tabs-register").hide();
         $("#tabs").tabs('enable', 1).tabs('enable', 2).tabs('remove', 0);
@@ -72,8 +94,36 @@ $(function() {
     handlers['chat.room'] = function(info) {
         var idx = $("#tabs").tabs("length");
         var ident = 'room_'+info.ident;
-        $("#tabs").append($('<div class="room">').attr("id", ident))
+        var div = $('<div class="room">'
+            +'<div class="inputbox">'
+            +'<input type="text" class="ui-corner-all">'
+            +'<button class="send">Send</button>'
+            +'</div>').attr("id", ident);
+        $('button', div).button();
+        var body = $('<div class="body ui-corner-all">');
+        $.each(info.history, function(i, txt) {
+            body.append(mkmessage(txt));
+        });
+        div.append(body);
+        var userlist = $('<div class="userlist ui-corner-all">');
+        $.each(info.users, function(i, user) {
+            userlist.append($('<div class="user ui-corner-all">')
+                .text(user.name).data('username', user.name)
+                .append($('<span class="mood">').text(user.mood)));
+        });
+        div.append(userlist);
+        $('.user', div).click(userclick);
+        $('button.send', div).click(function() {
+            call('chat.message', info.ident, $(".inputbox input", div).val());
+        });
+        $("#tabs").append(div)
             .tabs("add", '#'+ident, info.name, idx-2)
             .tabs("select", idx-2);
+    }
+    handlers['chat.message'] = function(room_id, data) {
+        var msg = mkmessage(data)
+        msg.find('.user').click(userclick);
+        $('#room_'+room_id+' div.body').append(msg)
+
     }
 });
