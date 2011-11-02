@@ -71,7 +71,7 @@ class Service(BaseService):
             log.warning("Trying to write in non-subscribed room")
             return
         username = username.decode('utf-8')
-        room_history = 'room:{0}:history'.format(id)
+        room_history = 'room:{0}:history'.format(room)
         self._redis.bulk((
             (b"RPUSH", room_history, json.dumps(
                 {"text": txt, "author": username, "uid": usr.uid})),

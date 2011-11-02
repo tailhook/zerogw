@@ -113,9 +113,18 @@ $(function() {
         });
         div.append(userlist);
         $('.user', div).click(userclick);
-        $('button.send', div).click(function() {
-            call('chat.message', info.ident, $(".inputbox input", div).val());
-        });
+        function sendmessage() {
+            var val = $(".inputbox input", div).val();
+            call('chat.message', info.ident, val);
+            $(".inputbox input", div).val('');
+        }
+        $('button.send', div).click(sendmessage);
+        $(".inputbox input", div).keydown(function(ev) {
+            if(ev.which == 13) {
+                sendmessage();
+                ev.preventDefault();
+            }
+        })
         $("#tabs").append(div)
             .tabs("add", '#'+ident, info.name, idx-2)
             .tabs("select", idx-2);
