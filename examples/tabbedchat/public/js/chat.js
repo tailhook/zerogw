@@ -53,7 +53,7 @@ $(function() {
             });
     });
     $("#n_add").click(function(ev) {
-        call('chat.join', $("#n_channel").val());
+        call('chat.join_by_name', $("#n_channel").val());
     })
 
     function userclick() {
@@ -77,18 +77,22 @@ $(function() {
                 .data('username', msg.author));
         return res;
     }
+    function mkuser(user, room_id) {
+        return $('<div class="user ui-corner-all">')
+                .attr('id', 'user_'+room_id+'_'+user.ident)
+                .text(user.name).data('username', user.name)
+                .append($('<span class="mood">').text(user.mood))
+    }
 
     handlers['auth.ok'] = handlers['auth.registered'] = function(info) {
         $("#tabs-register").hide();
         $("#tabs").tabs('enable', 1).tabs('enable', 2).tabs('remove', 0);
         $("#my_nickname").text(info.name);
         $("#my_mood").text(info.mood);
-        if(info.rooms) {
-            call('chat.join', info.rooms);
-        } else if(info.bookmarks) {
-            call('chat.join', info.bookmarks);
-        } else {
-            call('chat.join', 'kittens');
+        if(info.rooms.length) {
+            call('chat.join_by_ids', info.rooms);
+        } else if(info.bookmarks.length) {
+            call('chat.join_by_ids', info.bookmarks);
         }
     }
     handlers['chat.room'] = function(info) {
@@ -107,9 +111,7 @@ $(function() {
         div.append(body);
         var userlist = $('<div class="userlist ui-corner-all">');
         $.each(info.users, function(i, user) {
-            userlist.append($('<div class="user ui-corner-all">')
-                .text(user.name).data('username', user.name)
-                .append($('<span class="mood">').text(user.mood)));
+            userlist.append(mkuser(user, info.ident));
         });
         div.append(userlist);
         $('.user', div).click(userclick);
@@ -132,7 +134,16 @@ $(function() {
     handlers['chat.message'] = function(room_id, data) {
         var msg = mkmessage(data)
         msg.find('.user').click(userclick);
-        $('#room_'+room_id+' div.body').append(msg)
-
+        $('#room_'+room_id+' div.body').append(msg);
+    }
+    handlers['chat.joined'] = function(room_id, user) {
+        var uel = mkuser(user, room_id);
+        uel.find('.user').click(userclick);
+        var div = $('#room_'+room_id+' div.userlist');
+        if(!$('#user_'+room_id+'_'+user.ident).length) {
+            div.append(uel);
+            handlers['chat.message'](room_id, {
+                'kind': 'join', 'author': user.name, 'uid': user.ident });
+        }
     }
 });
