@@ -65,6 +65,8 @@ class BaseService(object):
                 getattr(self, data[0][len('auth.'):])(usr, *data[1:])
             except Exception:
                 log.exception("Error handling %r", data[0])
+        elif msg[1] == b'disconnect':
+            self._disconnect_(User(cid=msg[0]))
         else:
             log.warning("Wrong message %r", msg)
             return

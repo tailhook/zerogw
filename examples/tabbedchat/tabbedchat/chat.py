@@ -103,4 +103,30 @@ class Service(BaseService):
             'text': txt,
             }])
 
+    def _disconnect_(self, user):
+        uid = self._redis.execute(b'GET', b'conn:' + user.cid)
+        if uid is None:
+            return
+        uid = int(uid)
+        username, rooms = self._redis.bulk((
+            (b'GET', 'user:{0}:name'.format(uid)),
+            (b'SMEMBERS', 'user:{0}:rooms'.format(uid)),
+            ))
+        username = username.decode('utf-8')
+        bulk = []
+        for r in rooms:
+            r = int(r)
+            room_history = 'room:{0}:history'.format(r)
+            rchannel = 'room:{0}'.format(r)
+            bulk.append((b'SREM', 'room:{0}:users'.format(r), str(uid)))
+            bulk.append((b"RPUSH", room_history, json.dumps(
+                {"kind": "left", "author": username, "uid": uid})))
+            bulk.append((b"LTRIM", room_history, b'-100', b'-1'))
+            self._output.publish(rchannel, ['chat.left', r, {
+                'ident': uid,
+                }])
+        bulk.append((b'RENAME',
+            'user:{0}:rooms'.format(uid),
+            'user:{0}:bookmarks'.format(uid)))
+        self._redis.bulk(bulk)
 

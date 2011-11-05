@@ -28,6 +28,9 @@ Redis Data Layout
 * ``session:<sid>`` -- id of user with specified session (until expires)
 * ``nicknames`` -- hash of nickname to user id
 * ``next:user_id`` -- next user id counter
+* ``conn:<cid>`` -- mapping of connection id to userid
+* ``connections`` -- sorted set of connections to timestamps of last sync
+* ``sess:<sessid>`` -- mapping of session id to userid
 * ``room:<id>:name`` -- name of the room
 * ``room:<id>:topic`` -- topic of the room
 * ``room:<id>:users`` -- redis set of user id's of participants

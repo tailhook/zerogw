@@ -69,9 +69,11 @@ $(function() {
     function mkmessage(msg) {
         if(msg.kind == 'join') {
             msg.text = "... joined room";
+        } else if(msg.kidn == 'left') {
+            msg.text = "... left room";
         }
         var res = $('<div class="msg">')
-            .text(msg.text)
+            .text(msg.text || '')
             .prepend($('<span class="user">')
                 .text(msg.author)
                 .data('username', msg.author));
@@ -89,6 +91,7 @@ $(function() {
         $("#tabs").tabs('enable', 1).tabs('enable', 2).tabs('remove', 0);
         $("#my_nickname").text(info.name);
         $("#my_mood").text(info.mood);
+        document.cookie = 'session_id=' + info.session_id;
         if(info.rooms.length) {
             call('chat.join_by_ids', info.rooms);
         } else if(info.bookmarks.length) {
@@ -145,5 +148,8 @@ $(function() {
             handlers['chat.message'](room_id, {
                 'kind': 'join', 'author': user.name, 'uid': user.ident });
         }
+    }
+    handlers['chat.left'] = function(room_id, user) {
+        $('#user_'+room_id+'_'+user.ident).remove();
     }
 });
