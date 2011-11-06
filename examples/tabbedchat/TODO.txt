@@ -1,0 +1,5 @@
+* handle sessions
+* add leave room support
+* fix room restoring
+* implement mood changing
+* add avatar support
