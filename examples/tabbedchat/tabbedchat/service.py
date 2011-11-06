@@ -67,6 +67,8 @@ class BaseService(object):
                 log.exception("Error handling %r", data[0])
         elif msg[1] == b'disconnect':
             self._disconnect_(User(cid=msg[0]))
+        elif msg[1] == b'sync':
+            self._sync_(msg[2:])
         else:
             log.warning("Wrong message %r", msg)
             return

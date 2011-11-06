@@ -32,10 +32,11 @@ class Service(BaseService):
             self._output.send(user, ['auth.wrong_nickname'])
             return
         passwd = info['password']
-        uid = int(self._redis.execute(b'HGET', b'nicknames', login))
-        if not uid:
+        uid = self._redis.execute(b'HGET', b'nicknames', login)
+        if uid is None:
             self._output.send(user, ['auth.wrong_login'])
             return
+        uid = int(uid)
         password = self._redis.execute(b'GET', 'user:{0}:password'.format(uid))
         if not password:
             log.warning("There is nikname but no password")
@@ -45,17 +46,21 @@ class Service(BaseService):
             .hexdigest().encode('ascii') + sl).hexdigest().encode('ascii')
         if hs == pw:
             sessid = str(uuid.uuid4())
-            (name, mood, rooms, bmarks), _, _, _ = self._redis.bulk((
+            (name, mood, rooms, bmarks), _, ocon, _, _, _ = self._redis.bulk((
                 (b'MGET',
                     'user:{0}:name'.format(uid),
                     'user:{0}:mood'.format(uid),
                     'user:{0}:rooms'.format(uid),
                     'user:{0}:bookmarks'.format(uid)),
                 (b'SET', b'conn:' + user.cid, str(uid)),
-                (b'SADD', b'connections', user.cid, str(int(time.time()))),
-                (b'SET', 'sess:' + sessid, str(uid)),
+                (b'GET', 'user:{0}:conn'.format(uid)),
+                (b'SET', 'user:{0}:conn'.format(uid), user.cid),
+                (b'ZADD', b'connections', str(int(time.time())), user.cid),
+                (b'SETEX', 'sess:' + sessid, b'7200', str(uid)),
                 ))
             assert user.cid, user.__dict__
+            if ocon is not None:
+                self._output.disconnect(ocon)
             self._output.set_cookie(user, "user:{0}".format(uid))
             self._output.add_output(user, b'["chat.', b'chat')
             self._output.send(user, ['auth.ok', {
@@ -95,9 +100,11 @@ class Service(BaseService):
                 'user:{0}:password'.format(uid), pw,
                 'user:{0}:mood'.format(uid), "New user"),
             (b'SET', b'conn:' + user.cid, str(uid)),
-            (b'SADD', b'connections', user.cid, str(int(time.time()))),
+            (b'SET', 'user:{0}:conn'.format(uid), user.cid),
+            (b'ZADD', b'connections', str(int(time.time())), user.cid),
             (b'SETEX', 'sess:' + sessid, b'7200', str(uid)),
             ))
+        self._output.set_cookie(user, "user:{0}".format(uid))
         self._output.add_output(user, b'["chat.', b'chat')
         self._output.send(user, ['auth.registered', {
             'ident': uid,

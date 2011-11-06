@@ -39,7 +39,7 @@ Routing:
         - !zmq.Bind "ipc://$dir/auth.sock"
         named-outputs:
           chat: !zmq.Push
-            sync-interval: 30
+            sync-interval: 10  # too low, for example purposes
             =:
             - !zmq.Bind "ipc://$dir/chat.sock"
         subscribe: !zmq.Pull

@@ -1,6 +1,7 @@
 import json
+import time
 
-from .service import BaseService
+from .service import BaseService, User
 
 import logging
 log = logging.getLogger(__name__)
@@ -108,10 +109,14 @@ class Service(BaseService):
         if uid is None:
             return
         uid = int(uid)
-        username, rooms = self._redis.bulk((
+        username, conn, rooms = self._redis.bulk((
             (b'GET', 'user:{0}:name'.format(uid)),
+            (b'GET', 'user:{0}:conn'.format(uid)),
             (b'SMEMBERS', 'user:{0}:rooms'.format(uid)),
             ))
+        if conn != user.cid:
+            # it's old, already dropped connection
+            return
         username = username.decode('utf-8')
         bulk = []
         for r in rooms:
@@ -125,8 +130,23 @@ class Service(BaseService):
             self._output.publish(rchannel, ['chat.left', r, {
                 'ident': uid,
                 }])
-        bulk.append((b'RENAME',
-            'user:{0}:rooms'.format(uid),
-            'user:{0}:bookmarks'.format(uid)))
+        if rooms:
+            bulk.append((b'RENAME',
+                'user:{0}:rooms'.format(uid),
+                'user:{0}:bookmarks'.format(uid)))
         self._redis.bulk(bulk)
+
+    def _sync_(self, pairs):
+        iterpairs = iter(pairs)
+        zadd = [b'ZADD', b'connections']
+        tm = int(time.time())
+        for cid, cookie in zip(iterpairs, iterpairs):
+            zadd.append(str(tm))
+            zadd.append(cid)
+        _, exp, _ = self._redis.bulk((zadd,
+            (b'ZRANGEBYSCORE', 'connections', b'-inf', str(tm - 20)),
+            (b'ZREMRANGEBYSCORE', 'connections', b'-inf', str(tm - 20)),
+            ))
+        for conn in exp:
+            self._disconnect_(User(cid=conn))
 

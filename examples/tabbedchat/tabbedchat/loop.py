@@ -36,7 +36,7 @@ def blob(val):
 def cid(val):
     if hasattr(val, 'cid'):
         return val.cid
-    assert isinstance(val, bytes), ("Connection must be bytes "
+    assert isinstance(val, (bytes, bytearray)), ("Connection must be bytes "
         "or object having cid property")
     return val
 

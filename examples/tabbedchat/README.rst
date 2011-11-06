@@ -25,6 +25,7 @@ Redis Data Layout
 * ``user:<id>:mood`` -- user's status string
 * ``user:<id>:rooms`` -- currently joined rooms for this user
 * ``user:<id>:bookmarks`` -- rooms for last session, to recover on login
+* ``user:<id>:conn`` -- user's current connection id
 * ``session:<sid>`` -- id of user with specified session (until expires)
 * ``nicknames`` -- hash of nickname to user id
 * ``next:user_id`` -- next user id counter

@@ -87,14 +87,15 @@ $(function() {
     }
 
     handlers['auth.ok'] = handlers['auth.registered'] = function(info) {
+        $("#confirm").dialog("close");
         $("#tabs-register").hide();
         $("#tabs").tabs('enable', 1).tabs('enable', 2).tabs('remove', 0);
         $("#my_nickname").text(info.name);
         $("#my_mood").text(info.mood);
         document.cookie = 'session_id=' + info.session_id;
-        if(info.rooms.length) {
+        if(info.rooms && info.rooms.length) {
             call('chat.join_by_ids', info.rooms);
-        } else if(info.bookmarks.length) {
+        } else if(info.bookmarks && info.bookmarks.length) {
             call('chat.join_by_ids', info.bookmarks);
         }
     }

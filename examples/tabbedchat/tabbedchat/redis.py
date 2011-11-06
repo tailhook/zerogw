@@ -45,7 +45,7 @@ class Redis(object):
         for i in range(len(commands)):
             result.append(self._read_one())
         if any(isinstance(r, ReplyError) for r in result):
-            raise ReplyError()
+            raise ReplyError([r for r in result if isinstance(r, ReplyError)])
         return result
 
     def _read_one(self):
