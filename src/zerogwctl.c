@@ -32,6 +32,7 @@ void print_usage(FILE *out) {
     fprintf(out, "                    websockets to backends (useful to\n");
     fprintf(out, "                    restart backend)\n");
     fprintf(out, "  sync_now          Synchonize connected users now");
+    fprintf(out, "  reopen_logs       Reopens log files");
     fprintf(out, "\n");
 }
 

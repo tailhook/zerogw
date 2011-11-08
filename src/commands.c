@@ -41,7 +41,8 @@ void recv_command(struct ev_loop *loop, struct ev_io *io, int rev) {
             REPLY_SHORT(sock, msg, "list_commands", TRUE);
             REPLY_SHORT(sock, msg, "pause_websockets", TRUE);
             REPLY_SHORT(sock, msg, "resume_websockets", TRUE);
-            REPLY_SHORT(sock, msg, "sync_now", FALSE);
+            REPLY_SHORT(sock, msg, "sync_now", TRUE);
+            REPLY_SHORT(sock, msg, "reopen_logs", FALSE);
         } else if COMMAND(get_statistics) {
             char buf[4096];
             len = format_statistics(buf);
@@ -60,6 +61,13 @@ void recv_command(struct ev_loop *loop, struct ev_io *io, int rev) {
             LWARN("Forcing users sync");
             websockets_sync_now();
             REPLY_SHORT(sock, msg, "sync_sent", FALSE);
+        } else if COMMAND(reopen_logs) {
+            LWARN("Forcing log reopen");
+            if(reopenlogs()) {
+                REPLY_SHORT(sock, msg, "logs_reopened", FALSE);
+            } else {
+                REPLY_SHORT(sock, msg, "cant_reopen_logs", FALSE);
+            }
         } else {
             REPLY_SHORT(sock, msg, "error", FALSE);
         }

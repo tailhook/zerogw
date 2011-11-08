@@ -11,6 +11,7 @@ Server:
     socket:
     - !zmq.Bind ipc:///tmp/zerogw-ctl
   error-log:
+    filename: /tmp/zerogw.log
     level: 5
     warning-timeout: 300
   mime-types:

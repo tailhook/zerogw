@@ -683,7 +683,7 @@ __types__:
         and a minute or so on overloaded server, unless
         you know truth by some other means)
       command-line: [-w, --warning-timeout]
-    error: !File
+    filename: !File
       default: "/var/log/zerogw/error.log"
       check-existence: no
       check-dir: yes

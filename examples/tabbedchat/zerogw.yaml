@@ -20,7 +20,7 @@ Server:
   error-log:
     level: 3
     warning-timeout: 300
-    error: ./run/error.log
+    filename: ./run/error.log
 
 Routing:
   routing: !Prefix ~

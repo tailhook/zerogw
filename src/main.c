@@ -132,12 +132,18 @@ static void sigint_cb (struct ev_loop *loop, ev_signal *w, int revents)
     ev_break (loop, EVBREAK_ALL);
 }
 
+static void sighup_cb (int signal)
+{
+    reopenlogs();
+}
+
 int main(int argc, char **argv) {
     config_main_t config;
     config_load(&config, argc, argv);
     logconfig = (config_logging_t *)&config.Server.error_log;
+    openlogs();
 
-    signal(SIGHUP, SIG_IGN);
+    signal(SIGHUP, sighup_cb);
     signal(SIGPIPE, SIG_IGN);
 
     root.loop = ev_default_loop(0);

@@ -83,7 +83,7 @@ void logmsg(int level, char *file, int line, char *msg, ...);
 void logstd(int level, char *file, int line, char *msg, ...);
 void timedwarn(time_t *tt, char *file, int line, char *msg, ...);
 void openlogs();
-void reopenlogs();
+bool reopenlogs();
 void *safe_realloc(void *ptr, int size, char *file, int line);
 void *obstack_chunk_alloc(int len);
 void obstack_chunk_free(void *ptr);

@@ -113,9 +113,9 @@ void setcloexec(int fd) {
 }
 
 void openlogs() {
-    if(logconfig->error) {
+    if(logconfig->filename) {
         int oldlogfile = logfile;
-        logfile = open(logconfig->error, O_APPEND|O_WRONLY|O_CREAT, 0666);
+        logfile = open(logconfig->filename, O_APPEND|O_WRONLY|O_CREAT, 0666);
         if(logfile <= 0) {
             logfile = oldlogfile;
             LWARN("Can't open logfile. Continuing writing to stdout");
@@ -128,22 +128,25 @@ void openlogs() {
     }
 }
 
-void reopenlogs() {
-    if(logconfig->error) {
+bool reopenlogs() {
+    if(logconfig->filename) {
         int oldlogfile = logfile;
-        logfile = open(logconfig->error, O_APPEND|O_WRONLY|O_CREAT, 0666);
+        logfile = open(logconfig->filename, O_APPEND|O_WRONLY|O_CREAT, 0666);
         if(logfile <= 0) {
             logfile = oldlogfile;
             SWARN2("Can't open logfile. Continuing writing old file");
+            return FALSE;
         } else {
             LINFO("New log file successfully opened");
             setcloexec(logfile);
             dup2(logfile, STDOUT);
             dup2(logfile, STDERR);
             close(oldlogfile);
+            return TRUE;
         }
     } else {
         LWARN("No logfile specified");
+        return FALSE;
     }
 }
 
