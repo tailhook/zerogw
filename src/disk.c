@@ -547,7 +547,7 @@ static int read_mime_types(struct obstack *buf, mime_table_t *matcher,
         do {
             LDEBUG("Adding mime ``%s'' -> ``%s''", tok, mtype);
             char *old = mime_add(root.disk.mime_table, tok, mtype);
-            if(old) {
+            if(old && !root.config->Server.mime_types.no_warnings) {
                 LWARN("Conflicting mime for ``%s'' using ``%s''", tok, old);
             }
             tok = strtok_r(NULL, " \t\r\n", &tokptr);
@@ -586,7 +586,7 @@ int prepare_disk(config_main_t *config) {
     CONFIG_STRING_STRING_LOOP(item, config->Server.mime_types.extra) {
         LDEBUG("Adding mime ``%s'' -> ``%s''", item->key, item->value);
         char *old = mime_add(root.disk.mime_table, item->key, item->value);
-        if(old) {
+        if(old && !root.config->Server.mime_types.no_warnings) {
             LWARN("Conflicting mime for ``%s'' using ``%s''", item->key, old);
         }
     }

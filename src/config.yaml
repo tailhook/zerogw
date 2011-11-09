@@ -754,6 +754,11 @@ Server:
     element: !Struct listenaddr
 
   mime-types:
+    no-warnings: !Bool
+      default: False
+      description: >
+        Turn off mime-types warnings to make output less verbose.
+      command-line-enable: [--no-mime-warnings]
     file: !File
       default: /etc/mime.types
       check-existence: yes
