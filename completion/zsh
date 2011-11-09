@@ -1,0 +1,19 @@
+#compdef zerogwctl
+
+_zerogwctl() {
+    local commands
+    commands=(
+        list_commands
+        get_statistics
+        pause_websockets
+        resume_websockets
+        reopen_logs
+        )
+    _arguments -s \
+        '1:command:('"${commands[*]}"')' \
+        '--help[show help]' \
+        '(-s --socket -c --config)'{-c+,--config+}'[configuration file]:configuration file:_files -g "*.yaml"' \
+        '(-c -s --socket --config)'{-s+,--socket+}'[socket file]:socket file:_files'
+}
+
+_zerogwctl "$@"

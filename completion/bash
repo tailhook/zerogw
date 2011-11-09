@@ -1,0 +1,28 @@
+#!/bin/bash
+
+_zerogwctl()
+{
+    local cur prev commands
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    commands=(
+        list_commands
+        get_statistics
+        pause_websockets
+        resume_websockets
+        reopen_logs
+        --help
+        -c --config
+        -s --socket
+        )
+    case "${prev}" in
+        -c|--config|-s|--socket)
+            COMPREPLY=( $(compgen -A file ${cur}) )
+            ;;
+        *)
+            COMPREPLY=( $(compgen -W "${commands[*]}" -- ${cur}) )
+            ;;
+    esac
+}
+complete -F _zerogwctl zerogwctl
+

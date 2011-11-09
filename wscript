@@ -69,8 +69,14 @@ def build(bld):
 
     if bld.env['PREFIX'] == '/usr':
         bld.install_files('/etc', ['examples/zerogw.yaml'])
+        bld.install_as('/etc/bash_completion.d/zerogwctl',
+            'completion/bash')
     else:
         bld.install_files('${PREFIX}/etc', ['examples/zerogw.yaml'])
+        bld.install_as('${PREFIX}/etc/bash_completion.d/zerogwctl',
+            'completion/bash')
+    bld.install_as('${PREFIX}/share/zsh/site-functions/_zerogwctl',
+        'completion/zsh')
 
 def dist(ctx):
     ctx.excl = [
