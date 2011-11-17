@@ -3,7 +3,6 @@
 
  Websockets:
  + Add error pages for http polling
- + Implement or disable more output and input formats for polling
  - Review ws.js, limit number of requests, introduce queue, data batching
  - Implement pseudo peer-to-peer communication support (?)
  + Make Push by default (probably in the 0.6 or 1.0)

@@ -12,9 +12,7 @@
 
 typedef enum {
     FMT_SINGLE,
-    FMT_MULTIPART,
-    FMT_JSON,
-    FMT_JSON_STRING
+    FMT_JSONLIST
 } format_enum;
 
 typedef enum {
@@ -45,17 +43,9 @@ static format_enum parse_format(char *name, int nlen) {
                 return FMT_SINGLE;
             }
             break;
-        case 'm':
-            if(nlen == 9 && !strncmp(name, "multipart", 9)) {
-                return FMT_MULTIPART;
-            }
-            break;
         case 'j':
-            if(nlen == 4 && !strncmp(name, "json", 4)) {
-                return FMT_JSON;
-            }
-            if(nlen == 7 && !strncmp(name, "jsonstr", 7)) {
-                return FMT_JSON_STRING;
+            if(nlen == 8 && !strncmp(name, "jsonlist", 8)) {
+                return FMT_JSONLIST;
             }
             break;
     }
@@ -376,8 +366,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
                 &((frontend_msg_t *)TAILQ_FIRST(&comet->queue.items))->zmsg));
             SNIMPL(ws_reply_data(req, zmq_msg_data(&mreq->response_msg),
                 zmq_msg_size(&mreq->response_msg)));
-        } else if(comet->cur_format == FMT_MULTIPART) {
-            char boundary[32] = "---------------WebsockZerogwPart";
+        } else if(comet->cur_format == FMT_JSONLIST) {
             int num = comet->queue.size;
             if(num > comet->cur_limit) {
                 num = comet->cur_limit;
@@ -386,36 +375,36 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             ws_statusline(req, "200 OK");
             sprintf(buf, "%i", num);
             ws_add_header(req, "X-Messages", buf);
-            sprintf(buf, "%i", comet->first_index + comet->queue.size);
+            sprintf(buf, "%i", comet->first_index + comet->queue.size - 1);
             ws_add_header(req, "X-Last-ID", buf);
-            ws_add_header(req, "X-Format", "multipart");
-            sprintf(buf, "multipart/mixed; boundary=\"%s\"", boundary);
-            ws_add_header(req, "Content-Type", buf);
+            ws_add_header(req, "X-Format", "json");
+            ws_add_header(req, "Content-Type", "application/json");
             nocache_headers(req);
             timestamp_headers(mreq);
             ws_finish_headers(req);
             obstack_blank(&req->pieces, 0);
-            obstack_grow(&req->pieces,
-                "Parts following\r\n", strlen("Parts following\r\n"));
-            obstack_grow(&req->pieces, boundary, sizeof(boundary));
+            obstack_1grow(&req->pieces, '[');
             frontend_msg_t *msg = (frontend_msg_t *)TAILQ_FIRST(
                 &comet->queue.items);
-            for(int i = 0; i < num; ++i) {
-                msg = (frontend_msg_t *)TAILQ_NEXT(msg, qhead.list);
+            for(int i = num-1; i >= 0; --i) {
                 root.stat.comet_sent_messages += 1;
-                obstack_grow(&req->pieces,
-                    "\r\nContent-Type: application/octed-stream\r\n"
-                        "X-Message-ID: ",
-                    strlen("\r\nContent-Type: application/octed-stream\r\n"
-                        "X-Message-ID "));
-                int len = sprintf(buf, "%i", comet->first_index + i);
-                obstack_grow(&req->pieces, buf, len);
-                obstack_grow(&req->pieces, "\r\n\r\n", 4);
-                obstack_grow(&req->pieces, zmq_msg_data(&msg->zmsg),
-                    zmq_msg_size(&msg->zmsg));
-                obstack_grow(&req->pieces, boundary, sizeof(boundary));
+                char *data = zmq_msg_data(&msg->zmsg);
+                int datasize = zmq_msg_size(&msg->zmsg);
+                if(datasize > 7 /*strlen("ZEROGW:")*/
+                    && !strncmp(data, "ZEROGW:", 7)) {
+                    obstack_1grow(&req->pieces, '"');
+                    // TODO(tailhook) escape value if needed
+                    obstack_grow(&req->pieces, data, datasize);
+                    obstack_1grow(&req->pieces, '"');
+                } else {
+                    obstack_grow(&req->pieces, data, datasize);
+                }
+                if(i > 0) {
+                    obstack_1grow(&req->pieces, ',');
+                }
+                msg = (frontend_msg_t *)TAILQ_NEXT(msg, qhead.list);
             }
-            obstack_grow(&req->pieces, "--\r\n", 2);
+            obstack_1grow(&req->pieces, ']');
             int len = obstack_object_size(&req->pieces);
             ws_reply_data(req, obstack_finish(&req->pieces), len);
         } else {
