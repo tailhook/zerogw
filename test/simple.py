@@ -214,7 +214,9 @@ class CheckingWebsock(object):
         self.testcase.assertEqual(b'',
             self._getresponse().read())
         self.testcase.assertEqual(self.testcase.backend_recv(name),
-            [self.intid, b'msgfrom', self.cookie.encode('utf-8'), body.encode('utf-8')])
+            [self.intid, b'msgfrom',
+                self.cookie.encode('utf-8'),
+                body.encode('utf-8')])
 
     def client_read(self):
         self.http.request("GET",
@@ -382,10 +384,12 @@ class Chat(Base):
         wb.add_output('game2', 'minigame')
         time.sleep(0.1)
         self.assertEqual(self.control('sync_now'), [b'sync_sent'])
+        time.sleep(0.1)
         self.checkSync(self.backend_recv('minigame'), [wa, wb])
         wa.del_output('game1')
         time.sleep(0.1)
         self.assertEqual(self.control('sync_now'), [b'sync_sent'])
+        time.sleep(0.1)
         self.checkSync(self.backend_recv('minigame'), [wb])
         wa.close()
         wb.close()
@@ -501,6 +505,7 @@ class Chat(Base):
         ws1.client_send('ok')
         self.assertAlmostEqual(ws1.last_timestamp, time.time(), 2)
         ws1.close()
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -2,7 +2,7 @@ import zmq
 import unittest
 from http import client as http
 
-from .simple import Base
+from .simple import Base, TimeoutError
 
 CONFIG='test/wlimit.yaml'
 CHAT_FW = "ipc:///tmp/zerogw-test-chatfw"
