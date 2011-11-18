@@ -485,7 +485,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             Z_RECV_NEXT(msg);
             if(zmq_msg_size(&msg) != UID_LEN) goto msg_error;
             hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
-            if(!hybi) goto msg_error;
+            if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_LAST(msg);
             topic_t *topic = find_topic(hybi->route, &msg, TRUE);
             if(topic && topic_subscribe(hybi, topic)) {
@@ -498,11 +498,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             Z_RECV_NEXT(msg);
             if(zmq_msg_size(&msg) != UID_LEN) goto msg_error;
             hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
-            if(!hybi) goto msg_error;
-            if(hybi->route != route) {
-                TWARN("Connection has wrong route, skipping...");
-                goto msg_error;
-            }
+            if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_LAST(msg);
             topic_t *topic = find_topic(route, &msg, FALSE);
             if(!topic) goto msg_error;
@@ -522,7 +518,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             LDEBUG("Websocket got SEND request");
             Z_RECV_NEXT(msg);
             hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
-            if(!hybi) goto msg_error;
+            if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_LAST(msg);
             message_t *mm = (message_t*)malloc(sizeof(message_t));
             ANIMPL(mm);
@@ -547,7 +543,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             LDEBUG("Adding output");
             Z_RECV_NEXT(msg);
             hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
-            if(!hybi) goto msg_error;
+            if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_NEXT(msg);
             zmq_msg_t prefix;
             zmq_msg_init(&prefix);
@@ -620,7 +616,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             LDEBUG("Removing output");
             Z_RECV_NEXT(msg);
             hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
-            if(!hybi) goto msg_error;
+            if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_LAST(msg);
             int len = zmq_msg_size(&msg);
             char *data = zmq_msg_data(&msg);
@@ -641,7 +637,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             LDEBUG("Setting connection cookie");
             Z_RECV_NEXT(msg);
             hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
-            if(!hybi) goto msg_error;
+            if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_LAST(msg);
             if(!(hybi->flags & WS_HAS_COOKIE)) {
                 zmq_msg_init(&hybi->cookie);
@@ -652,7 +648,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             LDEBUG("Setting connection cookie");
             Z_RECV_LAST(msg);
             hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
-            if(hybi) {
+            if(hybi && hybi->route == route) {
                 if(hybi->type == HYBI_COMET) {
                     comet_close(hybi);
                 } else if(hybi->type == HYBI_WEBSOCKET) {
