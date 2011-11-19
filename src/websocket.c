@@ -645,7 +645,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             SNIMPL(zmq_msg_move(&hybi->cookie, &msg));
             hybi->flags |= WS_HAS_COOKIE;
         } else if(cmdlen == 10 && !memcmp(cmd, "disconnect", cmdlen)) {
-            LDEBUG("Setting connection cookie");
+            LDEBUG("Closing connection");
             Z_RECV_LAST(msg);
             hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
             if(hybi && hybi->route == route) {
@@ -731,7 +731,9 @@ static void send_sync(struct ev_loop *loop,
         SNIMPL(zmq_msg_init_size(&msg, UID_LEN));
         memcpy(zmq_msg_data(&msg), item->connection->uid, UID_LEN);
         SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE));
-        zmq_msg_copy(&msg, &item->connection->cookie);
+        if(item->connection->flags & WS_HAS_COOKIE) {
+            zmq_msg_copy(&msg, &item->connection->cookie);
+        }
     }
 
     SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK));
