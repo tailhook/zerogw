@@ -25,8 +25,16 @@ HTTP_ADDR = "/tmp/zerogw-test"
 STATUS_ADDR = "ipc:///tmp/zerogw-test-status"
 CONTROL_ADDR = "ipc:///tmp/zerogw-test-control"
 
+
+def stop_process(proc):
+    if proc.poll() is None:
+        proc.terminate()
+    proc.wait()
+
+
 class TimeoutError(Exception):
     pass
+
 
 class Base(unittest.TestCase):
     config = CONFIG
@@ -42,6 +50,7 @@ class Base(unittest.TestCase):
             except OSError:
                 pass
         self.proc = subprocess.Popen([ZEROGW_BINARY, '-c', self.config])
+        self.addCleanup(stop_process, self.proc)
 
     def http(self, host='localhost'):
         conn = http.HTTPConnection(host, timeout=1.0)
@@ -61,9 +70,6 @@ class Base(unittest.TestCase):
     def websock(self, **kw):
         return CheckingWebsock(self, **kw)
 
-    def tearDown(self):
-        self.proc.terminate()
-        self.proc.wait()
 
 class HTTP(Base):
     timeout = 2
@@ -97,11 +103,11 @@ class HTTP(Base):
 
     def testHttp(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/crossdomain.xml')
         resp = conn.getresponse()
         self.assertTrue(b'cross-domain-policy' in resp.read())
         self.assertTrue(resp.headers['Date'])
-        conn.close()
 
     def testEcho(self):
         conn = self.http()
@@ -151,6 +157,7 @@ class WebSocket(Base):
 
     def testConnAndClose(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/chat?action=CONNECT')
         id = conn.getresponse().read().decode('ascii')
         self.assertTrue(id)
@@ -161,7 +168,6 @@ class WebSocket(Base):
         conn.request('GET', '/chat?action=CLOSE&id=' + id)
         resp = conn.getresponse()
         self.assertEqual(resp.getheader('X-Connection'), 'close')
-        conn.close()
 
 class CheckingWebsock(object):
 
@@ -269,13 +275,17 @@ class Chat(Base):
 
     def do_init(self):
         self.zmq = zmq.Context(1)
+        self.addCleanup(self.zmq.term)
         super().do_init()
         self.chatfw = self.zmq.socket(zmq.PULL)
         self.chatfw.connect(CHAT_FW)
+        self.addCleanup(self.chatfw.close)
         self.chatout = self.zmq.socket(zmq.PUB)
         self.chatout.connect(CHAT_SOCK)
+        self.addCleanup(self.chatout.close)
         self.minigame = self.zmq.socket(zmq.PULL)
         self.minigame.connect(MINIGAME)
+        self.addCleanup(self.minigame.close)
         time.sleep(START_TIMEOUT)  # sorry, need for zmq sockets
 
     def control(self, *args):
@@ -308,13 +318,6 @@ class Chat(Base):
         if val[1] == b'heartbeat':
             return self.backend_recv(backend=backend)
         return val
-
-    def tearDown(self):
-        self.chatout.close()
-        self.chatfw.close()
-        self.minigame.close()
-        super().tearDown()
-        self.zmq.term()
 
     def testSimple(self):
         ws = self.websock()

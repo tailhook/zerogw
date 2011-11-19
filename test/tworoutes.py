@@ -13,10 +13,13 @@ class TwoRoutes(Base):
 
     def do_init(self):
         self.zmq = zmq.Context(1)
+        self.addCleanup(self.zmq.term)
         super().do_init()
         self.chatfw = self.zmq.socket(zmq.PULL)
         self.chatfw.connect(CHAT_FW)
+        self.addCleanup(self.chatfw.close)
         self.chatout = self.zmq.socket(zmq.PUB)
+        self.addCleanup(self.chatout.close)
         self.chatout.connect(CHAT_SOCK)
         self.chatout.connect(CHAT_SOCK + '1')
         time.sleep(START_TIMEOUT)  # sorry, need for zmq sockets
@@ -43,10 +46,10 @@ class TwoRoutes(Base):
 
     def testDuplicate(self):
         ws = self.websock()
+        self.addCleanup(ws.close)
         ws.connect()
         ws.subscribe('chat')
         self.backend_send('publish', 'chat', 'message: hello_world')
         ws.client_got('message: hello_world')
         self.backend_send('publish', 'chat', 'message: another_hello')
         ws.client_got('message: another_hello')
-        ws.close()
