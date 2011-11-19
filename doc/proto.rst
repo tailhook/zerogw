@@ -163,6 +163,12 @@ Direct Messages
     sends message directly to the user.  You can send binary message,
     but most browsers can read only text data, so use utf-8
 
+:samp:`sendall, {message}`
+    sends message to all connections. Of course addressees are limited to a
+    single route, not to the whole zerogw. Note that message is also sent to
+    unauthenticated connections. You need to subscribe all users to some topic
+    and use ``publish`` if you want to send to authenticated users only.
+
 Topic Subscription
 ~~~~~~~~~~~~~~~~~~
 
