@@ -175,11 +175,12 @@ class WebSocket(Base):
 
 class CheckingWebsock(object):
 
-    def __init__(self, testcase, timestamp=False):
+    def __init__(self, testcase, timestamp=False, prefix='/chat'):
         self.testcase = testcase
         self.http = testcase.http()
         self.ack = ''
         self.timestamp = timestamp
+        self.pref = prefix
 
     def _request(self, *args, **kw):
         self.last_request = time.time()
@@ -194,7 +195,7 @@ class CheckingWebsock(object):
         return resp
 
     def connect_only(self):
-        self._request('GET', '/chat?action=CONNECT')
+        self._request('GET', self.pref+'?action=CONNECT')
         req = self._getresponse()
         self.id = req.read().decode('utf-8')
 
@@ -210,7 +211,7 @@ class CheckingWebsock(object):
 
     def client_send_only(self, body, name=None):
         self._request("GET",
-            '/chat?limit=0&timeout=0&id=' + self.id, body=body)
+            self.pref + '?limit=0&timeout=0&id=' + self.id, body=body)
         self.testcase.assertEqual(b'',
             self._getresponse().read())
 
@@ -220,7 +221,7 @@ class CheckingWebsock(object):
 
     def client_send2(self, body, name=None):
         self.http.request("GET",
-            '/chat?limit=0&timeout=0&id=' + self.id, body=body)
+            self.pref + '?limit=0&timeout=0&id=' + self.id, body=body)
         self.testcase.assertEqual(b'',
             self._getresponse().read())
         self.testcase.assertEqual(self.testcase.backend_recv(name),
@@ -230,7 +231,7 @@ class CheckingWebsock(object):
 
     def client_read(self):
         self.http.request("GET",
-            '/chat?limit=1&timeout=1.0&ack='+self.ack+'&id=' + self.id)
+            self.pref + '?limit=1&timeout=1.0&ack='+self.ack+'&id=' + self.id)
         resp = self.http.getresponse()
         self.ack = resp.getheader('X-Message-ID')
         return resp.read()
@@ -262,7 +263,7 @@ class CheckingWebsock(object):
             'del_output', self.intid, name)
 
     def close(self):
-        self.http.request('GET', '/chat?action=CLOSE&id=' + self.id)
+        self.http.request('GET', self.pref + '?action=CLOSE&id=' + self.id)
         resp = self.http.getresponse()
         self.testcase.assertEqual(resp.getheader('X-Connection'), 'close')
         self.http.close()

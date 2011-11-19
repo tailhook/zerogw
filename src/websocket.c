@@ -443,9 +443,6 @@ static void websock_message_free(void *ws) {
 }
 
 static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
-    subscriber_t *sub = LIST_FIRST(&topic->subscribers);
-    // every connection are same, we use first so that libwebsite could
-    // determine size of message, but reusing message for each subscriber
     message_t *msg = (message_t*)malloc(sizeof(message_t));
     ANIMPL(msg);
     SNIMPL(ws_message_init(&msg->ws));
@@ -456,7 +453,7 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
     ws_MESSAGE_DATA(&msg->ws, (char *)zmq_msg_data(&msg->zmq),
         zmq_msg_size(&msg->zmq), websock_message_free);
     root.stat.websock_published += 1;
-    subscriber_t *nxt;
+    subscriber_t *nxt, *sub;
     for (sub = LIST_FIRST(&topic->subscribers); sub; sub = nxt) {
         nxt = LIST_NEXT(sub, topic_list);
         // Subscribers, and whole topic can be deleted while traversing
@@ -467,6 +464,24 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
     ws_MESSAGE_DECREF(&msg->ws); // we own a single reference
 }
 
+static bool send_all(config_Route_t *route, zmq_msg_t *omsg) {
+    message_t *msg = (message_t*)malloc(sizeof(message_t));
+    ANIMPL(msg);
+    SNIMPL(ws_message_init(&msg->ws));
+    zmq_msg_init(&msg->zmq);
+    LDEBUG("Sending to everybody [%d]``%.*s''",
+        zmq_msg_size(omsg), zmq_msg_size(omsg), zmq_msg_data(omsg));
+    zmq_msg_move(&msg->zmq, omsg);
+    ws_MESSAGE_DATA(&msg->ws, (char *)zmq_msg_data(&msg->zmq),
+        zmq_msg_size(&msg->zmq), websock_message_free);
+    root.stat.websock_published += 1;
+    for(int i = 0; i < root.hybi.sieve->max; i++) {
+        hybi_t *hybi = root.hybi.sieve->items[i];
+        if(!hybi || hybi->route != route) continue;
+        do_send(hybi, msg);
+    }
+    ws_MESSAGE_DECREF(&msg->ws); // we own a single reference
+}
 
 void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     ANIMPL(!(revents & EV_ERROR));
@@ -644,6 +659,10 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             }
             SNIMPL(zmq_msg_move(&hybi->cookie, &msg));
             hybi->flags |= WS_HAS_COOKIE;
+        } else if(cmdlen == 7 && !strncmp(cmd, "sendall", cmdlen)) {
+            LDEBUG("Websocket got SENDALL request");
+            Z_RECV_LAST(msg);
+            send_all(route, &msg);
         } else if(cmdlen == 10 && !memcmp(cmd, "disconnect", cmdlen)) {
             LDEBUG("Closing connection");
             Z_RECV_LAST(msg);
