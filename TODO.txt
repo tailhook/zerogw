@@ -6,7 +6,6 @@
  - Review ws.js, limit number of requests, introduce queue, data batching
  - Implement pseudo peer-to-peer communication support (?)
  + Make Push by default (probably in the 0.6 or 1.0)
- - Make a way to send message to all users (?)
 
  Static:
  * implement directory index
