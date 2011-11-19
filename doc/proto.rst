@@ -132,9 +132,22 @@ Messages
 Heartbeats
 ~~~~~~~~~~
 
-If configured server sends heartbeats to the backend to give backend
-notion that it's still alive. Heartbeat consists of two part message:
-server id and literal ascii ``heartbeat``.
+There are two kinds of heartbeat messages:
+
+* plain heartbeat, activated by ``heartbeat-interval`` setting
+* synchronisation message containing connection ids, activated by
+  ``sync-interval`` setting
+
+Both start with ``server id`` message. For the former server id is followed by
+literal ascii ``heartbeat``. Latter consists of literal ascii ``sync`` followed
+by pairs connection_id, cookie (latter is empty if cookie is not sent, but is
+always sent).
+
+Sync messages are only sent to named outputs (see below), and can be used to
+synchronize user list with backend in case of network failures (``connect`` or
+``disconnect`` message lost), backend failures (could not process ``connect``
+or ``disconnect`` message, because backend crashed when processing message) or
+zerogw crashes (zerogw can't send ``disconnect`` messages after restart).
 
 Backend to Zerogw Messages
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
