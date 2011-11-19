@@ -59,25 +59,26 @@ class Wlimit(Base):
     def testNoMoreSlots(self):
         ws1 = self.websock()
         ws1.connect()
+        self.addCleanup(ws1.close)
         ws1.client_send('hello1') # checks backend delivery itself
         ws2 = self.websock()
         ws2.connect()
+        self.addCleanup(ws2.close)
         ws2.client_send('hello2')
         ws1.client_send('hello3')
         ws3 = self.websock()
         ws3.connect()
+        self.addCleanup(ws3.close)
         ws3.client_send('hello1') # checks backend delivery itself
         ws4 = self.websock()
         ws4.connect()
+        self.addCleanup(ws4.close)
         ws4.client_send('hello2')
         ws5 = self.websock()
         with self.assertRaisesRegex(http.BadStatusLine, "''"):
             ws5.connect()
+        self.addCleanup(ws5.http.close)
         ws2.client_send("fifth_hello")
-        ws1.close()
-        ws2.close()
-        ws3.close()
-        ws4.close()
 
 
 

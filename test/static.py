@@ -6,6 +6,7 @@ class Static(Base):
 
     def testJustFile(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/test/testfile.txt')
         resp = conn.getresponse()
         self.assertEqual(resp.headers['Content-Type'], 'text/plain')
@@ -15,6 +16,7 @@ class Static(Base):
 
     def testIfModifiedSince(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/test/testfile.txt')
         resp = conn.getresponse()
         self.assertEqual(resp.headers['Content-Type'], 'text/plain')
@@ -38,6 +40,7 @@ class Static(Base):
 
     def testGzipped(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/test/testfile.txt', headers={
             'Accept-Encoding': 'gzip',
             })
@@ -50,6 +53,7 @@ class Static(Base):
 
     def testNoGzipped(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/test/test_nogz.txt', headers={
             'Accept-Encoding': 'gzip',
             })
@@ -62,6 +66,7 @@ class Static(Base):
 
     def testQuery(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/test/testfile.txt?justquery')
         resp = conn.getresponse()
         self.assertEqual(resp.headers['Content-Type'], 'text/plain')
@@ -80,6 +85,7 @@ class Static(Base):
 
     def testDenied(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/test/static.py')
         resp =  conn.getresponse()
         self.assertEqual(resp.code, 403)
@@ -87,6 +93,7 @@ class Static(Base):
 
     def testDeniedNotexist(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/test/something_not_esistent.py')
         resp =  conn.getresponse()
         self.assertEqual(resp.code, 403)
@@ -94,6 +101,7 @@ class Static(Base):
 
     def testDeniedHidden(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/test/.hidden')
         resp =  conn.getresponse()
         self.assertEqual(resp.code, 403)
@@ -101,6 +109,7 @@ class Static(Base):
 
     def testNotFoundHidden(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/.hidden')
         resp =  conn.getresponse()
         self.assertEqual(resp.code, 404)
@@ -108,6 +117,7 @@ class Static(Base):
 
     def testNotFound(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/test/nothing_special')
         resp =  conn.getresponse()
         self.assertEqual(resp.code, 404)

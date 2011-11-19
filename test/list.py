@@ -26,10 +26,13 @@ class JsonList(Base):
 
     def do_init(self):
         self.zmq = zmq.Context(1)
+        self.addCleanup(self.zmq.term)
         super().do_init()
         self.chatfw = self.zmq.socket(zmq.PULL)
         self.chatfw.connect(CHAT_FW)
+        self.addCleanup(self.chatfw.close)
         self.chatout = self.zmq.socket(zmq.PUB)
+        self.addCleanup(self.chatout.close)
         self.chatout.connect(CHAT_SOCK)
         time.sleep(START_TIMEOUT)  # sorry, need for zmq sockets
 
@@ -59,14 +62,15 @@ class JsonList(Base):
     def testSimple(self):
         ws = self.websock()
         ws.connect()
+        self.addCleanup(ws.close)
         ws.subscribe('chat')
         self.backend_send('publish', 'chat', '["message: hello_world"]')
         self.backend_send('publish', 'chat', '["message: another_hello"]')
-        self.assertEquals([["message: hello_world"],
+        self.assertEqual([["message: hello_world"],
                            ["message: another_hello"]],
             ws.read_list())
         self.backend_send('publish', 'chat', '["message: msg1"]')
-        self.assertEquals([["message: msg1"]],
+        self.assertEqual([["message: msg1"]],
             ws.read_list())
         # mixing two styles
         self.backend_send('publish', 'chat', '["message: msg2"]')
@@ -74,6 +78,5 @@ class JsonList(Base):
         # frontend
         self.backend_send('publish', 'chat', '["message: msg3"]')
         ws.client_send_only("ZEROGW:echo:text1")
-        self.assertEquals([["message: msg3"], "ZEROGW:echo:text1"],
+        self.assertEqual([["message: msg3"], "ZEROGW:echo:text1"],
             ws.read_list())
-        ws.close()

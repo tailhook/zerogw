@@ -111,6 +111,7 @@ class HTTP(Base):
 
     def testEcho(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/echo/test')
         self.assertEqual(self.backend_recv(),
                           [b'/echo/test', b''])
@@ -122,6 +123,7 @@ class HTTP(Base):
 
     def testHeadersEcho(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/echo/test')
         self.assertEqual(self.backend_recv(),
                           [b'/echo/test', b''])
@@ -132,6 +134,7 @@ class HTTP(Base):
 
     def testExtraHeaders(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/echo2/test')
         self.assertEqual(self.backend_recv('echo2'),
                           [b'GET', b'/echo2/test'])
@@ -143,6 +146,7 @@ class HTTP(Base):
 
     def testMoreHeaders(self):
         conn = self.http()
+        self.addCleanup(conn.close)
         conn.request('GET', '/echo2/test')
         self.assertEqual(self.backend_recv('echo2'),
                           [b'GET', b'/echo2/test'])
@@ -427,6 +431,7 @@ class Chat(Base):
 
     def testDisconnect(self):
         ws = self.websock()
+        self.addCleanup(ws.http.close)
         ws.connect()
         self.backend_send('disconnect', ws.intid)
         time.sleep(0.1)
@@ -441,15 +446,17 @@ class Chat(Base):
         ws.close()
         self.backend_send('disconnect', ws.intid)
         ws = self.websock()
+        self.addCleanup(ws.http.close)
         ws.connect()
         self.backend_send('publish', 'hello', 'world')
 
     def testDisconnectBackendMsg(self):
         ws = self.websock()
+        self.addCleanup(ws.http.close)
         ws.connect()
         self.backend_send('add_output', ws.intid, 'test', 'minigame')
         self.backend_send('disconnect', ws.intid)
-        self.assertEquals([ws.intid, b'disconnect'],
+        self.assertEqual([ws.intid, b'disconnect'],
             self.backend_recv('minigame'))
 
     def testBackendStop(self):
