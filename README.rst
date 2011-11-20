@@ -29,11 +29,27 @@ Don't use it for:
  * Serving static
  * File uploads
  * Huge full-blown web pages (maybe)
- 
+
+Installing
+----------
+
+Ubuntu::
+
+    sudo add-apt-repository ppa:tailhook/zerogw
+    sudo apt-get install zerogw
+
+ArchLinux::
+
+    yaourt -S zerogw
+
+For other distributions refer to Compiling section.
+
+We currently support only Linux.
+
 Dependencies
 ------------
 
- * libwebsite_ for handling http 
+ * libwebsite_ for handling http
  * coyaml_ for handling configuration
  * python3_ needed for coyaml to build configuration parser
  * libzmq_ and libev_ of course
@@ -42,13 +58,14 @@ Dependencies
 First two usually compiled statically, so you don't need them at runtime. Same
 with python. (Eventually, I'll release a bundle with precompiled configuration
 parser and embedded few other libraries for easier compiling :) )
- 
+
 .. _libwebsite: http://github.com/tailhook/libwebsite
 .. _coyaml: http://github.com/tailhook/coyaml
 .. _python3: http://python.org/
 .. _libyaml: http://pyyaml.org/wiki/LibYAML
 .. _libzmq: http://zeromq.org/
 .. _libev: http://software.schmorp.de/pkg/libev.html
+
 
 Compiling
 ---------

@@ -12,22 +12,20 @@ Prerequisites
 Easy Way
 --------
 
-We currently have only packages for Archlinux_. If it's your OS just
-run::
+We currently have only packages for Archlinux and Ubuntu.
+
+Archlinux
+`````````
 
     yaourt -S zerogw
 
-The easy way is to use `zerogw bundle`_. It includes some dependencies.
-Then you execute following steps::
 
-    tar -xjf zerogw-bundle-0.5.9.tar.bz2
-    cd zerogw
-    ./waf configure --prefix=/usr
-    ./waf build
-    sudo ./waf install
+Ubuntu
+``````
 
-.. _Archlinux: http://archlinux.org
-.. _`zerogw bundle`: https://github.com/downloads/tailhook/zerogw/zerogw-bundle-0.5.9.tar.bz2
+    apt-add-repository ppa:tailhook/zerogw
+    apt-get install zerogw
+
 
 Hard Way
 --------
