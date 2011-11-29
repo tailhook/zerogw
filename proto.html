@@ -171,9 +171,21 @@ an opaque string set by <tt class="docutils literal"><span class="pre">set_cooki
 </div>
 <div class="section" id="heartbeats">
 <h4>Heartbeats<a class="headerlink" href="#heartbeats" title="Permalink to this headline">¶</a></h4>
-<p>If configured server sends heartbeats to the backend to give backend
-notion that it&#8217;s still alive. Heartbeat consists of two part message:
-server id and literal ascii <tt class="docutils literal"><span class="pre">heartbeat</span></tt>.</p>
+<p>There are two kinds of heartbeat messages:</p>
+<ul class="simple">
+<li>plain heartbeat, activated by <tt class="docutils literal"><span class="pre">heartbeat-interval</span></tt> setting</li>
+<li>synchronisation message containing connection ids, activated by
+<tt class="docutils literal"><span class="pre">sync-interval</span></tt> setting</li>
+</ul>
+<p>Both start with <tt class="docutils literal"><span class="pre">server</span> <span class="pre">id</span></tt> message. For the former server id is followed by
+literal ascii <tt class="docutils literal"><span class="pre">heartbeat</span></tt>. Latter consists of literal ascii <tt class="docutils literal"><span class="pre">sync</span></tt> followed
+by pairs connection_id, cookie (latter is empty if cookie is not sent, but is
+always sent).</p>
+<p>Sync messages are only sent to named outputs (see below), and can be used to
+synchronize user list with backend in case of network failures (<tt class="docutils literal"><span class="pre">connect</span></tt> or
+<tt class="docutils literal"><span class="pre">disconnect</span></tt> message lost), backend failures (could not process <tt class="docutils literal"><span class="pre">connect</span></tt>
+or <tt class="docutils literal"><span class="pre">disconnect</span></tt> message, because backend crashed when processing message) or
+zerogw crashes (zerogw can&#8217;t send <tt class="docutils literal"><span class="pre">disconnect</span></tt> messages after restart).</p>
 </div>
 </div>
 <div class="section" id="backend-to-zerogw-messages">
@@ -187,6 +199,11 @@ to publish messages to several users without doing that on backend.</p>
 <dt><tt class="samp docutils literal"><span class="pre">send,</span> <em><span class="pre">conn_id</span></em><span class="pre">,</span> <em><span class="pre">message</span></em></tt></dt>
 <dd>sends message directly to the user.  You can send binary message,
 but most browsers can read only text data, so use utf-8</dd>
+<dt><tt class="samp docutils literal"><span class="pre">sendall,</span> <em><span class="pre">message</span></em></tt></dt>
+<dd>sends message to all connections. Of course addressees are limited to a
+single route, not to the whole zerogw. Note that message is also sent to
+unauthenticated connections. You need to subscribe all users to some topic
+and use <tt class="docutils literal"><span class="pre">publish</span></tt> if you want to send to authenticated users only.</dd>
 </dl>
 </div>
 <div class="section" id="topic-subscription">
@@ -300,7 +317,7 @@ arguments in <tt class="docutils literal"><span class="pre">disconnect</span></t
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -331,7 +348,7 @@ arguments in <tt class="docutils literal"><span class="pre">disconnect</span></t
     </div>
     <div class="footer">
         &copy; Copyright 2011, Paul Colomiets.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.8.
     </div>
   </body>
 </html>

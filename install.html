@@ -61,17 +61,17 @@
 </div>
 <div class="section" id="easy-way">
 <h2>Easy Way<a class="headerlink" href="#easy-way" title="Permalink to this headline">¶</a></h2>
-<p>We currently have only packages for <a class="reference external" href="http://archlinux.org">Archlinux</a>. If it&#8217;s your OS just
-run:</p>
-<div class="highlight-python"><pre>yaourt -S zerogw</pre>
+<p>We currently have only packages for Archlinux and Ubuntu.</p>
+<div class="section" id="archlinux">
+<h3>Archlinux<a class="headerlink" href="#archlinux" title="Permalink to this headline">¶</a></h3>
+<blockquote>
+<div>yaourt -S zerogw</div></blockquote>
 </div>
-<p>The easy way is to use <a class="reference external" href="https://github.com/downloads/tailhook/zerogw/zerogw-bundle-0.5.9.tar.bz2">zerogw bundle</a>. It includes some dependencies.
-Then you execute following steps:</p>
-<div class="highlight-python"><pre>tar -xjf zerogw-bundle-0.5.9.tar.bz2
-cd zerogw
-./waf configure --prefix=/usr
-./waf build
-sudo ./waf install</pre>
+<div class="section" id="ubuntu">
+<h3>Ubuntu<a class="headerlink" href="#ubuntu" title="Permalink to this headline">¶</a></h3>
+<blockquote>
+<div>apt-add-repository ppa:tailhook/zerogw
+apt-get install zerogw</div></blockquote>
 </div>
 </div>
 <div class="section" id="hard-way">
@@ -118,7 +118,11 @@ everything works.</p>
   <ul>
 <li><a class="reference internal" href="#">Installation Guide</a><ul>
 <li><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
-<li><a class="reference internal" href="#easy-way">Easy Way</a></li>
+<li><a class="reference internal" href="#easy-way">Easy Way</a><ul>
+<li><a class="reference internal" href="#archlinux">Archlinux</a></li>
+<li><a class="reference internal" href="#ubuntu">Ubuntu</a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#hard-way">Hard Way</a></li>
 <li><a class="reference internal" href="#verifying-install">Verifying Install</a></li>
 </ul>
@@ -139,7 +143,7 @@ everything works.</p>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -170,7 +174,7 @@ everything works.</p>
     </div>
     <div class="footer">
         &copy; Copyright 2011, Paul Colomiets.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.8.
     </div>
   </body>
 </html>
