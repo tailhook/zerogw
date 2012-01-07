@@ -78,5 +78,7 @@ class JsonList(Base):
         # frontend
         self.backend_send('publish', 'chat', '["message: msg3"]')
         ws.client_send_only("ZEROGW:echo:text1")
-        self.assertEqual([["message: msg3"], "ZEROGW:echo:text1"],
-            ws.read_list())
+        self.assertIn(ws.read_list(), (
+            [["message: msg3"], "ZEROGW:echo:text1"],
+            ["ZEROGW:echo:text1", ["message: msg3"]],
+            ))

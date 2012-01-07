@@ -44,11 +44,6 @@ class Base(unittest.TestCase):
         time.sleep(START_TIMEOUT)
 
     def do_init(self):
-        for i in (HTTP_ADDR,):
-            try:
-                os.unlink(i)
-            except OSError:
-                pass
         self.proc = subprocess.Popen([ZEROGW_BINARY, '-c', self.config])
         self.addCleanup(stop_process, self.proc)
 
@@ -471,6 +466,7 @@ class Chat(Base):
         time.sleep(0.1)
         self.chatfw = self.zmq.socket(zmq.PULL)
         self.chatfw.connect(CHAT_FW)
+        self.addCleanup(self.chatfw.close)
         ws1.client_send_check('test1')
         ws1.client_send('ok')
         ws1.close()
