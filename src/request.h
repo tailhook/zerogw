@@ -22,6 +22,7 @@ typedef struct request_s {
     config_Route_t *route;
     struct hybi_s *hybi;
     struct message_s *ws_msg;
+    char *path;
     char uid[UID_LEN];
     int refcnt;
     int retries;

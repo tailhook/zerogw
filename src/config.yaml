@@ -159,10 +159,11 @@ __types__:
       __default__: Nothing
       Nothing: 0
       Uri: 1
-      Method: 2
-      Header: 3
-      Cookie: 4
-      Body: 5
+      Path: 2
+      Method: 3
+      Header: 4
+      Cookie: 5
+      Body: 6
     __value__: !String ~
     _field_index: !Int -1
 

@@ -394,7 +394,9 @@ int disk_request(request_t *req) {
     if(req->route->static_.single_uri_len) {
         dreq->path = req->route->static_.single_uri;
     } else {
-        dreq->path = req->ws.uri;
+        // TODO(tailhook) probably it's not save to use path from request
+        // we should copy it
+        dreq->path = req->path;
     }
     dreq->gzipped = FALSE;
     if(req->route->static_.gzip_enabled) {
