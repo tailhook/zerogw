@@ -48,7 +48,16 @@ def build(bld):
             'LOG_STRIP_PATH="../src/"',
             ],
         cflags      = ['-std=gnu99'],
-        lib          = ['coyaml', 'yaml', 'zmq', 'ev', 'website', 'crypto'],
+        lib          = [
+            'coyaml',
+            'yaml',
+            'zmq',
+            'ev',
+            'website',
+            'crypto',
+            'pthread',
+            'm',
+            ],
         )
     bld(
         features     = ['c', 'cprogram', 'coyaml'],
