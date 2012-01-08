@@ -488,6 +488,18 @@ static bool send_all(config_Route_t *route, zmq_msg_t *omsg) {
     ws_MESSAGE_DECREF(&msg->ws); // we own a single reference
 }
 
+void topic_clone(topic_t *source, topic_t *target) {
+    subscriber_t *nxt, *sub;
+    LIST_FOREACH(sub, &source->subscribers, topic_list) {
+        if(!topic_subscribe(sub->connection, target)) {
+            TWARN("Can't subscribe while cloning, probably out of memory");
+        }
+    }
+    if(!LIST_FIRST(&target->subscribers)) {
+        free_topic(target);
+    }
+}
+
 void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     ANIMPL(!(revents & EV_ERROR));
     config_Route_t *route = (config_Route_t *)((char *)watch
@@ -512,6 +524,9 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 LDEBUG("Subscribed to ``%.*s''", topic->length, topic->topic);
             } else {
                 TWARN("Couldn't make topic or subscribe, probably no memory");
+                if(!LIST_FIRST(&topic->subscribers)) {
+                    free_topic(topic);
+                }
             }
         } else if(cmdlen == 11 && !strncmp(cmd, "unsubscribe", cmdlen)) {
             LDEBUG("Websocket got UNSUBSCRIBE request");
@@ -552,6 +567,23 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             root.stat.websock_sent += 1;
             do_send(hybi, mm);
             ws_MESSAGE_DECREF(&mm->ws);
+        } else if(cmdlen == 5 && !strncmp(cmd, "clone", cmdlen)) {
+            LDEBUG("Websocket got CLONE request");
+            Z_RECV_NEXT(msg);
+            topic_t *source = find_topic(route, &msg, FALSE);
+            Z_RECV_LAST(msg);
+            if(source) {
+                topic_t *target = find_topic(route, &msg, TRUE);
+                if(target) {
+                    LDEBUG("Cloning ``%.*s'' to ``%.*s''",
+                        source->length, source->topic,
+                        target->length, target->topic);
+                    topic_clone(source, target);
+                } else {
+                    TWARN("Couldn't make topic or subscribe,"
+                          " probably no memory");
+                }
+            }
         } else if(cmdlen == 4 && !strncmp(cmd, "drop", cmdlen)) {
             LDEBUG("Websocket got DROP request");
             Z_RECV_LAST(msg);
