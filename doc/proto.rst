@@ -179,17 +179,23 @@ an opaque binary string. Topics are created and removed on demand and
 are quite fast to use them for a lot of things.
 
 :samp:`subscribe, {conn_id}, {topic}`
-    subscribes user
+    subscribes connection
 
 :samp:`unsubscribe, {conn_id}, {topic}`
-    unsubscribes user
+    unsubscribes connection
 
 :samp:`publish, {topic}, {message}`
-    publish message to a topic, message will be delivered to all users
-    subscribed on the topic
+    publish message to a topic, message will be delivered to all connections
+    subscribed to the topic
+
+:samp:`clone, {source_topic}, {target_topic}`
+    clones subscriptions of ``source_topic`` such as all its connections are
+    now subscribed to both topics, connections that where subscribed to
+    ``target_topic`` are left intact (so it can be thought as merge operation)
 
 :samp:`drop, {topic}`
-    delete topic, unsubscribing all the users
+    delete topic, unsubscribing all the users (can be combined with ``clone``
+    to achieve "rename" or "join" effect)
 
 Outputs
 ~~~~~~~
