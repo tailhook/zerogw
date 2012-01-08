@@ -10,6 +10,7 @@ void request_init(request_t *req) {
     req->retries = 0;
     req->uid[0] = 0;
     req->hybi = NULL;
+    req->ip = NULL;
 }
 
 void request_finish(request_t *req) {

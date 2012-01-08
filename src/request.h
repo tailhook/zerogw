@@ -23,6 +23,7 @@ typedef struct request_s {
     struct hybi_s *hybi;
     struct message_s *ws_msg;
     char *path;
+    char *ip;
     char uid[UID_LEN];
     int refcnt;
     int retries;

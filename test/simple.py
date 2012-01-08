@@ -17,6 +17,7 @@ CONFIG="./test/zerogw.yaml"
 
 ECHO_SOCKET = "ipc:///tmp/zerogw-test-echo"
 ECHO2_SOCKET = "ipc:///tmp/zerogw-test-echo2"
+ECHOIP_SOCKET = "ipc:///tmp/zerogw-test-echo_ip"
 CHAT_FW = "ipc:///tmp/zerogw-test-chatfw"
 CHAT_SOCK = "ipc:///tmp/zerogw-test-chat"
 MINIGAME = "ipc:///tmp/zerogw-test-minigame"
@@ -79,6 +80,9 @@ class HTTP(Base):
         self.echo2 = self.zmq.socket(zmq.REP)
         self.addCleanup(self.echo2.close)
         self.echo2.connect(ECHO2_SOCKET)
+        self.echo_ip = self.zmq.socket(zmq.REP)
+        self.addCleanup(self.echo_ip.close)
+        self.echo_ip.connect(ECHOIP_SOCKET)
 
     def backend_send(self, *args, backend='echo'):
         sock = getattr(self, backend)
@@ -151,6 +155,23 @@ class HTTP(Base):
         self.assertEqual(b'test2', resp.read())
         self.assertEqual(resp.headers['Cache-Control'], 'no-cache')
         self.assertEqual(resp.headers['Content-Type'], 'text/plain')
+
+    def testIPUnix(self):
+        conn = self.http()
+        self.addCleanup(conn.close)
+        conn.request('GET', '/echo_ip')
+        self.assertEqual(self.backend_recv('echo_ip'), [b''])
+        self.backend_send(b'hello', backend='echo_ip')
+        resp = conn.getresponse()
+        self.assertEqual(b'hello', resp.read())
+
+    def testIP(self):
+        conn = http.HTTPConnection('localhost', 6941, timeout=1.0)
+        conn.request('GET', '/echo_ip')
+        self.assertEqual(self.backend_recv('echo_ip'), [b'127.0.0.1'])
+        self.backend_send(b'hello', backend='echo_ip')
+        resp = conn.getresponse()
+        self.assertEqual(b'hello', resp.read())
 
 class WebSocket(Base):
 

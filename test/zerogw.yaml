@@ -3,6 +3,8 @@ Server:
   zmq-io-threads: 1
   disk-io-threads: 1
   listen:
+    - host: 127.0.0.1
+      port: 6941
     - unix-socket: /tmp/zerogw-test
   status:
     socket:
@@ -40,6 +42,16 @@ Routing:
           contents:
           - !Method ~
           - !Uri ~
+      "/echo_ip":
+        headers:
+          Cache-Control: no-cache
+          Pragma: no-cache
+        zmq-forward:
+          enabled: yes
+          socket:
+          - !zmq.Bind "ipc:///tmp/zerogw-test-echo_ip"
+          contents:
+          - !IP
       "/chat*":
         websocket:
           enabled: yes

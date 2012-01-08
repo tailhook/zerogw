@@ -155,7 +155,9 @@ int main(int argc, char **argv) {
             LDEBUG("Using socket %d", slisten->value.fd);
             SNIMPL(ws_add_fd(&root.ws, slisten->value.fd));
         } else if(slisten->value.unix_socket && *slisten->value.unix_socket) {
-            LDEBUG("Using unix socket \"%s\"", slisten->value.unix_socket);
+            LDEBUG("Using unix socket \"%.*s\"",
+                slisten->value.unix_socket_len,
+                slisten->value.unix_socket);
             int rc = ws_add_unix(&root.ws, slisten->value.unix_socket,
                 slisten->value.unix_socket_len);
             if(rc < 0) {
@@ -187,7 +189,7 @@ int main(int argc, char **argv) {
 
     // Probably here is a place to fork! :)
 
-    init_uid();
+    init_uid(config);
     init_statistics();
     root.zmq = zmq_init(config.Server.zmq_io_threads);
 

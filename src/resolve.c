@@ -27,6 +27,20 @@ const char *get_field(request_t *req, config_RequestField_t*value, size_t*len) {
     case CONFIG_Path:
         result = req->path;
         break;
+    case CONFIG_IP:
+        if(!req->ip) {
+            int family = req->ws.conn->addr.sin_family;
+            if(family == AF_INET) {
+                req->ip = obstack_alloc(&req->ws.pieces, 16);
+                in_addr_t ip = ntohl(req->ws.conn->addr.sin_addr.s_addr);
+                snprintf(req->ip, 16, "%d.%d.%d.%d",
+                    ip >> 24, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
+            } else {
+                req->ip = "";
+            }
+        }
+        result = req->ip;
+        break;
     case CONFIG_Method:
         result = req->ws.method;
         break;
