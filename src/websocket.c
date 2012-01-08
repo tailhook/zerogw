@@ -49,6 +49,13 @@ void free_topic(topic_t *topic) {
     free(topic);
 }
 
+void hybi_free(hybi_t *hybi) {
+    if(hybi->flags & WS_HAS_COOKIE) {
+        zmq_msg_close(&hybi->cookie);
+    }
+    free(hybi);
+}
+
 void websock_stop(ws_connection_t *hint) {
     connection_t *conn = (connection_t *)hint;
     root.stat.websock_disconnects += 1;
@@ -132,7 +139,7 @@ void backend_unqueue(struct ev_loop *loop, struct ev_io *watch, int rev) {
             else if (errno == EAGAIN) return;
             SNIMPL(-1);
         }
-
+        hybi_DECREF(ptr->hybi);
         root.stat.websock_backend_queued -= 1;
         queue_remove(&socket->_queue, cur);
     }
@@ -201,11 +208,9 @@ void hybi_stop(hybi_t *hybi) {
         LIST_REMOVE(out, client_list);
         free(out);
     }
-    if(hybi->flags & WS_HAS_COOKIE) {
-        zmq_msg_close(&hybi->cookie);
-    }
     hybi_DECREF(hybi);
 }
+
 
 int websock_start(connection_t *conn, config_Route_t *route) {
     LDEBUG("Websocket started");

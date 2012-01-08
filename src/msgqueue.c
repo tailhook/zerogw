@@ -15,7 +15,7 @@ void free_queue(queue_t *queue) {
     queue_item_t *cur, *nxt;
     for(cur = TAILQ_FIRST(&queue->items); cur; cur = nxt) {
         nxt = TAILQ_NEXT(cur, list);
-        free(cur);
+        pool_free(queue->pool, cur);
     }
 }
 
@@ -34,5 +34,6 @@ queue_item_t *queue_force_push(queue_t *queue) {
 
 void queue_remove(queue_t *queue, queue_item_t *item) {
     TAILQ_REMOVE(&queue->items, item, list);
+    pool_free(queue->pool, item);
     queue->size -= 1;
 }

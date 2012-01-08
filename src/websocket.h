@@ -10,7 +10,7 @@
 #include "polling.h"
 
 #define hybi_INCREF(hybi) (hybi)->refcnt += 1;
-#define hybi_DECREF(hybi) if(--(hybi)->refcnt <= 0) { free(hybi); }
+#define hybi_DECREF(hybi) if(--(hybi)->refcnt <= 0) hybi_free(hybi);
 
 #define WS_HAS_COOKIE 1
 
