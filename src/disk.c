@@ -279,6 +279,7 @@ void *disk_loop(void *_) {
         char *mime = check_base(req);
         if(!mime) {
             LDEBUG("Path ``%s'' denied", req->path);
+            SNIMPL(zmq_msg_close(&msg));
             SNIMPL(zmq_msg_init_data(&msg, "402", 4, NULL, NULL));
             SNIMPL(zmq_send(sock, &msg, 0));
             continue;
@@ -286,6 +287,7 @@ void *disk_loop(void *_) {
         char *realpath = join_paths(req);
         if(!realpath) {
             SWARN2("Can't resolve ``%s''", req->path);
+            SNIMPL(zmq_msg_close(&msg));
             SNIMPL(zmq_msg_init_data(&msg, "404", 4, NULL, NULL));
             SNIMPL(zmq_send(sock, &msg, 0));
             continue;
@@ -294,6 +296,7 @@ void *disk_loop(void *_) {
         if(!check_path(req, realpath)) {
             LDEBUG("Path ``%s''(``%s'') denied", req->path, realpath);
             free(realpath);
+            SNIMPL(zmq_msg_close(&msg));
             SNIMPL(zmq_msg_init_data(&msg, "402", 4, NULL, NULL));
             SNIMPL(zmq_send(sock, &msg, 0));
             continue;
@@ -303,6 +306,7 @@ void *disk_loop(void *_) {
         char lastmod[64];
         int gz = req->gzipped;
         int rc = get_file(realpath, &result, req->if_modified, lastmod, &gz);
+        free(realpath);
         zmq_msg_close(&msg); // frees req
         if(rc == 1) {
             zmq_msg_close(&result);
@@ -345,7 +349,6 @@ void *disk_loop(void *_) {
         }
         SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE));
         SNIMPL(zmq_send(sock, &result, 0));
-        free(realpath);
         continue;
     }
     SNIMPL(zmq_close(sock));
