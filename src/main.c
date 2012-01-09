@@ -149,6 +149,8 @@ int main(int argc, char **argv) {
     root.loop = ev_default_loop(0);
     ANIMPL(root.loop);
     ws_server_init(&root.ws, root.loop);
+    ws_LOGSTD_CB(&root.ws, logstd);
+    ws_LOGMSG_CB(&root.ws, logmsg);
     root.config = &config;
     CONFIG_LISTENADDR_LOOP(slisten, config.Server.listen) {
         if(slisten->value.fd >= 0) {
