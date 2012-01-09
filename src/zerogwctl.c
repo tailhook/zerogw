@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
         rc = zmq_getsockopt(socket, ZMQ_RCVMORE, &opt, &size);
         assert(size == 8);
         assert(rc == 0);
-        printf("%.*s\n", zmq_msg_size(&msg), zmq_msg_data(&msg));
+        printf("%.*s\n", (int)zmq_msg_size(&msg), (char *)zmq_msg_data(&msg));
         rc = zmq_msg_close(&msg);
         assert(rc == 0);
         if(!opt) break;
