@@ -33,71 +33,15 @@ int format_statistics(char *buf) {
     gettimeofday(&tv, NULL);
     int res = snprintf(buf, STAT_MAXLEN,
         "%lu.%06ld\n"
-        "connects: %lu\n"
-        "disconnects: %lu\n"
-        "http_requests: %lu\n"
-        "http_replies: %lu\n"
-        "zmq_requests: %lu\n"
-        "zmq_retries: %lu\n"
-        "zmq_replies: %lu\n"
-        "zmq_orphan_replies: %lu\n"
-        "websock_connects: %lu\n"
-        "websock_disconnects: %lu\n"
-        "comet_connects: %lu\n"
-        "comet_disconnects: %lu\n"
-        "comet_acks: %lu\n"
-        "comet_empty_replies: %lu\n"
-        "comet_aborted_replies: %lu\n"
-        "comet_received_messages: %lu\n"
-        "comet_received_batches: %lu\n"
-        "comet_sent_messages: %lu\n"
-        "comet_sent_batches: %lu\n"
-        "topics_created: %lu\n"
-        "topics_removed: %lu\n"
-        "websock_subscribed: %lu\n"
-        "websock_unsubscribed: %lu\n"
-        "websock_published: %lu\n"
-        "websock_sent: %lu\n"
-        "websock_received: %lu\n"
-        "websock_backend_queued: %lu\n"
-        "websock_backend_unqueued: %lu\n"
-        "disk_requests: %lu\n"
-        "disk_reads: %lu\n"
-        "disk_bytes_read: %lu\n"
-        ,
+        #define DEFINE_VALUE(name) #name ": %lu\n"
+        #include "statistics.h"
+        #undef DEFINE_VALUE
+        "%s",
         tv.tv_sec, tv.tv_usec,
-        root.stat.connects,
-        root.stat.disconnects,
-        root.stat.http_requests,
-        root.stat.http_replies,
-        root.stat.zmq_requests,
-        root.stat.zmq_retries,
-        root.stat.zmq_replies,
-        root.stat.zmq_orphan_replies,
-        root.stat.websock_connects,
-        root.stat.websock_disconnects,
-        root.stat.comet_connects,
-        root.stat.comet_disconnects,
-        root.stat.comet_acks,
-        root.stat.comet_empty_replies,
-        root.stat.comet_aborted_replies,
-        root.stat.comet_received_messages,
-        root.stat.comet_received_batches,
-        root.stat.comet_sent_messages,
-        root.stat.comet_sent_batches,
-        root.stat.topics_created,
-        root.stat.topics_removed,
-        root.stat.websock_subscribed,
-        root.stat.websock_unsubscribed,
-        root.stat.websock_published,
-        root.stat.websock_sent,
-        root.stat.websock_received,
-        root.stat.websock_backend_queued,
-        root.stat.websock_backend_unqueued,
-        root.stat.disk_requests,
-        root.stat.disk_reads,
-        root.stat.disk_bytes_read
-        );
+        #define DEFINE_VALUE(name) root.stat.name,
+        #include "statistics.h"
+        #undef DEFINE_VALUE
+        "");
     buf[STAT_MAXLEN-1] = 0;
     return res;
 }
