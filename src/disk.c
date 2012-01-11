@@ -512,7 +512,7 @@ static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents)
         }
         ws_finish_headers(&req->ws);
         root.stat.disk_reads += 1;
-        root.stat.disk_bytes_read = zmq_msg_size(&msg);
+        root.stat.disk_bytes_read += zmq_msg_size(&msg);
         // the last part is always a body
         ANIMPL(!(req->flags & REQ_HAS_MESSAGE));
         SNIMPL(zmq_msg_init(&req->response_msg));
