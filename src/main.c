@@ -32,12 +32,14 @@ int format_statistics(char *buf) {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     int res = snprintf(buf, STAT_MAXLEN,
-        "%lu.%06ld\n"
+        "time: %lu.%06ld\n"
+        "interval: %.1f\n"
         #define DEFINE_VALUE(name) #name ": %lu\n"
         #include "statistics.h"
         #undef DEFINE_VALUE
         "%s",
         tv.tv_sec, tv.tv_usec,
+        (double)root.config->Server.status.interval,
         #define DEFINE_VALUE(name) root.stat.name,
         #include "statistics.h"
         #undef DEFINE_VALUE
@@ -144,8 +146,9 @@ int main(int argc, char **argv) {
         SNIMPL(zmq_open(&config.Server.status.socket,
             ZMASK_PUB|ZMASK_PUSH, ZMQ_PUB, NULL, NULL));
         status_timer.data = &config;
+        double ivl = config.Server.status.interval;
         ev_timer_init(&status_timer, flush_statistics,
-            config.Server.status.interval, config.Server.status.interval);
+            ivl - (int)(ev_now(root.loop)/ivl)*ivl, ivl);
         ev_timer_start(root.loop, &status_timer);
     }
 
