@@ -278,6 +278,19 @@ class CheckingWebsock(object):
         self.testcase.backend_send(
             'del_output', self.intid, name)
 
+    def close_dropped(self):
+        self.http.request('GET', self.pref + '?action=CLOSE&id=' + self.id)
+        with self.testcase.assertRaises(http.BadStatusLine):
+            resp = self.http.getresponse()
+        self.http.close()
+        val = self.testcase.backend_recv()
+        if hasattr(self, 'cookie'):
+            self.testcase.assertEqual(val,
+                [self.intid, b'disconnect', self.cookie.encode('ascii')])
+        else:
+            self.testcase.assertEqual(val,
+                [self.intid, b'disconnect'])
+
     def close(self):
         self.http.request('GET', self.pref + '?action=CLOSE&id=' + self.id)
         resp = self.http.getresponse()
@@ -354,6 +367,34 @@ class Chat(Base):
         self.backend_send('send', ws.intid, 'message: personal')
         ws.client_got('message: personal')
         ws.client_send('hurray!')
+        ws.close()
+
+    def testDupSubCrash(self):
+        ws = self.websock()
+        ws.connect()
+        ws.client_send('hello_world')
+        ws.subscribe('chat')
+        ws.subscribe('chat')
+        for i in range(20):
+            self.backend_send('publish', 'chat', 'message: hello_world')
+        ws.close_dropped()
+        ws1 = self.websock()
+        ws1.connect()
+        ws1.subscribe('chat')
+        self.backend_send('publish', 'chat', 'message: hello_world')
+        ws1.client_got('message: hello_world')
+        ws1.close()
+
+    def testDupSubscribe(self):
+        ws = self.websock()
+        ws.connect()
+        ws.client_send('hello_world')
+        ws.subscribe('chat')
+        ws.subscribe('chat')
+        self.backend_send('publish', 'chat', 'message: hello_world')
+        ws.client_got('message: hello_world')
+        self.backend_send('publish', 'chat', 'message: hello_world1')
+        ws.client_got('message: hello_world1')
         ws.close()
 
     def testTwoUsers(self):

@@ -407,7 +407,10 @@ static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
 }
 
 static bool topic_subscribe(hybi_t *hybi, topic_t *topic) {
-    subscriber_t *sub = (subscriber_t *)pool_alloc(&root.hybi.subscriber_pool);
+    subscriber_t *sub;
+    LIST_FOREACH(sub, &hybi->subscribers, client_list)
+        if(sub->topic == topic) return TRUE; // already subscribed
+    sub = (subscriber_t *)pool_alloc(&root.hybi.subscriber_pool);
     if(!sub) {
         return FALSE;
     }

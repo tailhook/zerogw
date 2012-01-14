@@ -66,6 +66,7 @@ Routing:
               sync-interval: 100
           polling-fallback:
             timestamps: yes
+            queue-limit: 10
           frontend-commands:
             enabled: yes
             commands:
