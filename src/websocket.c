@@ -2,6 +2,7 @@
 #include <malloc.h>
 #include <strings.h>
 #include <sys/queue.h>
+#include <stdlib.h>
 
 #include "websocket.h"
 #include "log.h"
@@ -58,6 +59,7 @@ void hybi_free(hybi_t *hybi) {
 
 void websock_stop(ws_connection_t *hint) {
     connection_t *conn = (connection_t *)hint;
+    ev_timer_stop(root.loop, &conn->idle_timer);
     root.stat.websock_disconnects += 1;
     root.stat.disconnects += 1;
     hybi_stop(conn->hybi);
@@ -211,6 +213,20 @@ void hybi_stop(hybi_t *hybi) {
     hybi_DECREF(hybi);
 }
 
+void websock_idle(struct ev_loop *loop, struct ev_timer *watch, int rev) {
+    ANIMPL(rev == EV_TIMER);
+    connection_t *conn = SHIFT(watch, connection_t, idle_timer);
+    uint32_t num = random() & 0xFFFF;
+    root.stat.websock_sent_pings += 1;
+    ws_message_t *msg = ws_message_copy_data(&conn->ws, &num, sizeof(num));
+    if(msg) {
+        msg->flags = WS_MSG_PING;
+        ws_message_send(&conn->ws, msg);
+        ws_MESSAGE_DECREF(msg);
+    } else {
+        TWARN("Can't allocate memory for ping message");
+    }
+}
 
 int websock_start(connection_t *conn, config_Route_t *route) {
     LDEBUG("Websocket started");
@@ -221,6 +237,9 @@ int websock_start(connection_t *conn, config_Route_t *route) {
     hybi->conn = conn;
     conn->hybi = hybi;
     ws_DISCONNECT_CB(&conn->ws, websock_stop);
+    unsigned long ivl = route->websocket.idle_ping_interval;
+    ev_timer_init(&conn->idle_timer, websock_idle, ivl, ivl);
+    ev_timer_again(root.loop, &conn->idle_timer);
     root.stat.websock_connects += 1;
     return 0;
 }
@@ -315,6 +334,7 @@ config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
 
 int websock_message(connection_t *conn, message_t *msg) {
     root.stat.websock_received += 1;
+    ev_timer_again(root.loop, &conn->idle_timer);
     config_zmqsocket_t *sock = websock_resolve(conn->hybi,
         msg->ws.data, msg->ws.length);
     if(sock) {

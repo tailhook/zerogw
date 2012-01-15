@@ -35,6 +35,7 @@ typedef struct request_s {
 
 typedef struct connection_s {
     ws_connection_t ws;
+    struct ev_timer idle_timer;
     struct hybi_s *hybi;
 } connection_t;
 

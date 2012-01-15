@@ -475,6 +475,13 @@ __types__:
     websocket:
       enabled: !Bool
         =: no
+      idle-ping-interval: !UInt
+        default: 120
+        min: 0
+        max: 86400
+        description: >
+          Interval to send websocket ping messages at. This allows to close
+          some broken connections faster. Value of 0 disables pings.
       subscribe: !Struct
         =: zmqsocket
         inheritance: no
