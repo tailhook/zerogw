@@ -150,18 +150,6 @@ bool reopenlogs() {
     }
 }
 
-void *safe_realloc(void *ptr, int size, char *file, int line) {
-    void *res;
-    while(!(res = realloc(ptr, size))) {
-        if(LOG_WARN <= LOGLEVEL) {
-            static time_t warnto[WT_COUNT]={0,0,0};
-            timedwarn(warnto, file, line, "Can't allocate %d bytes. Not enought memory", size);
-        }
-        usleep(10000);
-    }
-    return res;
-}
-
 void *obstack_chunk_alloc(int len) {
     void *res = malloc(len);
     ANIMPL2(res, "No enought memory");

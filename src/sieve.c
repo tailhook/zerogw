@@ -35,7 +35,8 @@ int sieve_find_hole(sieve_t *sieve, void *item, size_t *index, size_t *hole) {
 
 void sieve_prepare(sieve_t **sieve, int size) {
     int ssize = sizeof(sieve_t) + sizeof(void*)*size;
-    *sieve = SAFE_MALLOC(ssize);
+    *sieve = malloc(ssize);
+    ANIMPL2(*sieve, "Not enought memory");
     bzero(*sieve, ssize);
     (*sieve)->max = size;
 }

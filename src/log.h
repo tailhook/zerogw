@@ -56,9 +56,6 @@ typedef enum {
 #define SWARN() if(LOG_WARN <= LOGLEVEL) { logstd(LOG_WARN, __FILE__, __LINE__, ""); }
 #define SWARN2(msg, ...) if(LOG_WARN <= LOGLEVEL) { logstd(LOG_WARN, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
 
-#define SAFE_REALLOC(ptr, size) safe_realloc(ptr, size, __FILE__, __LINE__)
-#define SAFE_MALLOC(size) safe_realloc(NULL, size, __FILE__, __LINE__)
-
 #ifndef NDEBUG
 #define LDEBUG(msg, ...) LOG(LOG_DEBUG, msg, ##__VA_ARGS__)
 #define ANOTICE(cond) ASSERT_LOG(cond, LOG_NOTICE, "Assertion failed " # cond)
@@ -84,7 +81,6 @@ void logstd(int level, char *file, int line, char *msg, ...);
 void timedwarn(time_t *tt, char *file, int line, char *msg, ...);
 void openlogs();
 bool reopenlogs();
-void *safe_realloc(void *ptr, int size, char *file, int line);
 void *obstack_chunk_alloc(int len);
 void obstack_chunk_free(void *ptr);
 
