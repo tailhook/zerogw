@@ -251,11 +251,14 @@ hybi_t *hybi_start(config_Route_t *route, hybi_enum type) {
     } else {
         hybi = (hybi_t*)malloc(sizeof(hybi_t));
     }
-    ANIMPL(hybi); //FIXME
+    if(!hybi) {
+        return NULL;
+    }
     hybi->type = type;
     hybi->refcnt = 1;
     hybi->flags = 0;
     if(make_hole_uid(hybi, hybi->uid, root.hybi.sieve, type==HYBI_COMET) < 0) {
+        free(hybi);
         return NULL;
     }
     LIST_INIT(&hybi->subscribers);
