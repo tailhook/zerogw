@@ -9,7 +9,7 @@
 #define UID_HOLE(data) (*(unsigned long *)((char *)(data) + IID_LEN))
 #define UID_EQ(a, b) (!memcmp((a), (b), UID_LEN))
 
-int init_uid();
+int init_uid(config_main_t *config);
 int make_hole_uid(void *object, char data[UID_LEN], sieve_t *sieve,
     bool secure);
 

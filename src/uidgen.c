@@ -8,14 +8,14 @@
 #include "log.h"
 
 struct uid_pieces_s {
-    unsigned long id;
+    uint64_t id;
     uint32_t time_sec;
     uint32_t time_micro;
 };
 
 int init_uid(config_main_t *config) {
     struct uid_pieces_s *pieces = (struct uid_pieces_s *)root.instance_id;
-    pieces->id = config->Server.ident;
+    pieces->id = htobe64(config->Server.ident);
     struct timeval tv;
     gettimeofday(&tv, NULL);
     pieces->time_sec = tv.tv_sec;
@@ -30,6 +30,7 @@ int init_uid(config_main_t *config) {
         res = read(fd, root.random_data, RANDOM_LENGTH);
     }
     SNIMPL(close(fd));
+    return 0;
 }
 
 int make_hole_uid(void *object, char data[UID_LEN], sieve_t *sieve,

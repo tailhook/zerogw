@@ -137,7 +137,7 @@ int main(int argc, char **argv) {
 
     // Probably here is a place to fork! :)
 
-    init_uid(config);
+    init_uid(&config);
     init_statistics();
     root.zmq = zmq_init(config.Server.zmq_io_threads);
 

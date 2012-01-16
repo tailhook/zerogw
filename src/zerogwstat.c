@@ -3,7 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <stdint.h>
 #include <sys/time.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <endian.h>
+#include <unistd.h>
 
 #include <zmq.h>
 
@@ -22,6 +27,7 @@ typedef struct statistics_s {
     double time;
     double interval;
     int nvalues;
+    uint64_t instance_id;
     #define DEFINE_VALUE(name) size_t name;
     #include "statistics.h"
     #undef DEFINE_VALUE
@@ -30,21 +36,19 @@ typedef struct statistics_s {
 enum {
     COLLECTD_OPTION = 1,
     COLLECTD_HOST,
-    COLLECTD_PORT
+    COLLECTD_SOCKET
 };
 
 struct option options[] = {
     {name:"config", has_arg:TRUE, flag:NULL, val:'c'},
     {name:"zerogw", has_arg:TRUE, flag:NULL, val:'a'},
     {name:"interval", has_arg:TRUE, flag:NULL, val:'i'},
-    {name:"socket", has_arg:TRUE, flag:NULL, val:'s'},
     {name:"print", has_arg:FALSE, flag:NULL, val:'p'},
     {name:"human-readable", has_arg:FALSE, flag:NULL, val:'H'},
-    {name:"oneline", has_arg:FALSE, flag:NULL, val:'l'},
     {name:"once", has_arg:FALSE, flag:NULL, val:'1'},
     {name:"collectd", has_arg:FALSE, flag:NULL, val:COLLECTD_OPTION},
-    {name:"host", has_arg:TRUE, flag:NULL, val:COLLECTD_HOST},
-    {name:"port", has_arg:TRUE, flag:NULL, val:COLLECTD_PORT},
+    {name:"collectd-host", has_arg:TRUE, flag:NULL, val:COLLECTD_HOST},
+    {name:"collectd-socket", has_arg:TRUE, flag:NULL, val:COLLECTD_SOCKET},
     {name:"help", has_arg:FALSE, flag:NULL, val:'h'},
     {name:NULL, 0, 0, 0}
     };
@@ -54,12 +58,10 @@ typedef struct zerogwstat_flags {
     int interval;
     char *socket;
     bool print;
-    bool human_readable;
-    bool oneline;
     bool once;
     bool collectd;
-    char *host;
-    unsigned short port;
+    char *collectd_host;
+    char *collectd_socket;
     int zerogw_naddr;
     char *zerogw_addrs[MAX_ADDRESSES];
 } zerogwstat_flags_t;
@@ -70,8 +72,7 @@ void print_usage(FILE *stream) {
         "    zerogwstat {-c CONFIG_FILE|-a ZMQADDR -i INTERVAL}\n"
         "        --  monitor statistics\n"
         "    zerogwstat {-c CONFIG_FILE|-a ZMQADDR -i INTERVAL} --collectd \\\n"
-        "           { --collectd-host HOST ---collectd-port PORT \\\n"
-        "           | --collectd-socket UNIXSOCK }\n"
+        "           --collectd-socket UNIXSOCK --collectd-host HOST\n"
         "        -- send data to collectd\n"
         "\n"
         "Options:\n"
@@ -82,16 +83,14 @@ void print_usage(FILE *stream) {
         "  -i, --interval SEC Overrides interval sent to collectd, useful mainly\n"
         "                     when using -a option without any real config\n"
         "  -p, --print        Print statistics even when sending to collectd\n"
-        "  -H, --human-readable\n"
-        "                     Print statistics in human-frienldy format\n"
-        "  -l, --oneline      Print short statistics (line per snapshot)\n"
         "  -1, --once         Print first received statistics packet and exit\n"
         "                     (don't use with collectd and multiple servers)\n"
         "  --collectd         Send data to collectd. Enables following options\n"
         "                     (uses socket /var/run/collectd-unixsock by default)\n"
-        "  --collectd-socket  Collectd socket to send data to\n"
-        "  --collectd-host    Collectd host to send data to\n"
-        "  --collectd-port    Collectd port to send data to\n"
+        "  --collectd-socket UNIXSOCK\n"
+        "                     Collectd socket to send data to\n"
+        "  --collectd-host HOST\n"
+        "                     Hostname to send to collectd\n"
         "\n"
         );
 }
@@ -104,11 +103,11 @@ void parse_arguments(zerogwstat_flags_t *flags, int argc, char **argv) {
             case COLLECTD_OPTION:
                 flags->collectd = TRUE;
                 break;
-            case COLLECTD_HOST:
-                flags->host = optarg;
+            case COLLECTD_SOCKET:
+                flags->collectd_socket = optarg;
                 break;
-            case COLLECTD_PORT:
-                flags->port = atoi(optarg);
+            case COLLECTD_HOST:
+                flags->collectd_host = optarg;
                 break;
             case 'c':
                 flags->config = optarg;
@@ -123,8 +122,6 @@ void parse_arguments(zerogwstat_flags_t *flags, int argc, char **argv) {
                 flags->socket = optarg;
                 break;
             case 'p': flags->print = TRUE; break;
-            case 'H': flags->human_readable = TRUE; break;
-            case 'l': flags->oneline = TRUE; break;
             case '1': flags->once = TRUE; break;
             case 'h':
                 print_usage(stdout);
@@ -145,13 +142,11 @@ double get_time() {
   return tv.tv_sec + tv.tv_usec * 1e-6;
 }
 
-void collectd_loop(void *input, zerogwstat_flags_t *flags) {
-}
-
 void reset_statistics(statistics_t *stat) {
     stat->time = 0;
     stat->interval = 0;
     stat->nvalues = 0;
+    stat->instance_id = 0;
     #define DEFINE_VALUE(name) stat->name = 0;
     #include "statistics.h"
     #undef DEFINE_VALUE
@@ -161,7 +156,8 @@ void read_data(void *input, statistics_t *result) {
     zmq_msg_t msg;
     zmq_msg_init(&msg);
     STDASSERT(zmq_recv(input, &msg, 0));
-    assert(zmq_msg_size(&msg) < 32);
+    assert(zmq_msg_size(&msg) >= sizeof(result->instance_id));
+    result->instance_id = be64toh(*(uint64_t*)zmq_msg_data(&msg));
     int64_t opt = 1; \
     size_t optlen = sizeof(opt); \
     STDASSERT(zmq_getsockopt(input, ZMQ_RCVMORE, &opt, &optlen));
@@ -234,36 +230,33 @@ void read_between(void *input, statistics_t *result, double begin, double end){
 }
 
 void print_once(statistics_t *stat, zerogwstat_flags_t *flags) {
-    if(flags->oneline) {
-        printf("NOT IMPLEMENTED\n");
-        exit(1);
-    } else {
-        char buf[MAX_STAT_BUFFER];
-        int res = snprintf(buf, sizeof(buf),
-            "%-26s %27.6lf\n"
-            "%-26s %22.1lf\n"
-            #define DEFINE_EXTRA(name, _1, _2, _3) "%-26s %20lu\n"
-            #include "statextra.h"
-            #undef DEFINE_EXTRA
-            "----\n"
-            #define DEFINE_VALUE(name) "%-26s %20lu\n"
-            #include "statistics.h"
-            #undef DEFINE_VALUE
-            "%s\n",
-            "time:", stat->time,
-            "interval:", stat->interval,
-            #define newstat stat
-            #define DEFINE_EXTRA(name, _1, _2, value) #name ":", value,
-            #include "statextra.h"
-            #undef DEFINE_EXTRA
-            #undef newstat
-            #define DEFINE_VALUE(name) #name ":", stat->name,
-            #include "statistics.h"
-            #undef DEFINE_VALUE
-            "");
-        buf[sizeof(buf)-1] = 0;
-        STDASSERT(fputs(buf, stdout));
-    }
+    char buf[MAX_STAT_BUFFER];
+    int res = snprintf(buf, sizeof(buf),
+        "%-26s %20lu\n"
+        "%-26s %27.6lf\n"
+        "%-26s %22.1lf\n"
+        #define DEFINE_EXTRA(name, _1, _2, _3, _4) "%-26s %20lu\n"
+        #include "statextra.h"
+        #undef DEFINE_EXTRA
+        "----\n"
+        #define DEFINE_VALUE(name) "%-26s %20lu\n"
+        #include "statistics.h"
+        #undef DEFINE_VALUE
+        "%s\n",
+        "ident:", stat->instance_id,
+        "time:", stat->time,
+        "interval:", stat->interval,
+        #define newstat stat
+        #define DEFINE_EXTRA(name, _1, _2, value, _4) #name ":", value,
+        #include "statextra.h"
+        #undef DEFINE_EXTRA
+        #undef newstat
+        #define DEFINE_VALUE(name) #name ":", stat->name,
+        #include "statistics.h"
+        #undef DEFINE_VALUE
+        "");
+    buf[sizeof(buf)-1] = 0;
+    STDASSERT(fputs(buf, stdout));
 }
 
 void print_diff(statistics_t *oldstat, statistics_t *newstat,
@@ -272,31 +265,26 @@ void print_diff(statistics_t *oldstat, statistics_t *newstat,
     #define DEFINE_VALUE(name) diff.name = newstat->name - oldstat->name;
     #include "statistics.h"
     #undef DEFINE_VALUE
-    if(flags->oneline) {
-        printf("NOT IMPLEMENTED\n");
-        exit(1);
-    } else {
-        printf(
-            "%-26s %25.6f\n"
-            "%-26s %20.1f\n"
-            #define DEFINE_EXTRA(_0, _1, _2, _3) "%-26s %18lu\n"
-            #include "statextra.h"
-            #undef DEFINE_EXTRA
-            "----\n"
-            #define DEFINE_VALUE(name) "%-26s %20.1lf /s\n"
-            #include "statistics.h"
-            #undef DEFINE_VALUE
-            "%s\n",
-            "time:", newstat->time,
-            "interval:", newstat->interval,
-            #define DEFINE_EXTRA(name, _1, _2, value) #name ":", value,
-            #include "statextra.h"
-            #undef DEFINE_EXTRA
-            #define DEFINE_VALUE(name) #name ":", diff.name / newstat->interval,
-            #include "statistics.h"
-            #undef DEFINE_VALUE
-            "---------------------------------------------------------------");
-    }
+    printf(
+        "%-26s %25.6f\n"
+        "%-26s %20.1f\n"
+        #define DEFINE_EXTRA(_0, _1, _2, _3, _4) "%-26s %18lu\n"
+        #include "statextra.h"
+        #undef DEFINE_EXTRA
+        "----\n"
+        #define DEFINE_VALUE(name) "%-26s %20.1lf /s\n"
+        #include "statistics.h"
+        #undef DEFINE_VALUE
+        "%s\n",
+        "time:", newstat->time,
+        "interval:", newstat->interval,
+        #define DEFINE_EXTRA(name, _1, _2, value, _4) #name ":", value,
+        #include "statextra.h"
+        #undef DEFINE_EXTRA
+        #define DEFINE_VALUE(name) #name ":", diff.name / newstat->interval,
+        #include "statistics.h"
+        #undef DEFINE_VALUE
+        "---------------------------------------------------------------");
 }
 
 
@@ -334,18 +322,60 @@ void print_loop(void *input, zerogwstat_flags_t *flags) {
     }
 }
 
+void collectd_loop(void *input, zerogwstat_flags_t *flags) {
+    int fd = 1;
+    if(flags->collectd_socket) {
+        fd = socket(PF_UNIX, SOCK_STREAM, 0);
+        STDASSERT(fd);
+        struct sockaddr_un addr;
+        addr.sun_family = AF_UNIX;
+        socklen_t addrlen = strlen(flags->collectd_socket)
+            + sizeof(struct sockaddr);
+        assert(addrlen < sizeof(struct sockaddr_un));
+        strcpy(addr.sun_path, flags->collectd_socket);
+        STDASSERT(connect(fd, (struct sockaddr*)&addr, addrlen));
+    }
+    while(TRUE) {
+        statistics_t stat;
+        reset_statistics(&stat);
+        read_data(input, &stat);
+        char buf[512];
+        int len;
+        int rc;
+        #define DEFINE_VALUE(name) len = snprintf(buf, sizeof(buf), \
+            "PUTVAL %s/zerogw-%lu/counter-%s interval=%d %d:%lu\n", \
+            flags->collectd_host, stat.instance_id, #name, \
+            (int)stat.interval, (int)stat.time, stat.name); \
+            assert(len < sizeof(buf)); \
+            rc = write(fd, buf, len); \
+            assert(rc == len); // always ok for < 512 bytes
+        #include "statistics.h"
+        #undef DEFINE_VALUE
+        #define DEFINE_EXTRA(name, _1, _2, typ, value) len = snprintf( \
+            buf, sizeof(buf), \
+            "PUTVAL %s/zerogw-%lu/%s-%s interval=%d %d:%lu\n", \
+            flags->collectd_host, stat.instance_id, typ, #name, \
+            (int)stat.interval, (int)stat.time, value); \
+            assert(len < sizeof(buf)); \
+            rc = write(fd, buf, len); \
+            assert(rc == len); // always ok for < 512 bytes
+        #define newstat (&stat)
+        #include "statextra.h"
+        #undef newstat
+        #undef DEFINE_VALUE
+    }
+}
+
+
 int main(int argc, char **argv) {
     zerogwstat_flags_t flags = {
         config: NULL,
         interval: 0,
-        socket: "/var/run/collectd-unixsock",
         print: FALSE,
-        human_readable: FALSE,
-        oneline: FALSE,
         once: FALSE,
         collectd: FALSE,
-        host: NULL,
-        port: 25826,
+        collectd_socket: NULL,
+        collectd_host: "localhost",
         zerogw_naddr: 0
         };
     parse_arguments(&flags, argc, argv);
