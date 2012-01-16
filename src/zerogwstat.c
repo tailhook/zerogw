@@ -247,7 +247,7 @@ void print_once(statistics_t *stat, zerogwstat_flags_t *flags) {
         "time:", stat->time,
         "interval:", stat->interval,
         #define newstat stat
-        #define DEFINE_EXTRA(name, _1, _2, value, _4) #name ":", value,
+        #define DEFINE_EXTRA(name, _1, _2, _3, value) #name ":", value,
         #include "statextra.h"
         #undef DEFINE_EXTRA
         #undef newstat
@@ -278,7 +278,7 @@ void print_diff(statistics_t *oldstat, statistics_t *newstat,
         "%s\n",
         "time:", newstat->time,
         "interval:", newstat->interval,
-        #define DEFINE_EXTRA(name, _1, _2, value, _4) #name ":", value,
+        #define DEFINE_EXTRA(name, _1, _2, _3, value) #name ":", value,
         #include "statextra.h"
         #undef DEFINE_EXTRA
         #define DEFINE_VALUE(name) #name ":", diff.name / newstat->interval,
