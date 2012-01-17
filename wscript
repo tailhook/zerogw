@@ -117,6 +117,7 @@ def archpkg(ctx):
     from waflib import Options
     Options.commands = ['dist', 'makepkg'] + Options.commands
 
+
 def build_package(bld):
     distfile = APPNAME + '-' + VERSION + '.tar.bz2'
     bld(rule=make_pkgbuild,
@@ -132,6 +133,93 @@ class makepkg(BuildContext):
     cmd = 'makepkg'
     fun = 'build_package'
     variant = 'archpkg'
+
+def encode_multipart_formdata(fields, files):
+    """
+    fields is a sequence of (name, value) elements for regular form fields.
+    files is a sequence of (name, filename, value) elements for data
+    to be uploaded as files
+    Return (content_type, body) ready for httplib.HTTP instance
+    """
+    BOUNDARY = b'----------ThIs_Is_tHe_bouNdaRY'
+    CRLF = b'\r\n'
+    L = []
+    for (key, value) in fields:
+        L.append(b'--' + BOUNDARY)
+        L.append(('Content-Disposition: form-data; name="%s"' % key)
+            .encode('utf-8'))
+        L.append(b'')
+        L.append(value.encode('utf-8'))
+    for (key, filename, value, mime) in files:
+        assert key == 'file'
+        L.append(b'--' + BOUNDARY)
+        L.append(b'Content-Type: ' + mime.encode('ascii'))
+        L.append(('Content-Disposition: form-data; name="%s"; filename="%s"'
+            % (key, filename)).encode('utf-8'))
+        L.append(b'')
+        L.append(value)
+    L.append(b'--' + BOUNDARY + b'--')
+    L.append(b'')
+    body = CRLF.join(L)
+    content_type = 'multipart/form-data; boundary=%s' % BOUNDARY.decode('ascii')
+    return content_type, body
+
+def upload(ctx):
+    "quick and dirty command to upload files to github"
+    import hashlib
+    import urllib.parse
+    from http.client import HTTPSConnection, HTTPConnection
+    import json
+    distfile = APPNAME + '-' + VERSION + '.tar.bz2'
+    with open(distfile, 'rb') as f:
+        distdata = f.read()
+    md5 = hashlib.md5(distdata).hexdigest()
+    remotes = subprocess.getoutput('git remote -v')
+    for r in remotes.splitlines():
+        url = r.split()[1]
+        if url.startswith('git@github.com:'):
+            gh_repo = url[len('git@github.com:'):-len('.git')]
+            break
+    else:
+        raise RuntimeError("repository not found")
+    gh_token = subprocess.getoutput('git config github.token').strip()
+    gh_login = subprocess.getoutput('git config github.user').strip()
+    cli = HTTPSConnection('github.com')
+    cli.request('POST', '/'+gh_repo+'/downloads',
+        headers={'Host': 'github.com',
+                 'Content-Type': 'application/x-www-form-urlencoded'},
+        body=urllib.parse.urlencode({
+            "file_name": distfile,
+            "file_size": len(distdata),
+            "description": APPNAME.title() + ' source v'
+                + VERSION + " md5: " + md5,
+            "login": gh_login,
+            "token": gh_token,
+        }).encode('utf-8'))
+    resp = cli.getresponse()
+    data = resp.read().decode('utf-8')
+    data = json.loads(data)
+    s3data = (
+        ("key", data['path']),
+        ("acl", data['acl']),
+        ("success_action_status", "201"),
+        ("Filename", distfile),
+        ("AWSAccessKeyId", data['accesskeyid']),
+        ("policy", data['policy']),
+        ("signature", data['signature']),
+        ("Content-Type", data['mime_type']),
+        )
+    ctype, body = encode_multipart_formdata(s3data, [
+        ('file', distfile, distdata, data['mime_type']),
+        ])
+    cli.close()
+    cli = HTTPSConnection('github.s3.amazonaws.com')
+    cli.request('POST', '/',
+                body=body,
+                headers={'Content-Type': ctype,
+                         'Host': 'github.s3.amazonaws.com'})
+    resp = cli.getresponse()
+    print(resp.read())
 
 def build_tests(bld):
     build(bld)
