@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <sys/time.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <sys/un.h>
 #include <endian.h>
 #include <unistd.h>
@@ -322,6 +323,20 @@ void print_loop(void *input, zerogwstat_flags_t *flags) {
     }
 }
 
+void read_all(int fd) {
+    assert(fd < FD_SETSIZE);
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+    struct timeval tv;
+    memset(&tv, 0, sizeof(tv));
+    while(select(fd+1, &fds, NULL, NULL, &tv) > 0) {
+        char buf[4096];
+        int rc = read(fd, buf, 4096);
+        assert(rc > 0);
+    }
+}
+
 void collectd_loop(void *input, zerogwstat_flags_t *flags) {
     int fd = 1;
     if(flags->collectd_socket) {
@@ -348,7 +363,8 @@ void collectd_loop(void *input, zerogwstat_flags_t *flags) {
             (int)stat.interval, (int)stat.time, stat.name); \
             assert(len < sizeof(buf)); \
             rc = write(fd, buf, len); \
-            assert(rc == len); // always ok for < 512 bytes
+            assert(rc == len); \
+            read_all(fd);
         #include "statistics.h"
         #undef DEFINE_VALUE
         #define DEFINE_EXTRA(name, _1, _2, typ, value) len = snprintf( \
@@ -358,7 +374,8 @@ void collectd_loop(void *input, zerogwstat_flags_t *flags) {
             (int)stat.interval, (int)stat.time, value); \
             assert(len < sizeof(buf)); \
             rc = write(fd, buf, len); \
-            assert(rc == len); // always ok for < 512 bytes
+            assert(rc == len); \
+            read_all(fd);
         #define newstat (&stat)
         #include "statextra.h"
         #undef newstat
