@@ -1,7 +1,7 @@
 #ifndef _H_DISK
 #define _H_DISK
 
-#include <zmq.h>
+#include <xs.h>
 
 #include "config.h"
 
@@ -16,8 +16,8 @@ typedef enum {
 typedef struct cache_entry_s {
     UT_hash_handle hh;
     pthread_rwlock_t lock;
-    zmq_msg_t data;
-    zmq_msg_t gzipped;
+    xs_msg_t data;
+    xs_msg_t gzipped;
     struct stat filestat;
     double check_time;
     char last_modified[30];

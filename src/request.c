@@ -25,7 +25,7 @@ void request_finish(request_t *req) {
 
 void request_free(request_t *req) {
     if(req->flags & REQ_HAS_MESSAGE) {
-        zmq_msg_close(&req->response_msg);
+        xs_msg_close(&req->response_msg);
     }
     request_finish(req);
     if(!req->ws.websocket) {

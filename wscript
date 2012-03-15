@@ -51,7 +51,7 @@ def build(bld):
         lib          = [
             'coyaml',
             'yaml',
-            'zmq',
+            'xs',
             'ev',
             'website',
             'crypto',
@@ -68,7 +68,7 @@ def build(bld):
         target       = 'zerogwctl',
         includes     = ['src'],
         cflags       = ['-std=gnu99'],
-        lib          = ['coyaml', 'yaml', 'zmq'],
+        lib          = ['coyaml', 'yaml', 'xs'],
         )
     bld(
         features     = ['c', 'cprogram', 'coyaml'],
@@ -79,7 +79,7 @@ def build(bld):
         target       = 'zerogwstat',
         includes     = ['src'],
         cflags       = ['-std=gnu99'],
-        lib          = ['coyaml', 'yaml', 'zmq'],
+        lib          = ['coyaml', 'yaml', 'xs'],
         )
     bld(
         features    = ['c', 'cprogram'],

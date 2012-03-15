@@ -2,7 +2,7 @@
 #define _H_REQUEST
 
 #include <website.h>
-#include <zmq.h>
+#include <xs.h>
 #include "config.h"
 #include "uidgen.h"
 
@@ -30,7 +30,7 @@ typedef struct request_s {
     int flags;
     ev_tstamp incoming_time;
     ev_tstamp outgoing_time;  // Currently keeped only for comet
-    zmq_msg_t response_msg;
+    xs_msg_t response_msg;
 } request_t;
 
 typedef struct connection_s {

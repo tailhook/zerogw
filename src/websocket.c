@@ -1,4 +1,4 @@
-#include <zmq.h>
+#include <xs.h>
 #include <malloc.h>
 #include <strings.h>
 #include <sys/queue.h>
@@ -52,7 +52,7 @@ void free_topic(topic_t *topic) {
 
 void hybi_free(hybi_t *hybi) {
     if(hybi->flags & WS_HAS_COOKIE) {
-        zmq_msg_close(&hybi->cookie);
+        xs_msg_close(&hybi->cookie);
     }
     free(hybi);
 }
@@ -71,10 +71,10 @@ void websock_free_message(void *data, void *hint) {
 }
 
 int backend_send_real(config_zmqsocket_t *sock, hybi_t *hybi, void *msg) {
-    zmq_msg_t zmsg;
-    SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
-    memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
-    if(zmq_send(sock->_sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+    xs_msg_t zmsg;
+    SNIMPL(xs_msg_init_size(&zmsg, UID_LEN));
+    memcpy(xs_msg_data(&zmsg), hybi->uid, UID_LEN);
+    if(xs_sendmsg(sock->_sock, &zmsg, XS_SNDMORE|XS_DONTWAIT) < 0) {
         if(errno == EAGAIN || errno == EINTR)
             return -1;
         SNIMPL(-1);
@@ -98,26 +98,26 @@ int backend_send_real(config_zmqsocket_t *sock, hybi_t *hybi, void *msg) {
             len = strlen("message");  // compiler is smarter than you
         }
     }
-    SNIMPL(zmq_msg_init_size(&zmsg, len));
-    memcpy(zmq_msg_data(&zmsg), kind, len);
-    int flag = (is_msg || hybi->flags & WS_HAS_COOKIE) ? ZMQ_SNDMORE : 0;
-    SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | flag));
+    SNIMPL(xs_msg_init_size(&zmsg, len));
+    memcpy(xs_msg_data(&zmsg), kind, len);
+    int flag = (is_msg || hybi->flags & WS_HAS_COOKIE) ? XS_SNDMORE : 0;
+    NNIMPL(xs_sendmsg(sock->_sock, &zmsg, XS_DONTWAIT | flag));
     if(hybi->flags & WS_HAS_COOKIE) {
-        flag = is_msg ? ZMQ_SNDMORE : 0;
-        SNIMPL(zmq_msg_copy(&zmsg, &hybi->cookie));
-        SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | flag));
+        flag = is_msg ? XS_SNDMORE : 0;
+        SNIMPL(xs_msg_copy(&zmsg, &hybi->cookie));
+        NNIMPL(xs_sendmsg(sock->_sock, &zmsg, XS_DONTWAIT | flag));
     }
     if(is_msg) {
         if(hybi->type == HYBI_COMET) {
             request_t *req = msg;
-            SNIMPL(zmq_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
+            SNIMPL(xs_msg_init_data(&zmsg, req->ws.body, req->ws.bodylen,
                 request_decref, req));
         } else {
             message_t *wmsg = msg;
-            SNIMPL(zmq_msg_init_data(&zmsg, wmsg->ws.data, wmsg->ws.length,
+            SNIMPL(xs_msg_init_data(&zmsg, wmsg->ws.data, wmsg->ws.length,
                 websock_free_message, wmsg));
         }
-        SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK));
+        NNIMPL(xs_sendmsg(sock->_sock, &zmsg, XS_DONTWAIT));
     }
     return 0;
 }
@@ -125,9 +125,9 @@ int backend_send_real(config_zmqsocket_t *sock, hybi_t *hybi, void *msg) {
 void backend_unqueue(struct ev_loop *loop, struct ev_io *watch, int rev) {
     ADEBUG(rev == EV_READ);
     config_zmqsocket_t *socket = SHIFT(watch, config_zmqsocket_t, _watch);
-    int64_t opt;
+    int opt;
     size_t size = sizeof(opt);
-    SNIMPL(zmq_getsockopt(socket->_sock, ZMQ_EVENTS, &opt, &size));
+    SNIMPL(xs_getsockopt(socket->_sock, XS_EVENTS, &opt, &size));
     if(!(opt & EV_WRITE && socket->_queue.size && !root.hybi.paused)) {
         return;  // Just have nothing to do
     }
@@ -302,8 +302,8 @@ config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
             message_t *mm = (message_t*)malloc(sizeof(message_t));
             ANIMPL(mm);
             SNIMPL(ws_message_init(&mm->ws));
-            zmq_msg_init_size(&mm->zmq, length);
-            char *zdata = zmq_msg_data(&mm->zmq);
+            xs_msg_init_size(&mm->zmq, length);
+            char *zdata = xs_msg_data(&mm->zmq);
             memcpy(zdata, data, length);
             ws_MESSAGE_DATA(&mm->ws, zdata, length, NULL);
             do_send(hybi, mm);
@@ -312,8 +312,8 @@ config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
             message_t *mm = (message_t*)malloc(sizeof(message_t));
             ANIMPL(mm);
             SNIMPL(ws_message_init(&mm->ws));
-            zmq_msg_init_size(&mm->zmq, length+15);
-            char *zdata = zmq_msg_data(&mm->zmq);
+            xs_msg_init_size(&mm->zmq, length+15);
+            char *zdata = xs_msg_data(&mm->zmq);
             memcpy(zdata, data, length);
             char printbuf[16];
             int tlen = snprintf(printbuf, 16, ":%14.3f", ev_now(root.loop));
@@ -377,9 +377,9 @@ static topic_t *mktopic(topic_hash_t *table, char *name, int len, size_t hash) {
     return result;
 }
 
-static topic_t *find_topic(config_Route_t *route, zmq_msg_t *msg, bool create) {
-    char *topic_name = zmq_msg_data(msg);
-    int topic_len = zmq_msg_size(msg);
+static topic_t *find_topic(config_Route_t *route, xs_msg_t *msg, bool create) {
+    char *topic_name = xs_msg_data(msg);
+    int topic_len = xs_msg_size(msg);
     size_t hash = topic_hash(topic_name, topic_len);
     topic_t *result;
     topic_hash_t *table = route->websocket._topics;
@@ -470,19 +470,19 @@ static bool topic_unsubscribe(hybi_t *hybi, topic_t *topic) {
 
 static void websock_message_free(void *ws) {
     message_t *msg = ws;
-    zmq_msg_close(&msg->zmq);
+    xs_msg_close(&msg->zmq);
 }
 
-static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
+static bool topic_publish(topic_t *topic, xs_msg_t *omsg) {
     message_t *msg = (message_t*)malloc(sizeof(message_t));
     ANIMPL(msg);
     SNIMPL(ws_message_init(&msg->ws));
-    zmq_msg_init(&msg->zmq);
+    xs_msg_init(&msg->zmq);
     LDEBUG("Sending %x [%d]``%.*s''", omsg,
-        zmq_msg_size(omsg), zmq_msg_size(omsg), zmq_msg_data(omsg));
-    zmq_msg_move(&msg->zmq, omsg);
-    ws_MESSAGE_DATA(&msg->ws, (char *)zmq_msg_data(&msg->zmq),
-        zmq_msg_size(&msg->zmq), websock_message_free);
+        xs_msg_size(omsg), xs_msg_size(omsg), xs_msg_data(omsg));
+    xs_msg_move(&msg->zmq, omsg);
+    ws_MESSAGE_DATA(&msg->ws, (char *)xs_msg_data(&msg->zmq),
+        xs_msg_size(&msg->zmq), websock_message_free);
     root.stat.websock_published += 1;
     subscriber_t *nxt, *sub;
     for (sub = LIST_FIRST(&topic->subscribers); sub; sub = nxt) {
@@ -495,16 +495,16 @@ static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
     ws_MESSAGE_DECREF(&msg->ws); // we own a single reference
 }
 
-static bool send_all(config_Route_t *route, zmq_msg_t *omsg) {
+static bool send_all(config_Route_t *route, xs_msg_t *omsg) {
     message_t *msg = (message_t*)malloc(sizeof(message_t));
     ANIMPL(msg);
     SNIMPL(ws_message_init(&msg->ws));
-    zmq_msg_init(&msg->zmq);
+    xs_msg_init(&msg->zmq);
     LDEBUG("Sending to everybody [%d]``%.*s''",
-        zmq_msg_size(omsg), zmq_msg_size(omsg), zmq_msg_data(omsg));
-    zmq_msg_move(&msg->zmq, omsg);
-    ws_MESSAGE_DATA(&msg->ws, (char *)zmq_msg_data(&msg->zmq),
-        zmq_msg_size(&msg->zmq), websock_message_free);
+        xs_msg_size(omsg), xs_msg_size(omsg), xs_msg_data(omsg));
+    xs_msg_move(&msg->zmq, omsg);
+    ws_MESSAGE_DATA(&msg->ws, (char *)xs_msg_data(&msg->zmq),
+        xs_msg_size(&msg->zmq), websock_message_free);
     root.stat.websock_published += 1;
     for(int i = 0; i < root.hybi.sieve->max; i++) {
         hybi_t *hybi = root.hybi.sieve->items[i];
@@ -530,19 +530,20 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     ANIMPL(!(revents & EV_ERROR));
     config_Route_t *route = (config_Route_t *)((char *)watch
         - offsetof(config_Route_t, websocket.subscribe._watch));
-    size_t opt, optlen = sizeof(opt);
-    SNIMPL(zmq_getsockopt(route->websocket.subscribe._sock, ZMQ_EVENTS, &opt, &optlen));
+    int opt;
+    size_t optlen = sizeof(opt);
+    SNIMPL(xs_getsockopt(route->websocket.subscribe._sock, XS_EVENTS, &opt, &optlen));
     while(TRUE) {
         output_t *output = NULL;
         Z_SEQ_INIT(msg, route->websocket.subscribe._sock);
         Z_RECV_START(msg, break);
-        char *cmd = zmq_msg_data(&msg);
-        int cmdlen = zmq_msg_size(&msg);
+        char *cmd = xs_msg_data(&msg);
+        int cmdlen = xs_msg_size(&msg);
         if(cmdlen == 9 && !strncmp(cmd, "subscribe", cmdlen)) {
             LDEBUG("Websocket got SUBSCRIBE request");
             Z_RECV_NEXT(msg);
-            if(zmq_msg_size(&msg) != UID_LEN) goto msg_error;
-            hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
+            if(xs_msg_size(&msg) != UID_LEN) goto msg_error;
+            hybi_t *hybi = hybi_find(xs_msg_data(&msg));
             if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_LAST(msg);
             topic_t *topic = find_topic(hybi->route, &msg, TRUE);
@@ -557,8 +558,8 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         } else if(cmdlen == 11 && !strncmp(cmd, "unsubscribe", cmdlen)) {
             LDEBUG("Websocket got UNSUBSCRIBE request");
             Z_RECV_NEXT(msg);
-            if(zmq_msg_size(&msg) != UID_LEN) goto msg_error;
-            hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
+            if(xs_msg_size(&msg) != UID_LEN) goto msg_error;
+            hybi_t *hybi = hybi_find(xs_msg_data(&msg));
             if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_LAST(msg);
             topic_t *topic = find_topic(route, &msg, FALSE);
@@ -578,18 +579,18 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         } else if(cmdlen == 4 && !strncmp(cmd, "send", cmdlen)) {
             LDEBUG("Websocket got SEND request");
             Z_RECV_NEXT(msg);
-            hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
+            hybi_t *hybi = hybi_find(xs_msg_data(&msg));
             if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_LAST(msg);
             message_t *mm = (message_t*)malloc(sizeof(message_t));
             ANIMPL(mm);
             SNIMPL(ws_message_init(&mm->ws));
-            zmq_msg_init(&mm->zmq);
+            xs_msg_init(&mm->zmq);
             LDEBUG("Sending %x [%d]``%.*s''", &msg,
-                zmq_msg_size(&msg), zmq_msg_size(&msg), zmq_msg_data(&msg));
-            zmq_msg_move(&mm->zmq, &msg);
-            ws_MESSAGE_DATA(&mm->ws, (char *)zmq_msg_data(&mm->zmq),
-                zmq_msg_size(&mm->zmq), websock_message_free);
+                xs_msg_size(&msg), xs_msg_size(&msg), xs_msg_data(&msg));
+            xs_msg_move(&mm->zmq, &msg);
+            ws_MESSAGE_DATA(&mm->ws, (char *)xs_msg_data(&mm->zmq),
+                xs_msg_size(&mm->zmq), websock_message_free);
             root.stat.websock_sent += 1;
             do_send(hybi, mm);
             ws_MESSAGE_DECREF(&mm->ws);
@@ -620,21 +621,21 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         } else if(cmdlen == 10 && !memcmp(cmd, "add_output", cmdlen)) {
             LDEBUG("Adding output");
             Z_RECV_NEXT(msg);
-            hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
+            hybi_t *hybi = hybi_find(xs_msg_data(&msg));
             if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_NEXT(msg);
-            zmq_msg_t prefix;
-            zmq_msg_init(&prefix);
-            zmq_msg_move(&prefix, &msg);
+            xs_msg_t prefix;
+            xs_msg_init(&prefix);
+            xs_msg_move(&prefix, &msg);
             Z_RECV(msg); \
             if(msg_opt) {
-                zmq_msg_close(&prefix);
+                xs_msg_close(&prefix);
                 goto msg_error;
             }
 
             config_namedoutput_t *outsock = NULL;
-            int len = zmq_msg_size(&msg);
-            char *data = zmq_msg_data(&msg);
+            int len = xs_msg_size(&msg);
+            char *data = xs_msg_data(&msg);
             CONFIG_STRING_NAMEDOUTPUT_LOOP(item,
                 route->websocket.named_outputs) {
                 if(item->key_len == len && !memcmp(data, item->key, len)) {
@@ -646,8 +647,8 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
             if(!outsock) {
                 TWARN("Can't find named path ``%.*s''", len, data);
             } else {
-                len = zmq_msg_size(&prefix);
-                data = zmq_msg_data(&prefix);
+                len = xs_msg_size(&prefix);
+                data = xs_msg_data(&prefix);
                 output_t *old_prefix = NULL;
                 output_t *prev_output = NULL;
                 output_t *cur;
@@ -662,7 +663,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 if(!old_prefix) {
                     output = malloc(sizeof(output_t) + len + 1);
                     ANIMPL(output);
-                    memcpy(output->prefix, zmq_msg_data(&prefix), len);
+                    memcpy(output->prefix, xs_msg_data(&prefix), len);
                     output->connection = hybi;
                     output->prefix_len = len;
                     output->prefix[len] = 0;
@@ -693,11 +694,11 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         } else if(cmdlen == 10 && !memcmp(cmd, "del_output", cmdlen)) {
             LDEBUG("Removing output");
             Z_RECV_NEXT(msg);
-            hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
+            hybi_t *hybi = hybi_find(xs_msg_data(&msg));
             if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_LAST(msg);
-            int len = zmq_msg_size(&msg);
-            char *data = zmq_msg_data(&msg);
+            int len = xs_msg_size(&msg);
+            char *data = xs_msg_data(&msg);
             for(output_t *out = LIST_FIRST(&hybi->outputs), *nxt; out; out=nxt) {
                 nxt = LIST_NEXT(out, client_list);
                 if(out->prefix_len == len && !memcmp(data, out->prefix, len)) {
@@ -714,13 +715,13 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         } else if(cmdlen == 10 && !memcmp(cmd, "set_cookie", cmdlen)) {
             LDEBUG("Setting connection cookie");
             Z_RECV_NEXT(msg);
-            hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
+            hybi_t *hybi = hybi_find(xs_msg_data(&msg));
             if(!hybi || hybi->route != route) goto msg_error;
             Z_RECV_LAST(msg);
             if(!(hybi->flags & WS_HAS_COOKIE)) {
-                zmq_msg_init(&hybi->cookie);
+                xs_msg_init(&hybi->cookie);
             }
-            SNIMPL(zmq_msg_move(&hybi->cookie, &msg));
+            SNIMPL(xs_msg_move(&hybi->cookie, &msg));
             hybi->flags |= WS_HAS_COOKIE;
         } else if(cmdlen == 7 && !strncmp(cmd, "sendall", cmdlen)) {
             LDEBUG("Websocket got SENDALL request");
@@ -729,7 +730,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         } else if(cmdlen == 10 && !memcmp(cmd, "disconnect", cmdlen)) {
             LDEBUG("Closing connection");
             Z_RECV_LAST(msg);
-            hybi_t *hybi = hybi_find(zmq_msg_data(&msg));
+            hybi_t *hybi = hybi_find(xs_msg_data(&msg));
             if(hybi && hybi->route == route) {
                 if(hybi->type == HYBI_COMET) {
                     comet_close(hybi);
@@ -768,18 +769,18 @@ static void heartbeat(struct ev_loop *loop,
     ANIMPL(!(revents & EV_ERROR));
     config_Route_t *route = (config_Route_t *)((char *)watch
         - offsetof(config_Route_t, websocket._heartbeat_timer));
-    zmq_msg_t msg;
-    SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-    if(zmq_send(route->websocket.forward._sock, &msg,
-        ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+    xs_msg_t msg;
+    SNIMPL(xs_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
+    if(xs_sendmsg(route->websocket.forward._sock, &msg,
+        XS_SNDMORE|XS_DONTWAIT) < 0) {
         if(errno != EAGAIN) { //TODO: EINTR???
             SNIMPL(-1);
         } else {
             return; // nevermind
         }
     }
-    SNIMPL(zmq_msg_init_data(&msg, "heartbeat", 9, NULL, NULL));
-    if(zmq_send(route->websocket.forward._sock, &msg, ZMQ_NOBLOCK) < 0) {
+    SNIMPL(xs_msg_init_data(&msg, "heartbeat", 9, NULL, NULL));
+    if(xs_sendmsg(route->websocket.forward._sock, &msg, XS_DONTWAIT) < 0) {
         if(errno != EAGAIN) { //TODO: EINTR???
             SNIMPL(-1);
         } // else: nevermind
@@ -792,16 +793,16 @@ static void send_sync(struct ev_loop *loop,
     config_namedoutput_t *socket = SHIFT(watch,
         config_namedoutput_t, _int.sync_tm);
     if(!LIST_FIRST(&socket->_int.outputs)) return;
-    zmq_msg_t msg;
-    SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-    if(zmq_send(socket->_sock, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+    xs_msg_t msg;
+    SNIMPL(xs_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
+    if(xs_sendmsg(socket->_sock, &msg, XS_SNDMORE|XS_DONTWAIT) < 0) {
         if(errno != EAGAIN) { //TODO: EINTR???
             SNIMPL(-1);
         } else {
             return; // nevermind
         }
     }
-    SNIMPL(zmq_msg_init_data(&msg, "sync", 4, NULL, NULL));
+    SNIMPL(xs_msg_init_data(&msg, "sync", 4, NULL, NULL));
 
     output_t *item;
     output_t *prev = NULL;
@@ -809,31 +810,31 @@ static void send_sync(struct ev_loop *loop,
         // Same users are guaranteed to be on subsequent entries on the list
         if(prev && prev->connection == item->connection) continue;
         prev = item;
-        SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE));
-        SNIMPL(zmq_msg_init_size(&msg, UID_LEN));
-        memcpy(zmq_msg_data(&msg), item->connection->uid, UID_LEN);
-        SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE));
+        NNIMPL(xs_sendmsg(socket->_sock, &msg, XS_DONTWAIT|XS_SNDMORE));
+        SNIMPL(xs_msg_init_size(&msg, UID_LEN));
+        memcpy(xs_msg_data(&msg), item->connection->uid, UID_LEN);
+        NNIMPL(xs_sendmsg(socket->_sock, &msg, XS_DONTWAIT|XS_SNDMORE));
         if(item->connection->flags & WS_HAS_COOKIE) {
-            zmq_msg_copy(&msg, &item->connection->cookie);
+            xs_msg_copy(&msg, &item->connection->cookie);
         }
     }
 
-    SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK));
+    NNIMPL(xs_sendmsg(socket->_sock, &msg, XS_DONTWAIT));
 }
 
 static int socket_visitor(config_Route_t *route) {
     if(route->websocket.subscribe.value_len) {
-        SNIMPL(zmq_open(&route->websocket.subscribe,
-            ZMASK_PULL|ZMASK_SUB, ZMQ_SUB, websock_process, root.loop));
+        SNIMPL(xs_open(&route->websocket.subscribe,
+            ZMASK_PULL|ZMASK_SUB, XS_SUB, websock_process, root.loop));
         if(route->websocket.subscribe.kind == CONFIG_zmq_Sub
             || route->websocket.subscribe.kind == CONFIG_auto) {
-            SNIMPL(zmq_setsockopt(route->websocket.subscribe._sock,
-                ZMQ_SUBSCRIBE, NULL, 0));
+            SNIMPL(xs_setsockopt(route->websocket.subscribe._sock,
+                XS_SUBSCRIBE, NULL, 0));
         }
     }
     if(route->websocket.forward.value_len) {
-        SNIMPL(zmq_open(&route->websocket.forward,
-            ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, backend_unqueue, root.loop));
+        SNIMPL(xs_open(&route->websocket.forward,
+            ZMASK_PUSH|ZMASK_PUB, XS_PUB, backend_unqueue, root.loop));
         if(route->websocket.heartbeat_interval) {
             ev_timer_init(&route->websocket._heartbeat_timer, heartbeat,
                 route->websocket.heartbeat_interval,
@@ -844,8 +845,8 @@ static int socket_visitor(config_Route_t *route) {
             route->websocket.max_backend_queue, &root.hybi.backend_pool);
     }
     CONFIG_STRING_NAMEDOUTPUT_LOOP(item, route->websocket.named_outputs) {
-        SNIMPL(zmq_open((config_zmqsocket_t*)&item->value,
-            ZMASK_PUSH|ZMASK_PUB, ZMQ_PUB, backend_unqueue, root.loop));
+        SNIMPL(xs_open((config_zmqsocket_t*)&item->value,
+            ZMASK_PUSH|ZMASK_PUB, XS_PUB, backend_unqueue, root.loop));
         init_queue(&item->value._queue,
             route->websocket.max_backend_queue, &root.hybi.backend_pool);
         if(item->value.sync_interval) {
@@ -934,13 +935,13 @@ int pause_websockets(bool pause) {
     SNIMPL(ws_message_init(&mm->ws));
 
     if(pause) {
-        zmq_msg_init_size(&mm->zmq, 13 /*strlen("ZEROGW:paused")*/);
-        char *zdata = zmq_msg_data(&mm->zmq);
+        xs_msg_init_size(&mm->zmq, 13 /*strlen("ZEROGW:paused")*/);
+        char *zdata = xs_msg_data(&mm->zmq);
         memcpy(zdata, "ZEROGW:paused", 13);
         ws_MESSAGE_DATA(&mm->ws, zdata, 13, NULL);
     } else {
-        zmq_msg_init_size(&mm->zmq, 14 /*strlen("ZEROGW:resumed")*/);
-        char *zdata = zmq_msg_data(&mm->zmq);
+        xs_msg_init_size(&mm->zmq, 14 /*strlen("ZEROGW:resumed")*/);
+        char *zdata = xs_msg_data(&mm->zmq);
         memcpy(zdata, "ZEROGW:resumed", 14);
         ws_MESSAGE_DATA(&mm->ws, zdata, 14, NULL);
     }

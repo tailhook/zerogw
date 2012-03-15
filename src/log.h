@@ -53,6 +53,8 @@ typedef enum {
 
 #define SNIMPL(res) if((res) && LOG_ALERT <= LOGLEVEL) { logstd(LOG_ALERT, __FILE__, __LINE__, #res); }
 #define SNIMPL2(res, msg, ...) if(res && LOG_ALERT <= LOGLEVEL) { logstd(LOG_ALERT, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
+#define NNIMPL(res) if((res) < 0 && LOG_ALERT <= LOGLEVEL) { logstd(LOG_ALERT, __FILE__, __LINE__, #res); }
+#define NNIMPL2(res, msg, ...) if((res) < 0 && LOG_ALERT <= LOGLEVEL) { logstd(LOG_ALERT, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
 #define SWARN() if(LOG_WARN <= LOGLEVEL) { logstd(LOG_WARN, __FILE__, __LINE__, ""); }
 #define SWARN2(msg, ...) if(LOG_WARN <= LOGLEVEL) { logstd(LOG_WARN, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
 

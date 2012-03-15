@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <zmq.h>
+#include <xs.h>
 #include <errno.h>
 #include <ctype.h>
 
@@ -191,7 +191,7 @@ static char *join_paths(disk_request_t *req) {
     return realpath(fullpath, NULL);
 }
 
-static int get_file(char *path, zmq_msg_t *msg,
+static int get_file(char *path, xs_msg_t *msg,
     char *if_mod, char *lastmod, int *gzip) {
     int fd = -1;
     if(*gzip) {
@@ -227,17 +227,17 @@ static int get_file(char *path, zmq_msg_t *msg,
     gmtime_r(&statinfo.st_mtime, &tmstruct);
     strftime(lastmod, 32, "%a, %d %b %Y %T GMT", &tmstruct);
     if(if_mod && !strcmp(if_mod, lastmod)) {
-        zmq_msg_init(msg); // empty body for 304 reply
+        xs_msg_init(msg); // empty body for 304 reply
         SNIMPL(close(fd));
         return 1;
     }
     size_t to_read = statinfo.st_size;
-    if(zmq_msg_init_size(msg, to_read)) {
+    if(xs_msg_init_size(msg, to_read)) {
         TWARN("Can't allocate buffer for file");
         SNIMPL(close(fd));
         return -1;
     }
-    void *data = zmq_msg_data(msg);
+    void *data = xs_msg_data(msg);
     while(to_read) {
         ssize_t bytes = read(fd, data, to_read);
         if(bytes < 0) {
@@ -256,74 +256,74 @@ static int get_file(char *path, zmq_msg_t *msg,
 }
 
 void *disk_loop(void *_) {
-    void *sock = zmq_socket(root.zmq, ZMQ_REP);
-    SNIMPL(zmq_connect(sock, "inproc://disk"));
+    void *sock = xs_socket(root.zmq, XS_REP);
+    SNIMPL(xs_connect(sock, "inproc://disk"));
     while(1) {
         disk_request_t *req;
-        zmq_msg_t msg;
-        zmq_msg_init(&msg);
-        if(zmq_recv(sock, &msg, 0) < 0) {
+        xs_msg_t msg;
+        xs_msg_init(&msg);
+        if(xs_recvmsg(sock, &msg, 0) < 0) {
             if(errno == EINTR || errno == EAGAIN) {
                 continue;
             }
             SNIMPL(-1);
         }
-        int64_t opt;
+        int opt;
         size_t optlen = sizeof(opt);
-        SNIMPL(zmq_getsockopt(sock, ZMQ_RCVMORE, &opt, &optlen));
+        SNIMPL(xs_getsockopt(sock, XS_RCVMORE, &opt, &optlen));
         ANIMPL(optlen == sizeof(opt) && !opt);
-        req = zmq_msg_data(&msg);
-        size_t reqlen = zmq_msg_size(&msg);
+        req = xs_msg_data(&msg);
+        size_t reqlen = xs_msg_size(&msg);
         if(reqlen == 8 && !memcmp(req, "shutdown", 8)) break;
         LDEBUG("Got disk request for ``%s''", req->path);
         char *mime = check_base(req);
         if(!mime) {
             LDEBUG("Path ``%s'' denied", req->path);
-            SNIMPL(zmq_msg_close(&msg));
-            SNIMPL(zmq_msg_init_data(&msg, "402", 4, NULL, NULL));
-            SNIMPL(zmq_send(sock, &msg, 0));
+            SNIMPL(xs_msg_close(&msg));
+            SNIMPL(xs_msg_init_data(&msg, "402", 4, NULL, NULL));
+            NNIMPL(xs_sendmsg(sock, &msg, 0));
             continue;
         }
         char *realpath = join_paths(req);
         if(!realpath) {
             SWARN2("Can't resolve ``%s''", req->path);
-            SNIMPL(zmq_msg_close(&msg));
-            SNIMPL(zmq_msg_init_data(&msg, "404", 4, NULL, NULL));
-            SNIMPL(zmq_send(sock, &msg, 0));
+            SNIMPL(xs_msg_close(&msg));
+            SNIMPL(xs_msg_init_data(&msg, "404", 4, NULL, NULL));
+            NNIMPL(xs_sendmsg(sock, &msg, 0));
             continue;
         }
         LDEBUG("Resolved ``%s'' -> ``%s''", req->path, realpath);
         if(!check_path(req, realpath)) {
             LDEBUG("Path ``%s''(``%s'') denied", req->path, realpath);
             free(realpath);
-            SNIMPL(zmq_msg_close(&msg));
-            SNIMPL(zmq_msg_init_data(&msg, "402", 4, NULL, NULL));
-            SNIMPL(zmq_send(sock, &msg, 0));
+            SNIMPL(xs_msg_close(&msg));
+            SNIMPL(xs_msg_init_data(&msg, "402", 4, NULL, NULL));
+            NNIMPL(xs_sendmsg(sock, &msg, 0));
             continue;
         }
-        zmq_msg_t result;
-        zmq_msg_init(&result);
+        xs_msg_t result;
+        xs_msg_init(&result);
         char lastmod[64];
         int gz = req->gzipped;
         int rc = get_file(realpath, &result, req->if_modified, lastmod, &gz);
         free(realpath);
-        zmq_msg_close(&msg); // frees req
+        xs_msg_close(&msg); // frees req
         if(rc == 1) {
-            zmq_msg_close(&result);
-            SNIMPL(zmq_msg_init_data(&result,
+            xs_msg_close(&result);
+            SNIMPL(xs_msg_init_data(&result,
                 "304 Not Modified", strlen("304 Not Modified"), NULL, NULL));
-            SNIMPL(zmq_send(sock, &result, ZMQ_SNDMORE));
-            SNIMPL(zmq_msg_init(&result));
-            SNIMPL(zmq_send(sock, &result, 0));
+            NNIMPL(xs_sendmsg(sock, &result, XS_SNDMORE));
+            SNIMPL(xs_msg_init(&result));
+            NNIMPL(xs_sendmsg(sock, &result, 0));
             continue;
         } else if(rc) {
-            zmq_msg_close(&result);
-            SNIMPL(zmq_msg_init_data(&result,
+            xs_msg_close(&result);
+            SNIMPL(xs_msg_init_data(&result,
                 "500 Internal Server Error",
                 strlen("500 Internal Server Error"), NULL, NULL));
-            SNIMPL(zmq_send(sock, &result, ZMQ_SNDMORE));
-            SNIMPL(zmq_msg_init(&result));
-            SNIMPL(zmq_send(sock, &result, 0));
+            NNIMPL(xs_sendmsg(sock, &result, XS_SNDMORE));
+            SNIMPL(xs_msg_init(&result));
+            NNIMPL(xs_sendmsg(sock, &result, 0));
             continue;
         }
         int mimelen = strlen(mime)+1;
@@ -331,10 +331,10 @@ void *disk_loop(void *_) {
         int totsize = sizeof(content_type) + mimelen
             + sizeof(last_modified) + modlen;
         if(gz) totsize += sizeof(gzip_encoding);
-        SNIMPL(zmq_msg_init_data(&msg, "200 OK", 6, NULL, NULL));
-        SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE));
-        SNIMPL(zmq_msg_init_size(&msg, totsize));
-        void *data = zmq_msg_data(&msg);
+        SNIMPL(xs_msg_init_data(&msg, "200 OK", 6, NULL, NULL));
+        NNIMPL(xs_sendmsg(sock, &msg, XS_SNDMORE));
+        SNIMPL(xs_msg_init_size(&msg, totsize));
+        void *data = xs_msg_data(&msg);
         memcpy(data, content_type, sizeof(content_type));
         data += sizeof(content_type);
         memcpy(data, mime, mimelen);
@@ -347,11 +347,11 @@ void *disk_loop(void *_) {
             memcpy(data, gzip_encoding, sizeof(gzip_encoding));
             data += sizeof(gzip_encoding);
         }
-        SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE));
-        SNIMPL(zmq_send(sock, &result, 0));
+        NNIMPL(xs_sendmsg(sock, &msg, XS_SNDMORE));
+        NNIMPL(xs_sendmsg(sock, &result, 0));
         continue;
     }
-    SNIMPL(zmq_close(sock));
+    SNIMPL(xs_close(sock));
     LDEBUG("Disk thread shut down");
 }
 
@@ -364,13 +364,13 @@ int disk_request(request_t *req) {
     }
     // Must wake up reading and on each send, because the way zmq sockets work
     ev_feed_event(root.loop, &root.disk.watch, EV_READ);
-    zmq_msg_t msg;
+    xs_msg_t msg;
     REQ_INCREF(req);
     make_hole_uid(req, req->uid, root.request_sieve, FALSE);
     req->flags |= REQ_IN_SIEVE;
     root.stat.disk_requests += 1;
-    SNIMPL(zmq_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
-    while(zmq_send(root.disk.socket, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+    SNIMPL(xs_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
+    while(xs_sendmsg(root.disk.socket, &msg, XS_SNDMORE|XS_DONTWAIT) < 0) {
         if(errno == EAGAIN) {
             http_static_response(req,
                 &req->route->responses.service_unavailable);
@@ -383,10 +383,10 @@ int disk_request(request_t *req) {
             return 0;
         }
     }
-    SNIMPL(zmq_msg_init(&msg));
-    SNIMPL(zmq_send(root.disk.socket, &msg, ZMQ_SNDMORE));
-    SNIMPL(zmq_msg_init_size(&msg, sizeof(disk_request_t)));
-    disk_request_t *dreq = zmq_msg_data(&msg);
+    SNIMPL(xs_msg_init(&msg));
+    NNIMPL(xs_sendmsg(root.disk.socket, &msg, XS_SNDMORE));
+    SNIMPL(xs_msg_init_size(&msg, sizeof(disk_request_t)));
+    disk_request_t *dreq = xs_msg_data(&msg);
     dreq->route = req->route;
     if(req->ws.headerindex[root.disk.IF_MODIFIED]) {
         strncpy(dreq->if_modified, req->ws.headerindex[root.disk.IF_MODIFIED],
@@ -423,7 +423,7 @@ int disk_request(request_t *req) {
             }
         }
     }
-    SNIMPL(zmq_send(root.disk.socket, &msg, 0));
+    NNIMPL(xs_sendmsg(root.disk.socket, &msg, 0));
     return 0;
 }
 
@@ -435,20 +435,20 @@ static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents)
         LDEBUG("Checking disk...");
         Z_RECV_START(msg, break);
         LDEBUG("Got something from disk");
-        if(zmq_msg_size(&msg) != UID_LEN) {
-            TWARN("Wrong uid length %d", zmq_msg_size(&msg));
+        if(xs_msg_size(&msg) != UID_LEN) {
+            TWARN("Wrong uid length %d", xs_msg_size(&msg));
             goto msg_error;
         }
         request_t *req = sieve_get(root.request_sieve,
-            UID_HOLE(zmq_msg_data(&msg)));
-        ANIMPL(req && UID_EQ(req->uid, zmq_msg_data(&msg)));
+            UID_HOLE(xs_msg_data(&msg)));
+        ANIMPL(req && UID_EQ(req->uid, xs_msg_data(&msg)));
         Z_RECV_NEXT(msg);
-        ANIMPL(!zmq_msg_size(&msg)); // The sentinel of routing data
+        ANIMPL(!xs_msg_size(&msg)); // The sentinel of routing data
         Z_RECV(msg);
         //first is a status-line
-        char *data = zmq_msg_data(&msg);
+        char *data = xs_msg_data(&msg);
         char *tail;
-        int dlen = zmq_msg_size(&msg);
+        int dlen = xs_msg_size(&msg);
         LDEBUG("Disk status line: [%d] %.*s", dlen, dlen, data);
         if(!msg_opt) { // if there are no subsequent parts
             // then it's error response
@@ -469,10 +469,10 @@ static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents)
             ws_statusline(&req->ws, data);
             Z_RECV(msg);
             if(msg_opt) { //second is headers if its not last
-                char *data = zmq_msg_data(&msg);
+                char *data = xs_msg_data(&msg);
                 char *name = data;
                 char *value = NULL;
-                int dlen = zmq_msg_size(&msg);
+                int dlen = xs_msg_size(&msg);
                 char *end = data + dlen;
                 int state = 0;
                 for(char *cur = data; cur < end; ++cur) {
@@ -512,14 +512,14 @@ static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents)
         }
         ws_finish_headers(&req->ws);
         root.stat.disk_reads += 1;
-        root.stat.disk_bytes_read += zmq_msg_size(&msg);
+        root.stat.disk_bytes_read += xs_msg_size(&msg);
         // the last part is always a body
         ANIMPL(!(req->flags & REQ_HAS_MESSAGE));
-        SNIMPL(zmq_msg_init(&req->response_msg));
+        SNIMPL(xs_msg_init(&req->response_msg));
         req->flags |= REQ_HAS_MESSAGE;
-        SNIMPL(zmq_msg_move(&req->response_msg, &msg));
-        SNIMPL(ws_reply_data(&req->ws, zmq_msg_data(&req->response_msg),
-            zmq_msg_size(&req->response_msg)));
+        SNIMPL(xs_msg_move(&req->response_msg, &msg));
+        SNIMPL(ws_reply_data(&req->ws, xs_msg_data(&req->response_msg),
+            xs_msg_size(&req->response_msg)));
         req->flags |= REQ_REPLIED;
         request_finish(req);
     msg_finish:
@@ -571,12 +571,12 @@ int prepare_disk(config_main_t *config) {
     }
     root.disk.IF_MODIFIED = ws_index_header(&root.ws, "If-Modified-Since");
     root.disk.ACCEPT_ENCODING = ws_index_header(&root.ws, "Accept-Encoding");
-    root.disk.socket = zmq_socket(root.zmq, ZMQ_XREQ);
+    root.disk.socket = xs_socket(root.zmq, XS_XREQ);
     SNIMPL(root.disk.socket == NULL);
-    SNIMPL(zmq_bind(root.disk.socket, "inproc://disk"));
-    int64_t fd;
+    SNIMPL(xs_bind(root.disk.socket, "inproc://disk"));
+    int fd;
     size_t fdsize = sizeof(fd);
-    SNIMPL(zmq_getsockopt(root.disk.socket, ZMQ_FD, &fd, &fdsize));
+    SNIMPL(xs_getsockopt(root.disk.socket, XS_FD, &fd, &fdsize));
     ev_io_init(&root.disk.watch, disk_process, fd, EV_READ);
     ev_io_start(root.loop, &root.disk.watch);
     root.disk.threads =malloc(sizeof(pthread_t)*config->Server.disk_io_threads);
@@ -603,21 +603,21 @@ int prepare_disk(config_main_t *config) {
 
 int release_disk(config_main_t *config) {
     while(TRUE) {
-        zmq_msg_t msg;
-        SNIMPL(zmq_msg_init(&msg));
-        if(zmq_send(root.disk.socket, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE) < 0) {
+        xs_msg_t msg;
+        SNIMPL(xs_msg_init(&msg));
+        if(xs_sendmsg(root.disk.socket, &msg, XS_DONTWAIT|XS_SNDMORE) < 0) {
             if(errno == EAGAIN) break;
             SNIMPL(-1);
         }
-        SNIMPL(zmq_msg_init_size(&msg, 8));
-        memcpy(zmq_msg_data(&msg), "shutdown", 8);
-        zmq_send(root.disk.socket, &msg, ZMQ_NOBLOCK); // don't care if fails
+        SNIMPL(xs_msg_init_size(&msg, 8));
+        memcpy(xs_msg_data(&msg), "shutdown", 8);
+        xs_sendmsg(root.disk.socket, &msg, XS_DONTWAIT); // don't care if fails
     }
     for(int i = 0; i < config->Server.disk_io_threads; ++i) {
         SNIMPL(pthread_join(root.disk.threads[i], NULL));
     }
     ev_io_stop(root.loop, &root.disk.watch);
-    SNIMPL(zmq_close(root.disk.socket));
+    SNIMPL(xs_close(root.disk.socket));
     free(root.disk.threads);
     mime_free(root.disk.mime_table);
     return 0;

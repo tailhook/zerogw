@@ -2,7 +2,7 @@
 #define _H_WEBSOCKET
 
 #include <website.h>
-#include <zmq.h>
+#include <xs.h>
 #include <sys/queue.h>
 #include "request.h"
 #include "config.h"
@@ -43,12 +43,12 @@ typedef struct backend_msg_s {
 
 typedef struct frontend_msg_s {
     queue_item_t qhead;
-    zmq_msg_t zmsg;
+    xs_msg_t zmsg;
 } frontend_msg_t;
 
 typedef struct message_s {
     ws_message_t ws;
-    zmq_msg_t zmq;
+    xs_msg_t zmq;
 } message_t;
 
 typedef struct hybi_s {
@@ -56,7 +56,7 @@ typedef struct hybi_s {
     unsigned refcnt;
     char uid[UID_LEN];
     int flags;
-    zmq_msg_t cookie;
+    xs_msg_t cookie;
     config_Route_t *route;
     LIST_HEAD(conn_subscribers_s, subscriber_s) subscribers;
     LIST_HEAD(conn_outputs_s, output_s) outputs;

@@ -211,7 +211,7 @@ static void free_comet(hybi_t *hybi) {
     }
     queue_item_t *cur;
     TAILQ_FOREACH(cur, &hybi->comet->queue.items, list) {
-        zmq_msg_close(&((frontend_msg_t *)cur)->zmsg);
+        xs_msg_close(&((frontend_msg_t *)cur)->zmsg);
     }
     hybi_stop(hybi);
 }
@@ -310,7 +310,7 @@ static int move_queue(hybi_t *hybi, size_t msgid) {
         for(int i = 0; i < amount; cur = nxt, i += 1) {
             ANIMPL(cur);
             nxt = TAILQ_NEXT(cur, list);
-            zmq_msg_close(&((frontend_msg_t *)cur)->zmsg);
+            xs_msg_close(&((frontend_msg_t *)cur)->zmsg);
             queue_remove(&hybi->comet->queue, cur);
         }
         hybi->comet->first_index += amount;
@@ -361,11 +361,11 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             timestamp_headers(mreq);
             ws_finish_headers(req);
             mreq->flags |= REQ_HAS_MESSAGE;
-            SNIMPL(zmq_msg_init(&mreq->response_msg));
-            SNIMPL(zmq_msg_copy(&mreq->response_msg,
+            SNIMPL(xs_msg_init(&mreq->response_msg));
+            SNIMPL(xs_msg_copy(&mreq->response_msg,
                 &((frontend_msg_t *)TAILQ_FIRST(&comet->queue.items))->zmsg));
-            SNIMPL(ws_reply_data(req, zmq_msg_data(&mreq->response_msg),
-                zmq_msg_size(&mreq->response_msg)));
+            SNIMPL(ws_reply_data(req, xs_msg_data(&mreq->response_msg),
+                xs_msg_size(&mreq->response_msg)));
         } else if(comet->cur_format == FMT_JSONLIST) {
             int num = comet->queue.size;
             if(num > comet->cur_limit) {
@@ -388,8 +388,8 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
                 &comet->queue.items);
             for(int i = num-1; i >= 0; --i) {
                 root.stat.comet_sent_messages += 1;
-                char *data = zmq_msg_data(&msg->zmsg);
-                int datasize = zmq_msg_size(&msg->zmsg);
+                char *data = xs_msg_data(&msg->zmsg);
+                int datasize = xs_msg_size(&msg->zmsg);
                 if(datasize > 7 /*strlen("ZEROGW:")*/
                     && !strncmp(data, "ZEROGW:", 7)) {
                     obstack_1grow(&req->pieces, '"');
@@ -575,8 +575,8 @@ int comet_send(hybi_t *hybi, message_t *msg) {
         errno = EOVERFLOW;
         return -1;
     }
-    SNIMPL(zmq_msg_init(&qitem->zmsg));
-    SNIMPL(zmq_msg_copy(&qitem->zmsg, &msg->zmq));
+    SNIMPL(xs_msg_init(&qitem->zmsg));
+    SNIMPL(xs_msg_copy(&qitem->zmsg, &msg->zmq));
     LDEBUG("Queued up to %d last acked %d",
         hybi->comet->queue.size, hybi->comet->first_index);
     if(hybi->comet->cur_request && !hybi->comet->sendlater.active) {

@@ -1,4 +1,4 @@
-#include <zmq.h>
+#include <xs.h>
 
 #include <ev.h>
 #include <website.h>
@@ -53,13 +53,13 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     config_main_t *config = (config_main_t *)watch->data;
     char buf[STAT_MAXLEN];
     size_t len = format_statistics(buf);
-    zmq_msg_t msg;
-    SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-    SNIMPL(zmq_send(config->Server.status.socket._sock, &msg,
-        ZMQ_SNDMORE|ZMQ_NOBLOCK));
-    SNIMPL(zmq_msg_init_size(&msg, len));
-    memcpy(zmq_msg_data(&msg), buf, len);
-    SNIMPL(zmq_send(config->Server.status.socket._sock, &msg, ZMQ_NOBLOCK));
+    xs_msg_t msg;
+    SNIMPL(xs_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
+    NNIMPL(xs_sendmsg(config->Server.status.socket._sock, &msg,
+        XS_SNDMORE|XS_DONTWAIT));
+    SNIMPL(xs_msg_init_size(&msg, len));
+    memcpy(xs_msg_data(&msg), buf, len);
+    NNIMPL(xs_sendmsg(config->Server.status.socket._sock, &msg, XS_DONTWAIT));
     LDEBUG("STATISTICS ``%s''", buf);
 }
 
@@ -139,12 +139,16 @@ int main(int argc, char **argv) {
 
     init_uid(&config);
     init_statistics();
-    root.zmq = zmq_init(config.Server.zmq_io_threads);
+    root.zmq = xs_init();
+    int opt = config.Server.xs_io_threads;
+    SNIMPL(xs_setctxopt(root.zmq, XS_IO_THREADS, &opt, sizeof(opt)));
+    opt = config.Server.xs_max_sockets;
+    SNIMPL(xs_setctxopt(root.zmq, XS_MAX_SOCKETS, &opt, sizeof(opt)));
 
     struct ev_timer status_timer;
     if(config.Server.status.socket.value_len) {
-        SNIMPL(zmq_open(&config.Server.status.socket,
-            ZMASK_PUB|ZMASK_PUSH, ZMQ_PUB, NULL, NULL));
+        SNIMPL(xs_open(&config.Server.status.socket,
+            ZMASK_PUB|ZMASK_PUSH, XS_PUB, NULL, NULL));
         status_timer.data = &config;
         double ivl = config.Server.status.interval;
         ev_timer_init(&status_timer, flush_statistics,
@@ -180,6 +184,6 @@ int main(int argc, char **argv) {
     config_free(&config);
     ev_loop_destroy(root.loop);
 
-    zmq_term(root.zmq);
+    xs_term(root.zmq);
     LWARN("Terminated.");
 }

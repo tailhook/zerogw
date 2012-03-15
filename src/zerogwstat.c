@@ -11,7 +11,7 @@
 #include <endian.h>
 #include <unistd.h>
 
-#include <zmq.h>
+#include <xs.h>
 
 #include "config.h"
 
@@ -154,22 +154,22 @@ void reset_statistics(statistics_t *stat) {
 }
 
 void read_data(void *input, statistics_t *result) {
-    zmq_msg_t msg;
-    zmq_msg_init(&msg);
-    STDASSERT(zmq_recv(input, &msg, 0));
-    assert(zmq_msg_size(&msg) >= sizeof(result->instance_id));
-    result->instance_id = be64toh(*(uint64_t*)zmq_msg_data(&msg));
-    int64_t opt = 1; \
+    xs_msg_t msg;
+    xs_msg_init(&msg);
+    STDASSERT(xs_recvmsg(input, &msg, 0));
+    assert(xs_msg_size(&msg) >= sizeof(result->instance_id));
+    result->instance_id = be64toh(*(uint64_t*)xs_msg_data(&msg));
+    int opt = 1; \
     size_t optlen = sizeof(opt); \
-    STDASSERT(zmq_getsockopt(input, ZMQ_RCVMORE, &opt, &optlen));
+    STDASSERT(xs_getsockopt(input, XS_RCVMORE, &opt, &optlen));
     assert(opt);
-    STDASSERT(zmq_recv(input, &msg, 0));
-    STDASSERT(zmq_getsockopt(input, ZMQ_RCVMORE, &opt, &optlen));
+    STDASSERT(xs_recvmsg(input, &msg, 0));
+    STDASSERT(xs_getsockopt(input, XS_RCVMORE, &opt, &optlen));
     assert(!opt);
 
     double time = 0;
-    char *data = zmq_msg_data(&msg);
-    int len = zmq_msg_size(&msg);
+    char *data = xs_msg_data(&msg);
+    int len = xs_msg_size(&msg);
     char linebuf[64];
     char *tmp = data;
     char *enddata = data + len;
@@ -209,14 +209,14 @@ void read_between(void *input, statistics_t *result, double begin, double end){
     statistics_t one;
     reset_statistics(&one);
     while(get_time() < end) {
-        zmq_pollitem_t pollstr = {
+        xs_pollitem_t pollstr = {
             socket: input,
             fd: -1,
-            events: ZMQ_POLLIN,
+            events: XS_POLLIN,
             revents: 0};
         long msec = (end - get_time())*1000;
         if(msec < 0) msec = 0;
-        if(zmq_poll(&pollstr, 1, msec) != 1)
+        if(xs_poll(&pollstr, 1, msec) != 1)
             continue;
         reset_statistics(&one);
         read_data(input, &one);
@@ -409,21 +409,21 @@ int main(int argc, char **argv) {
             flags.interval = (int)config.Server.status.interval;
         }
     }
-    void *zmq = zmq_init(1);
+    void *zmq = xs_init(1);
     assert(zmq);
-    void *socket = zmq_socket(zmq, ZMQ_SUB);
-    STDASSERT(zmq_setsockopt(socket, ZMQ_SUBSCRIBE, "", 0));
+    void *socket = xs_socket(zmq, XS_SUB);
+    STDASSERT(xs_setsockopt(socket, XS_SUBSCRIBE, "", 0));
     if(flags.zerogw_naddr) {
         for(int i = 0; i < flags.zerogw_naddr; ++i) {
-            STDASSERT(zmq_connect(socket, flags.zerogw_addrs[i]));
+            STDASSERT(xs_connect(socket, flags.zerogw_addrs[i]));
         }
     } else {
         CONFIG_ZMQADDR_LOOP(line, config.Server.status.socket.value) {
             if(line->value.kind == CONFIG_zmq_Connect) {
                 // We are other party, so let's bind
-                STDASSERT(zmq_bind(socket, line->value.value));
+                STDASSERT(xs_bind(socket, line->value.value));
             } else {
-                STDASSERT(zmq_connect(socket, line->value.value));
+                STDASSERT(xs_connect(socket, line->value.value));
             }
         }
     }
@@ -433,7 +433,7 @@ int main(int argc, char **argv) {
         print_loop(socket, &flags);
     }
 
-    zmq_close(socket);
-    zmq_term(zmq);
+    xs_close(socket);
+    xs_term(zmq);
     config_free(&config);
 }

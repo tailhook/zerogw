@@ -53,11 +53,16 @@ __types__:
       zmq.Sub: 6
     __value__: !Array
         element: !Struct zmqaddr
-    hwm: !UInt
+    sndhwm: !UInt
       =: 0
       description: >
-        Zeromq high water mark for socket. Zero means no limit. Refer to zeromq
-        documentation for details
+        Zeromq high water mark for output queue for socket. Zero means no
+        limit. Refer to zeromq documentation for details
+    rcvhwm: !UInt
+      =: 0
+      description: >
+        Zeromq high water mark for input queue for socket. Zero means no limit.
+        Refer to zeromq documentation for details
     identity: !String
       =: ""
       description: >
@@ -707,13 +712,18 @@ Server:
     description: >
       Instance identifier. Use unique one across all your machines (and started
       processes).
-  zmq-io-threads: !Int
+  xs-io-threads: !Int
     min: 1
     max: 64ki
     default: 1
     description: >
-      ZMQ IO threads to use. See zmq_init(3) for more information
-    command-line: [-z, --zmq-io-threads]
+      Crossroads IO threads to use. See xs_setctxopt(3) for more information
+  xs-max-sockets: !Int
+    min: 1
+    max: 1Mi
+    default: 512
+    description: >
+      Crossroads socket limit. See xs_setctxopt(3) for more information
   disk-io-threads: !Int
     min: 0
     max: 4ki

@@ -1,5 +1,5 @@
 #include <getopt.h>
-#include <zmq.h>
+#include <xs.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -73,43 +73,43 @@ int main(int argc, char **argv) {
     assert(coyaml_readfile(ctx) == 0);
     coyaml_context_free(ctx);
 
-    void *zmq = zmq_init(1);
+    void *zmq = xs_init(1);
     assert(zmq);
-    void *socket = zmq_socket(zmq, ZMQ_REQ);
+    void *socket = xs_socket(zmq, XS_REQ);
     if(flags.socket) {
-        zmq_connect(socket, flags.socket);
+        xs_connect(socket, flags.socket);
     } else {
         CONFIG_ZMQADDR_LOOP(line, config.Server.control.socket.value) {
             if(line->value.kind == CONFIG_zmq_Connect) {
-                zmq_bind(socket, line->value.value);  // We are other party
+                xs_bind(socket, line->value.value);  // We are other party
             } else {
-                zmq_connect(socket, line->value.value);
+                xs_connect(socket, line->value.value);
             }
         }
     }
     for(int i = optind; i < argc; ++i) {
-        zmq_msg_t msg;
-        rc = zmq_msg_init_data(&msg, argv[i], strlen(argv[i]), NULL, NULL);
+        xs_msg_t msg;
+        rc = xs_msg_init_data(&msg, argv[i], strlen(argv[i]), NULL, NULL);
         assert(rc == 0);
-        rc = zmq_send(socket, &msg, (i == argc-1 ? 0: ZMQ_SNDMORE));
-        assert(rc == 0);
+        rc = xs_sendmsg(socket, &msg, (i == argc-1 ? 0: XS_SNDMORE));
+        assert(rc >= 0);
     }
     while(TRUE) {
-        zmq_msg_t msg;
-        long opt;
+        xs_msg_t msg;
+        int opt;
         size_t size = sizeof(opt);
-        zmq_msg_init(&msg);
-        int rc = zmq_recv(socket, &msg, 0);
-        assert(rc == 0);
-        rc = zmq_getsockopt(socket, ZMQ_RCVMORE, &opt, &size);
+        xs_msg_init(&msg);
+        int rc = xs_recvmsg(socket, &msg, 0);
+        assert(rc >= 0);
+        rc = xs_getsockopt(socket, XS_RCVMORE, &opt, &size);
         assert(size == 8);
         assert(rc == 0);
-        printf("%.*s\n", (int)zmq_msg_size(&msg), (char *)zmq_msg_data(&msg));
-        rc = zmq_msg_close(&msg);
+        printf("%.*s\n", (int)xs_msg_size(&msg), (char *)xs_msg_data(&msg));
+        rc = xs_msg_close(&msg);
         assert(rc == 0);
         if(!opt) break;
     }
-    zmq_close(socket);
-    zmq_term(zmq);
+    xs_close(socket);
+    xs_term(zmq);
     config_free(&config);
 }

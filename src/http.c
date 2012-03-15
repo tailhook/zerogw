@@ -55,41 +55,41 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
     while(TRUE) {
         Z_SEQ_INIT(msg, route->zmq_forward.socket._sock);
         Z_RECV_START(msg, break);
-        if(zmq_msg_size(&msg) != UID_LEN) {
-            TWARN("Wrong uid length %d", zmq_msg_size(&msg));
+        if(xs_msg_size(&msg) != UID_LEN) {
+            TWARN("Wrong uid length %d", xs_msg_size(&msg));
             goto msg_error;
         }
         request_t *req = sieve_get(root.request_sieve,
-            UID_HOLE(zmq_msg_data(&msg)));
-        if(!req || !UID_EQ(req->uid, zmq_msg_data(&msg))) {
-            root.stat.zmq_orphan_replies += 1;
-            TWARN("Wrong uid [%d]``%.*s'' (%x)", zmq_msg_size(&msg),
-                zmq_msg_size(&msg), zmq_msg_data(&msg),
-                UID_HOLE(zmq_msg_data(&msg)));
+            UID_HOLE(xs_msg_data(&msg)));
+        if(!req || !UID_EQ(req->uid, xs_msg_data(&msg))) {
+            root.stat.xs_orphan_replies += 1;
+            TWARN("Wrong uid [%d]``%.*s'' (%x)", xs_msg_size(&msg),
+                xs_msg_size(&msg), xs_msg_data(&msg),
+                UID_HOLE(xs_msg_data(&msg)));
             goto msg_error;
         }
         if(route->zmq_forward.socket.kind == CONFIG_zmq_Req
             || route->zmq_forward.socket.kind == CONFIG_auto) {
             Z_RECV_NEXT(msg);
-            if(zmq_msg_size(&msg)) { // The sentinel of routing data
+            if(xs_msg_size(&msg)) { // The sentinel of routing data
                 goto msg_error;
             }
         }
-        root.stat.zmq_replies += 1;
+        root.stat.xs_replies += 1;
         Z_RECV(msg);
         if(msg_opt) { //first is a status-line if its not last
-            char *data = zmq_msg_data(&msg);
+            char *data = xs_msg_data(&msg);
             char *tail;
-            int dlen = zmq_msg_size(&msg);
+            int dlen = xs_msg_size(&msg);
             LDEBUG("Status line: ``%.*s''", dlen, data);
             ws_statusline_len(&req->ws, data, dlen);
 
             Z_RECV(msg);
             if(msg_opt) { //second is headers if its not last
-                char *data = zmq_msg_data(&msg);
+                char *data = xs_msg_data(&msg);
                 char *name = data;
                 char *value = NULL;
-                int dlen = zmq_msg_size(&msg);
+                int dlen = xs_msg_size(&msg);
                 char *end = data + dlen;
                 int state = 0;
                 for(char *cur = data; cur < end; ++cur) {
@@ -132,11 +132,11 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
         ws_finish_headers(&req->ws);
         // the last part is always a body
         ANIMPL(!(req->flags & REQ_HAS_MESSAGE));
-        SNIMPL(zmq_msg_init(&req->response_msg));
+        SNIMPL(xs_msg_init(&req->response_msg));
         req->flags |= REQ_HAS_MESSAGE;
-        SNIMPL(zmq_msg_move(&req->response_msg, &msg));
-        SNIMPL(ws_reply_data(&req->ws, zmq_msg_data(&req->response_msg),
-            zmq_msg_size(&req->response_msg)));
+        SNIMPL(xs_msg_move(&req->response_msg, &msg));
+        SNIMPL(ws_reply_data(&req->ws, xs_msg_data(&req->response_msg),
+            xs_msg_size(&req->response_msg)));
         req->flags |= REQ_REPLIED;
         request_finish(req);
     msg_finish:
@@ -150,7 +150,7 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
 
 static int socket_visitor(config_Route_t *route) {
     if(route->zmq_forward.socket.value_len) {
-        SNIMPL(zmq_open(&route->zmq_forward.socket, ZMASK_REQ, ZMQ_XREQ,
+        SNIMPL(xs_open(&route->zmq_forward.socket, ZMASK_REQ, XS_XREQ,
             http_process, root.loop));
         CONFIG_REQUESTFIELD_LOOP(item, route->zmq_forward.contents) {
             switch(item->value.kind) {
@@ -298,10 +298,10 @@ static int do_forward(request_t *req) {
     void *sock = route->zmq_forward.socket._sock;
     // Must wake up reading and on each send, because the way zmq sockets work
     ev_feed_event(root.loop, &route->zmq_forward.socket._watch, EV_READ);
-    zmq_msg_t msg;
+    xs_msg_t msg;
     REQ_INCREF(req);
-    SNIMPL(zmq_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
-    if(zmq_send(sock, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK)) {
+    SNIMPL(xs_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
+    if(xs_sendmsg(sock, &msg, XS_SNDMORE|XS_DONTWAIT)) {
         if(errno == EAGAIN) {
             http_static_response(req, &route->responses.service_unavailable);
             request_finish(req);
@@ -315,19 +315,19 @@ static int do_forward(request_t *req) {
     }
     if(route->zmq_forward.socket.kind == CONFIG_zmq_Req
         || route->zmq_forward.socket.kind == CONFIG_auto) {
-        SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK)); // empty sentinel
+        NNIMPL(xs_sendmsg(sock, &msg, XS_SNDMORE|XS_DONTWAIT)); // empty sentinel
     }
     config_a_RequestField_t *contents = route->zmq_forward.contents;
     ANIMPL(contents);
     for(config_a_RequestField_t *item=contents; item; item = item->head.next) {
         size_t len;
         const char *value = get_field(req, &item->value, &len);
-        zmq_msg_t msg;
+        xs_msg_t msg;
         REQ_INCREF(req);
-        SNIMPL(zmq_msg_init_data(&msg, (void *)value, len, request_decref, req));
-        SNIMPL(zmq_send(sock, &msg,
-            (item->head.next ? ZMQ_SNDMORE : 0)|ZMQ_NOBLOCK));
-        SNIMPL(zmq_msg_close(&msg));
+        SNIMPL(xs_msg_init_data(&msg, (void *)value, len, request_decref, req));
+        NNIMPL(xs_sendmsg(sock, &msg,
+            (item->head.next ? XS_SNDMORE : 0)|XS_DONTWAIT));
+        SNIMPL(xs_msg_close(&msg));
     }
     return 0;
 }
@@ -346,7 +346,7 @@ static void request_timeout(struct ev_loop *loop, struct ev_timer *tm, int rev){
             return;
         case CONFIG_RetryFirst:
             ANIMPL(req->flags & REQ_IN_SIEVE);
-            root.stat.zmq_retries += 1;
+            root.stat.xs_retries += 1;
             if(!do_forward(req)) {
                 ev_timer_again(loop, &req->timeout);
             }
@@ -355,7 +355,7 @@ static void request_timeout(struct ev_loop *loop, struct ev_timer *tm, int rev){
             ANIMPL(req->flags & REQ_IN_SIEVE);
             sieve_empty(root.request_sieve, UID_HOLE(req->uid));
             make_hole_uid(req, req->uid, root.request_sieve, FALSE);
-            root.stat.zmq_retries += 1;
+            root.stat.xs_retries += 1;
             if(!do_forward(req)) {
                 ev_timer_again(loop, &req->timeout);
             }
@@ -404,7 +404,7 @@ int http_request(request_t *req) {
         if(make_hole_uid(req, req->uid, root.request_sieve, FALSE) < 0)
             return -1;
         req->flags |= REQ_IN_SIEVE;
-        root.stat.zmq_requests += 1;
+        root.stat.xs_requests += 1;
         if(!do_forward(req)) {
             if(route->zmq_forward.timeout) {
                 ev_timer_init(&req->timeout, request_timeout,
