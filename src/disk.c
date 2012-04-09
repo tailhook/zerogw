@@ -444,6 +444,8 @@ static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents)
         request_t *req = sieve_get(root.request_sieve,
             UID_HOLE(zmq_msg_data(&msg)));
         ANIMPL(req && UID_EQ(req->uid, zmq_msg_data(&msg)));
+        REQ_INCREF(req); // own a reference immediately, before we
+                         // free a message which refers to our request
         Z_RECV_NEXT(msg);
         ANIMPL(!zmq_msg_size(&msg)); // The sentinel of routing data
         Z_RECV(msg);
@@ -525,9 +527,11 @@ static void disk_process(struct ev_loop *loop, struct ev_io *watch, int revents)
         req->flags |= REQ_REPLIED;
         request_finish(req);
     msg_finish:
+        REQ_DECREF(req);
         Z_SEQ_FINISH(msg);
         continue;
     msg_error:
+        REQ_DECREF(req);
         Z_SEQ_ERROR(msg);
         continue;
     }
