@@ -37,6 +37,8 @@ typedef struct comet_args_s {
 const char hexdigits[16] = "0123456789ABCDEF";
 
 static format_enum parse_format(char *name, int nlen) {
+    if(!nlen)
+        return FMT_SINGLE;
     switch(*name) {
         case 's':
             if(nlen == 6 && !strncmp(name, "single", 6)) {
@@ -109,24 +111,33 @@ static int add_line(comet_args_t *args, char *name, int nl, char *value, int vl)
         }
     }
     if(nl == 3 && !strncmp("ack", name, 3)) {
+        char copy[vl+1];
+        memcpy(copy, value, vl);
+        copy[vl] = 0;
         char *end;
-        args->last_message = strtol(value, &end, 10);
-        if(end != value + vl) {
+        args->last_message = strtol(copy, &end, 10);
+        if(end != copy + vl) {
             TWARN("Wrong message id ``%.*s''", vl, value);
             errno = EINVAL;
             return -1;
         }
     }
     if(nl == 7 && !strncmp("timeout", name, 7)) {
+        char copy[vl+1];
+        memcpy(copy, value, vl);
+        copy[vl] = 0;
         char *end;
-        args->timeout = strtof(value, &end);
-        if(end != value + vl) {
+        args->timeout = strtof(copy, &end);
+        if(end != copy + vl) {
             TWARN("Wrong timeout ``%.*s''", vl, value);
         }
     }
     if(nl == 5 && !strncmp("limit", name, 5)) {
+        char copy[vl+1];
+        memcpy(copy, value, vl);
+        copy[vl] = 0;
         char *end;
-        args->limit = strtol(value, &end, 10);
+        args->limit = strtol(copy, &end, 10);
         if(end != value + vl) {
             TWARN("Wrong limit ``%.*s''", vl, value);
         }
