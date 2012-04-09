@@ -775,6 +775,7 @@ static void heartbeat(struct ev_loop *loop,
         if(errno != EAGAIN) { //TODO: EINTR???
             SNIMPL(-1);
         } else {
+            zmq_msg_close(&msg);
             return; // nevermind
         }
     }

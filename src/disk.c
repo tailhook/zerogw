@@ -365,19 +365,21 @@ int disk_request(request_t *req) {
     // Must wake up reading and on each send, because the way zmq sockets work
     ev_feed_event(root.loop, &root.disk.watch, EV_READ);
     zmq_msg_t msg;
-    REQ_INCREF(req);
     make_hole_uid(req, req->uid, root.request_sieve, FALSE);
     req->flags |= REQ_IN_SIEVE;
     root.stat.disk_requests += 1;
+    REQ_INCREF(req);
     SNIMPL(zmq_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
     while(zmq_send(root.disk.socket, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
         if(errno == EAGAIN) {
+            zmq_msg_close(&msg);
             http_static_response(req,
                 &req->route->responses.service_unavailable);
             return 0;
         } else if(errno == EINTR) {
             continue;
         } else {
+            zmq_msg_close(&msg);
             http_static_response(req,
                 &req->route->responses.internal_error);
             return 0;
