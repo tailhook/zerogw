@@ -1,6 +1,6 @@
 # vim: sw=2:ts=2:et
 Server:
-  zmq-io-threads: 1
+  xs-io-threads: 1
   disk-io-threads: 1
   listen:
     - unix-socket: /tmp/zerogw-test
