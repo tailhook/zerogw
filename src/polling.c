@@ -388,7 +388,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             ws_add_header(req, "X-Messages", buf);
             sprintf(buf, "%i", comet->first_index + comet->queue.size - 1);
             ws_add_header(req, "X-Last-ID", buf);
-            ws_add_header(req, "X-Format", "json");
+            ws_add_header(req, "X-Format", "jsonlist");
             ws_add_header(req, "Content-Type", "application/json");
             nocache_headers(req);
             timestamp_headers(mreq);
