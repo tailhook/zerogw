@@ -761,6 +761,10 @@ Server:
       code) without parsing handshake.
   listen: !Array
     element: !Struct listenaddr
+  network-timeout: !Float
+    default: 120
+    description: Amount to wait after last byte is sent before closing
+      connection. Doesn't applicable after websocket connection is established.
 
   mime-types:
     no-warnings: !Bool

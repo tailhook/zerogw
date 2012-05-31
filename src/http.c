@@ -20,11 +20,9 @@ int http_common_headers(request_t *req) {
     ANIMPL(tlen < 32);
     if(ws_add_header(&req->ws, "Date", buf) < 0)
         return -1;
-    //ws_add_header(&req->ws, "Server", config.Server.header);
     return 0;
 }
 
-    //ws_add_header(&req->ws, "Server", config.Server.header);
 void http_static_response(request_t *req, config_StaticResponse_t *resp) {
     char status[resp->status_len + 5];
     sprintf(status, "%03ld %s", resp->code, resp->status);

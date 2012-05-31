@@ -134,6 +134,7 @@ int main(int argc, char **argv) {
     ws_WEBSOCKET_CB(&root.ws, start_websocket);
     ws_MESSAGE_CB(&root.ws, websock_message);
     ws_MESSAGE_STRUCT(&root.ws, message_t);
+    ws_SET_TIMEOUT(&root.ws, config.Server.network_timeout);
 
     // Probably here is a place to fork! :)
 
