@@ -74,6 +74,8 @@ static config_Route_t *do_resolve_url(request_t *req, bool ready) {
     config_Route_t *route = &REQCONFIG(req)->Routing;
     while(route->_child_match) {
         const char *data = get_field(req, &route->routing_by, NULL);
+        if(!data) data = "";  // absence of field (e.g. no header)
+                              // treated as if the header would be empty
         LDEBUG("Matching ``%s'' by %d", data, route->routing.kind);
         size_t tmp;
         switch(route->routing.kind) {
