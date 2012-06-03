@@ -298,7 +298,7 @@ static void polling_timeout(struct ev_loop *loop, struct ev_timer *timer,
 static void inactivity_timeout(struct ev_loop *loop, struct ev_timer *timer,
     int rev)
 {
-    TWARN("Closing polling websocket due to inactivity");
+    LNOTICE("Closing polling websocket due to inactivity");
     ANIMPL(!(rev & EV_ERROR));
     ev_timer_stop(loop, timer);
     hybi_t *hybi = SHIFT(timer, hybi_t, comet[0].inactivity);
