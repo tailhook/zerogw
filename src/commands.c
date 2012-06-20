@@ -37,18 +37,11 @@ void recv_command(struct ev_loop *loop, struct ev_io *io, int rev) {
         LDEBUG("Got command `%.*s`", len, data);
         if COMMAND(list_commands) {
             // Keep alphabetically sorted
-            REPLY_SHORT(sock, msg, "get_statistics", TRUE);
             REPLY_SHORT(sock, msg, "list_commands", TRUE);
             REPLY_SHORT(sock, msg, "pause_websockets", TRUE);
             REPLY_SHORT(sock, msg, "resume_websockets", TRUE);
             REPLY_SHORT(sock, msg, "sync_now", TRUE);
             REPLY_SHORT(sock, msg, "reopen_logs", FALSE);
-        } else if COMMAND(get_statistics) {
-            char buf[4096];
-            len = format_statistics(buf);
-            SNIMPL(zmq_msg_init_size(&msg, len));
-            memcpy(zmq_msg_data(&msg), buf, len);
-            REPLY_COMMAND(sock, msg, FALSE);
         } else if COMMAND(pause_websockets) {
             LWARN("Pausing websockets because of command");
             pause_websockets(TRUE);

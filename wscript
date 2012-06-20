@@ -71,17 +71,6 @@ def build(bld):
         lib          = ['coyaml', 'yaml', 'zmq'],
         )
     bld(
-        features     = ['c', 'cprogram', 'coyaml'],
-        source       = [
-            'src/config.yaml',
-            'src/zerogwstat.c',
-            ],
-        target       = 'zerogwstat',
-        includes     = ['src'],
-        cflags       = ['-std=gnu99'],
-        lib          = ['coyaml', 'yaml', 'zmq'],
-        )
-    bld(
         features    = ['c', 'cprogram'],
         source      = 'src/openport.c',
         target      = 'openport',

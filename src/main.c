@@ -28,39 +28,262 @@ void init_statistics() {
     memset(&root.stat, 0, sizeof(root.stat));
 }
 
-int format_statistics(char *buf) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    int res = snprintf(buf, STAT_MAXLEN,
-        "time: %lu.%06ld\n"
-        "interval: %.1f\n"
-        #define DEFINE_VALUE(name) #name ": %lu\n"
-        #include "statistics.h"
-        #undef DEFINE_VALUE
-        "%s",
-        tv.tv_sec, tv.tv_usec,
-        (double)root.config->Server.status.interval,
-        #define DEFINE_VALUE(name) root.stat.name,
-        #include "statistics.h"
-        #undef DEFINE_VALUE
-        "");
-    buf[STAT_MAXLEN-1] = 0;
-    return res;
-}
-
 void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     ANIMPL(!(rev & EV_ERROR));
     config_main_t *config = (config_main_t *)watch->data;
-    char buf[STAT_MAXLEN];
-    size_t len = format_statistics(buf);
+    void *sock = config->Estp.socket._sock;
+
+    struct timeval curtime;
+    char tstamp[32];
+    struct tm tm;
+    gettimeofday(&curtime, NULL);
+    gmtime_r(&curtime.tv_sec, &tm);
+    strftime(tstamp, 32, "%Y-%m-%dT%H:%M:%SZ", &tm);
+
+    char buf[512];
     zmq_msg_t msg;
-    SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-    SNIMPL(zmq_send(config->Server.status.socket._sock, &msg,
-        ZMQ_SNDMORE|ZMQ_NOBLOCK));
-    SNIMPL(zmq_msg_init_size(&msg, len));
+    int len;
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::connections.total: %s %ld %lu",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.connects - root.stat.disconnects);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    SNIMPL(zmq_send(config->Server.status.socket._sock, &msg, ZMQ_NOBLOCK));
-    LDEBUG("STATISTICS ``%s''", buf);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::requests.processing: %s %ld %lu",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.http_requests - root.stat.http_replies);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::connections.websockets: %s %ld %lu",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.websock_connects - root.stat.websock_disconnects);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::websockets.comets: %s %ld %lu",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.comet_connects - root.stat.comet_disconnects);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::websockets.topics: %s %ld %lu",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.topics_created - root.stat.topics_removed);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::websockets.subscriptions: %s %ld %lu",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.websock_subscribed - root.stat.websock_unsubscribed);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::websockets.backend_queue: %s %ld %lu",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.websock_backend_queued - root.stat.websock_backend_unqueued);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::requests.issued: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.http_requests);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::requests.forwarded: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.zmq_requests);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::comet.acks: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.comet_acks);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::comet.empty_replies: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.comet_empty_replies);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::comet.aborted_replies: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.comet_aborted_replies);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::comet.received_messages: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.comet_aborted_replies);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::comet.send_messages: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.comet_aborted_replies);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::comet.send_batches: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.comet_aborted_replies);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::websockets.sent_messages: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.websock_sent);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::websockets.received_messages: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.websock_received);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::websockets.published_messages: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.websock_published);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::websockets.sent_pings: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.websock_sent_pings);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::disk.requests: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.disk_requests);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::disk.reads: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.disk_reads);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+
+    len = sprintf(buf,
+        "ESTP:%.64s:%.64s::disk.bytes_read: %s %ld %lu:c",
+        config->Estp.host_name,
+        config->Estp.application_name,
+        tstamp,
+        config->Estp.interval,
+        root.stat.disk_bytes_read);
+    if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
+    memcpy(zmq_msg_data(&msg), buf, len);
+    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 }
 
 int on_connect(connection_t *conn) {
@@ -143,11 +366,11 @@ int main(int argc, char **argv) {
     root.zmq = zmq_init(config.Server.zmq_io_threads);
 
     struct ev_timer status_timer;
-    if(config.Server.status.socket.value_len) {
-        SNIMPL(zmq_open(&config.Server.status.socket,
+    if(config.Estp.socket.value_len) {
+        SNIMPL(zmq_open(&config.Estp.socket,
             ZMASK_PUB|ZMASK_PUSH, ZMQ_PUB, NULL, NULL));
         status_timer.data = &config;
-        double ivl = config.Server.status.interval;
+        double ivl = config.Estp.interval;
         ev_timer_init(&status_timer, flush_statistics,
             ivl - (int)(ev_now(root.loop)/ivl)*ivl, ivl);
         ev_timer_start(root.loop, &status_timer);
@@ -175,8 +398,8 @@ int main(int argc, char **argv) {
     SNIMPL(release_websockets(&config, &config.Routing));
     SNIMPL(release_disk(&config));
     SNIMPL(release_commands(&config));
-    if(config.Server.status.socket.value_len) {
-        SNIMPL(z_close(&config.Server.status.socket, root.loop));
+    if(config.Estp.socket.value_len) {
+        SNIMPL(z_close(&config.Estp.socket, root.loop));
     }
     config_free(&config);
     ev_loop_destroy(root.loop);

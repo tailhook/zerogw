@@ -721,15 +721,6 @@ Server:
     description: >
       Threads for reading from disk. You need them if you want to serve static.
     command-line: [-d, --disk-io-threads]
-  status:
-    socket: !Struct
-      type: zmqsocket
-      description: >
-        Zeromq PUB-type socket, which zerogw will publish status messages to
-    interval: !Int
-      default: 60
-      description: >
-        Interval at which status messages will be published
   control:
     socket: !Struct
       type: zmqsocket
@@ -811,5 +802,23 @@ Server:
       default: 128
       description: >
         For experts. Number of entities in subscriptions pool
+
+
+Estp:
+  host-name: !String
+    =: localhost
+    description: The host name to report to ESTP, the default is localhost, no
+      hostname guessing is done
+  application-name: !String
+    =: zerogw
+    description: Name of the application for ESTP, leave as default if you have
+      only one estp instance
+  socket: !Struct zmqsocket
+  interval: !UInt
+    min: 1
+    max: 86400
+    default: 10
+    description: Interval of statistics reporting by ESTP
+
 
 Routing: !Struct Route
