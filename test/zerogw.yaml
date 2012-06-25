@@ -6,9 +6,6 @@ Server:
     - host: 127.0.0.1
       port: 6941
     - unix-socket: /tmp/zerogw-test
-  status:
-    socket:
-    - !zmq.Bind ipc:///tmp/zerogw-test-status
   control:
     socket:
     - !zmq.Bind ipc:///tmp/zerogw-test-control

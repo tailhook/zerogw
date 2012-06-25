@@ -4,9 +4,6 @@ Server:
   disk-io-threads: 1
   listen:
     - unix-socket: /tmp/zerogw-test
-  status:
-    socket:
-    - !zmq.Bind ipc:///tmp/zerogw-test-status
   control:
     socket:
     - !zmq.Bind ipc:///tmp/zerogw-test-control
