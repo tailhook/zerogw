@@ -24,6 +24,7 @@ typedef enum {
 
 #define LOGLEVEL logconfig->level
 #define LOG(level, msg, ...) if(level <= LOGLEVEL) { logmsg(level, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
+#define ULOG(level, msg, ...) if(level <= LOGLEVEL) { logudata(level, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
 #define ASSERT_LOG(cond, level, msg, ...) if(level <= LOGLEVEL && !(cond)) { logmsg(level, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
 
 #define LEMERG(msg, ...) LOG(LOG_EMERG, msg, ##__VA_ARGS__)
@@ -36,6 +37,9 @@ typedef enum {
     timedwarn(warnto_##__LINE__, __FILE__, __LINE__, msg, ##__VA_ARGS__); }
 #define LNOTICE(msg, ...) LOG(LOG_NOTICE, msg, ##__VA_ARGS__)
 #define LINFO(msg, ...) LOG(LOG_INFO, msg, ##__VA_ARGS__)
+
+#define UWARN(msg, ...) ULOG(LOG_WARN, msg, ##__VA_ARGS__)
+#define UNOTICE(msg, ...) ULOG(LOG_NOTICE, msg, ##__VA_ARGS__)
 
 #define AEMERG(cond) ASSERT_LOG(cond, LOG_EMERG, "Assertion failed " # cond)
 #define AALERT(cond) ASSERT_LOG(cond, LOG_ALERT, "Assertion failed " # cond)
@@ -78,6 +82,7 @@ extern config_logging_t *logconfig;
 
 void logmsg(int level, char *file, int line, char *msg, ...);
 void logstd(int level, char *file, int line, char *msg, ...);
+void logudata(int level, char *file, int line, char *msg, ...);
 void timedwarn(time_t *tt, char *file, int line, char *msg, ...);
 void openlogs();
 bool reopenlogs();

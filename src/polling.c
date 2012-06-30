@@ -62,11 +62,10 @@ static format_enum parse_format(char *name, int nlen) {
 static int add_line(comet_args_t *args, char *name, int nl, char *value, int vl) {
     if(nl == 2 && !strncmp("id", name, 2)) {
         if(vl != UID_LEN*2) {
-            TWARN("Wrong uid ``%.*s''", vl, value);
+            UWARN("Wrong uid ``%.*s''", vl, value);
             errno = EINVAL;
             return -1;
         }
-        //TODO: decode and copy value into args->uid
         for(int i = 0; i < UID_LEN; ++i) {
             unsigned char c = value[i*2];
             if(c >= '0' && c <= '9') {
@@ -476,7 +475,7 @@ int comet_request(request_t *req) {
     comet_args_t args;
     LDEBUG("Got comet request");
     if(parse_uri(req, &args) < 0) {
-        TWARN("Can't parse COMET request arguments");
+        UWARN("Can't parse COMET request arguments ``%s''", req->ws.uri);
         return -1; // FIXME: send meaningfull reply
     }
     if(args.action == ACT_CONNECT) {
@@ -486,7 +485,7 @@ int comet_request(request_t *req) {
 
     hybi_t *hybi = hybi_find(args.uid);
     if(!hybi) {
-        TWARN("Websocket not found, probably already dead");
+        UWARN("Websocket not found, probably already dead ``%s''", req->ws.uri);
         return -1;
     }
     if(hybi->type != HYBI_COMET) {

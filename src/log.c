@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 
 #define min(a, b) (((a) < (b))?(a):(b))
 #define STDIN   0
@@ -27,6 +28,7 @@ static char *levels[] = {
     "INFO",
     "DEBG"
 };
+static char hexchar[] = "0123456789abcdef";
 static char source_path[] = LOG_STRIP_PATH;
 static int path_strip_chars = sizeof(source_path)-1;
 static int logfile = 1;
@@ -50,6 +52,7 @@ void logmsg(int level, char *file, int line, char *msg, ...) {
         abort();
     }
 }
+
 void logstd(int level, char *file, int line, char *msg, ...) {
     char buf[4096];
     time_t tm;
@@ -158,4 +161,55 @@ void *obstack_chunk_alloc(int len) {
 
 void obstack_chunk_free(void *ptr) {
     free(ptr);
+}
+
+void logudata(int level, char *file, int line, char *msg, ...) {
+    char buf[4096];
+    time_t tm;
+    struct tm ts;
+    va_list args;
+    int local_errno = errno;
+    time(&tm);
+    localtime_r(&tm, &ts);
+    int idx = snprintf(buf, 4096, "%04d-%02d-%02d %02d:%02d:%02d [%4s] %s:%d: ",
+        ts.tm_year+1900, ts.tm_mon+1, ts.tm_mday,
+        ts.tm_hour, ts.tm_min, ts.tm_sec,
+        levels[level], file+path_strip_chars, line);
+    va_start(args, msg);
+    idx += vsnprintf(buf + idx, 4096 - idx, msg, args);
+    idx = min(idx, 4094);
+
+    char buf2[4096];
+    char *cur = buf2;
+    char *buf2end = buf2 + sizeof(buf2) - 6;
+
+    for(char *c = buf, *end = buf + idx; c < end && cur < buf2end; ++c) {
+        if(isprint(*c)) {
+            if(*c == '\\') {
+                *cur++ = '\\';
+                *cur++ = '\\';
+            } else if(*c == '"') {
+                *cur++ = '\\';
+                *cur++ = '"';
+            } else {
+                *cur++ = *c;
+            }
+        } else if(*c == '\r') {
+            *cur++ = '\\';
+            *cur++ = 'r';
+        } else if(*c == '\n') {
+            *cur++ = '\\';
+            *cur++ = 'n';
+        } else {
+            *cur++ = '\\';
+            *cur++ = 'x';
+            *cur++ = hexchar[*c >> 4];
+            *cur++ = hexchar[*c & 0xf];
+        }
+    }
+    *cur++ = '\n';
+    write(logfile, buf2, cur - buf2);
+    if(level <= ERRLEVEL) {
+        abort();
+    }
 }
