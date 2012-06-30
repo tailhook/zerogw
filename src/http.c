@@ -300,6 +300,7 @@ static int do_forward(request_t *req) {
     REQ_INCREF(req);
     SNIMPL(zmq_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
     if(zmq_send(sock, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK)) {
+        zmq_msg_close(&msg);
         if(errno == EAGAIN) {
             http_static_response(req, &route->responses.service_unavailable);
             request_finish(req);

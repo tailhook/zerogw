@@ -75,8 +75,10 @@ int backend_send_real(config_zmqsocket_t *sock, hybi_t *hybi, void *msg) {
     SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
     memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
     if(zmq_send(sock->_sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
-        if(errno == EAGAIN || errno == EINTR)
+        if(errno == EAGAIN || errno == EINTR) {
+            zmq_msg_close(&zmsg);
             return -1;
+        }
         SNIMPL(-1);
     }
     int len;
@@ -786,6 +788,7 @@ static void heartbeat(struct ev_loop *loop,
         if(errno != EAGAIN) { //TODO: EINTR???
             SNIMPL(-1);
         } // else: nevermind
+        zmq_msg_close(&msg);
     }
 }
 
@@ -801,6 +804,7 @@ static void send_sync(struct ev_loop *loop,
         if(errno != EAGAIN) { //TODO: EINTR???
             SNIMPL(-1);
         } else {
+            zmq_msg_close(&msg);
             return; // nevermind
         }
     }

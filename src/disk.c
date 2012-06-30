@@ -612,12 +612,16 @@ int release_disk(config_main_t *config) {
         zmq_msg_t msg;
         SNIMPL(zmq_msg_init(&msg));
         if(zmq_send(root.disk.socket, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE) < 0) {
-            if(errno == EAGAIN) break;
+            if(errno == EAGAIN) {
+                zmq_msg_close(&msg);
+                break;
+            }
             SNIMPL(-1);
         }
         SNIMPL(zmq_msg_init_size(&msg, 8));
         memcpy(zmq_msg_data(&msg), "shutdown", 8);
         zmq_send(root.disk.socket, &msg, ZMQ_NOBLOCK); // don't care if fails
+        zmq_msg_close(&msg);
     }
     for(int i = 0; i < config->Server.disk_io_threads; ++i) {
         SNIMPL(pthread_join(root.disk.threads[i], NULL));
