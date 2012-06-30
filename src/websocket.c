@@ -757,7 +757,9 @@ int start_websocket(request_t *req) {
     request_init(req);
     config_Route_t *route = resolve_url(req);
     if(!route->websocket.subscribe.value_len
-        || !route->websocket.forward.value_len) {
+        || !route->websocket.forward.value_len
+        || !route->websocket.enabled
+        || route->websocket.disable_websocket) {
         return -1;
     }
     return websock_start((connection_t *)req->ws.conn, route);
