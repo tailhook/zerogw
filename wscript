@@ -92,6 +92,7 @@ def dist(ctx):
         'doc/_build/**',
         '.waf*', '*.tar.bz2', '*.zip', 'build',
         '.git*', '.lock*', '**/*.pyc', '**/*.swp', '**/*~'
+        'tmp/**',
         ]
     ctx.algo = 'tar.bz2'
 
