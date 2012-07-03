@@ -10,7 +10,7 @@ APPNAME='zerogw'
 if os.path.exists('.git'):
     VERSION=subprocess.getoutput('git describe').lstrip('v').replace('-', '_')
 else:
-    VERSION='0.5.26'
+    VERSION='0.6'
 
 top = '.'
 out = 'build'
