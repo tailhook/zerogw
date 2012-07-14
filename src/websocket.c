@@ -296,6 +296,12 @@ static void do_send(hybi_t *hybi, message_t *msg) {
     }
 }
 
+static void websock_message_free(void *ws) {
+    message_t *msg = ws;
+    zmq_msg_close(&msg->zmq);
+}
+
+
 config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
     if(hybi->route->websocket.frontend_commands.enabled
         && length >= 8 /*strlen("ZEROGW:")+1*/
@@ -307,7 +313,7 @@ config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
             zmq_msg_init_size(&mm->zmq, length);
             char *zdata = zmq_msg_data(&mm->zmq);
             memcpy(zdata, data, length);
-            ws_MESSAGE_DATA(&mm->ws, zdata, length, NULL);
+            ws_MESSAGE_DATA(&mm->ws, zdata, length, websock_message_free);
             do_send(hybi, mm);
             ws_MESSAGE_DECREF(&mm->ws);
         } else if(length >= 16 && !memcmp(data+7, "timestamp", 9)) {
@@ -321,7 +327,7 @@ config_zmqsocket_t *websock_resolve(hybi_t *hybi, char *data, int length) {
             int tlen = snprintf(printbuf, 16, ":%14.3f", ev_now(root.loop));
             ADEBUG2(tlen == 15, "LENGTH %d (need 15) ``%s''", tlen, printbuf);
             memcpy(zdata+length, printbuf, 15);
-            ws_MESSAGE_DATA(&mm->ws, zdata, length+tlen, NULL);
+            ws_MESSAGE_DATA(&mm->ws, zdata, length+tlen, websock_message_free);
             do_send(hybi, mm);
             ws_MESSAGE_DECREF(&mm->ws);
         }
@@ -468,11 +474,6 @@ static bool topic_unsubscribe(hybi_t *hybi, topic_t *topic) {
     tbl->nsubscriptions -= 1;
     root.stat.websock_unsubscribed += 1;
     return TRUE;
-}
-
-static void websock_message_free(void *ws) {
-    message_t *msg = ws;
-    zmq_msg_close(&msg->zmq);
 }
 
 static bool topic_publish(topic_t *topic, zmq_msg_t *omsg) {
