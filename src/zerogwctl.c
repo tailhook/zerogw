@@ -31,8 +31,8 @@ void print_usage(FILE *out) {
     fprintf(out, "  resume_websockets Pauses forwarding messages from\n");
     fprintf(out, "                    websockets to backends (useful to\n");
     fprintf(out, "                    restart backend)\n");
-    fprintf(out, "  sync_now          Synchonize connected users now");
-    fprintf(out, "  reopen_logs       Reopens log files");
+    fprintf(out, "  sync_now          Synchonize connected users now\n");
+    fprintf(out, "  reopen_logs       Reopens log files\n");
     fprintf(out, "\n");
 }
 
@@ -86,6 +86,10 @@ int main(int argc, char **argv) {
                 zmq_connect(socket, line->value.value);
             }
         }
+    }
+    if(optind >= argc) {
+        print_usage(stderr);
+        return 1;
     }
     for(int i = optind; i < argc; ++i) {
         zmq_msg_t msg;
