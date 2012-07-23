@@ -14,10 +14,12 @@ Server:
     extra:
       yaml: text/x-yaml
       mov: application/x-movable
+    no-warnings: yes
 
 Estp:
   socket: !zmq.Pub
-  - ipc:///tmp/zgwestp.sock
+  - !zmq.Bind ipc:///tmp/zgwestp.sock
+  interval: 5
 
 Routing:
   routing: !Suffix ~
