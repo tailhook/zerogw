@@ -10,10 +10,7 @@ Server:
   disk-io-threads: 1
   listen:
     - host: 0.0.0.0
-      port: *port
-  status:
-    socket:
-    - !zmq.Bind ipc://$dir/zerogw
+      port: $port
   control:
     socket:
     - !zmq.Bind ipc://$dir/zerogw-ctl
