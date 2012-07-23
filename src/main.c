@@ -44,7 +44,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     zmq_msg_t msg;
     int len;
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::connections.total: %s %ld %lu",
+        "ESTP:%.64s:%.64s::connections.total: %s %ld %zu",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -55,7 +55,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::requests.processing: %s %ld %lu",
+        "ESTP:%.64s:%.64s::requests.processing: %s %ld %zu",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -66,7 +66,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::connections.websockets: %s %ld %lu",
+        "ESTP:%.64s:%.64s::connections.websockets: %s %ld %zu",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -77,7 +77,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::websockets.comets: %s %ld %lu",
+        "ESTP:%.64s:%.64s::websockets.comets: %s %ld %zu",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -88,7 +88,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::websockets.topics: %s %ld %lu",
+        "ESTP:%.64s:%.64s::websockets.topics: %s %ld %zu",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -99,7 +99,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::websockets.subscriptions: %s %ld %lu",
+        "ESTP:%.64s:%.64s::websockets.subscriptions: %s %ld %zu",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -110,7 +110,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::websockets.backend_queue: %s %ld %lu",
+        "ESTP:%.64s:%.64s::websockets.backend_queue: %s %ld %zu",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -121,7 +121,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::requests.issued: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::requests.issued: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -132,7 +132,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::requests.forwarded: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::requests.forwarded: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -143,7 +143,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::comet.acks: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::comet.acks: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -154,7 +154,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::comet.empty_replies: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::comet.empty_replies: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -165,7 +165,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::comet.aborted_replies: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::comet.aborted_replies: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -176,7 +176,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::comet.received_messages: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::comet.received_messages: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -187,7 +187,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::comet.send_messages: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::comet.send_messages: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -198,7 +198,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::comet.send_batches: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::comet.send_batches: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -209,7 +209,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::websockets.sent_messages: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::websockets.sent_messages: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -220,7 +220,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::websockets.received_messages: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::websockets.received_messages: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -231,7 +231,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::websockets.published_messages: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::websockets.published_messages: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -242,7 +242,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::websockets.sent_pings: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::websockets.sent_pings: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -253,7 +253,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::disk.requests: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::disk.requests: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -264,7 +264,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::disk.reads: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::disk.reads: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
@@ -275,7 +275,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
     if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
 
     len = sprintf(buf,
-        "ESTP:%.64s:%.64s::disk.bytes_read: %s %ld %lu:c",
+        "ESTP:%.64s:%.64s::disk.bytes_read: %s %ld %zu:c",
         config->Estp.host_name,
         config->Estp.application_name,
         tstamp,
