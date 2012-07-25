@@ -49,6 +49,7 @@ We currently support only Linux.
 Dependencies
 ------------
 
+ * linux with kernel at least 2.6.28 (need accept4)
  * libwebsite_ for handling http
  * coyaml_ for handling configuration
  * python3_ needed for coyaml to build configuration parser
