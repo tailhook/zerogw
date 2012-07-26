@@ -23,8 +23,7 @@ is how to configure zerogw. We will start with simplest possible
 configuration and will improve it later. 
 
 All configuration settings should be written into a separate file with the YAML convention. 
-
-We call it zerowg.yaml:
+Here we call it zerowg.yaml.
 
 Minimal configuration::
 
@@ -59,7 +58,7 @@ Then we will write the simple python script which would make this work::
         uri, = sock.recv_multipart()
         sock.send_multipart([b'Hello from '+uri])
 
-Next start ther zerowg server and use -c for the configuration file we have written:
+Next start the zerowg server and use -c to tell zerogw the configuration file:
 
 ``zerogw -c ./zerogw.yaml``
 
