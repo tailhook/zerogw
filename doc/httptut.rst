@@ -18,15 +18,18 @@ of other solutions. If thats ok for you, read on!
 Hello World
 -----------
 
-Let's start with simple hello world application. The first thing to know
+Let's start with simple hello world application written in python. The first thing to know
 is how to configure zerogw. We will start with simplest possible
-configuration and will improve it later.
+configuration and will improve it later. 
+
+All configuration settings should be written into a separate file with the YAML convention. 
+Here we call it zerowg.yaml.
 
 Minimal configuration::
 
     Server:
       listen:
-        host: 0.0.0.0
+      - host: 0.0.0.0
         port: 8080
 
     Routing:
@@ -44,7 +47,7 @@ several backend processes (and even several boxes, if you'll change
 127.0.0.1 to your local network ip address) to process requests.
 Forwarded request will contain just URI part of the original request.
 
-Then we will write a simple script which would make this work::
+Then we will write the simple python script which would make this work::
 
     import zmq
 
@@ -55,8 +58,17 @@ Then we will write a simple script which would make this work::
         uri, = sock.recv_multipart()
         sock.send_multipart([b'Hello from '+uri])
 
-This is everything which is needed to serve requests. Note we are
-connecting to the address you specified to bind to in zerogw config.
+Next start the zerowg server and use -c to tell zerogw the configuration file:
+
+``zerogw -c ./zerogw.yaml``
+
+Open a new terminal and start your python script:
+
+``python ./ourserver.py``
+
+This is everything which is needed to serve requests. 
+Note we are connecting to the address you specified to bind to in zerogw.yaml.
+
 Now you can go to the browser at http://localhost:8080/ and you should
 see ``Hello from /``.
 
