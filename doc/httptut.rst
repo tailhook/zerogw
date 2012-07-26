@@ -59,15 +59,16 @@ Then we will write the simple python script which would make this work::
         uri, = sock.recv_multipart()
         sock.send_multipart([b'Hello from '+uri])
 
-This is everything which is needed to serve requests. 
-Note we are connecting to the address you specified to bind to in zerogw.yaml.
-Next start zerowg and use -c for the configuration file we want to use:
+Next start ther zerowg server and use -c for the configuration file we have written:
 
 ``zerogw -c ./zerogw.yaml``
 
 Open a new terminal and start your python script:
 
 ``python ./ourserver.py``
+
+This is everything which is needed to serve requests. 
+Note we are connecting to the address you specified to bind to in zerogw.yaml.
 
 Now you can go to the browser at http://localhost:8080/ and you should
 see ``Hello from /``.
