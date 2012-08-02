@@ -190,7 +190,7 @@ static void set_headers(request_t *mreq) {
         SNIMPL(ws_add_header(req,
             "Access-Control-Allow-Origin", req->headerindex[WS_H_ORIGIN]));
         SNIMPL(ws_add_header(req,
-            "Access-Control-Allow-Methods", "GET, POST"));
+            "Access-Control-Allow-Methods", "GET, POST, OPTIONS"));
         SNIMPL(ws_add_header(req,
             "Access-Control-Allow-Headers", "Origin, Content-Type"));
         SNIMPL(ws_add_header(req,
