@@ -174,22 +174,40 @@ static int parse_uri(request_t *req, comet_args_t *args) {
     return 0;
 }
 
-static void nocache_headers(ws_request_t *req) {
-    ws_add_header(req, "Cache-Control",
+static void set_headers(request_t *mreq) {
+    ws_request_t *req = &mreq->ws;
+    SNIMPL(http_common_headers(mreq));
+    SNIMPL(ws_add_header(req, "Cache-Control",
         "no-cache, no-store, must-revalidate,"
-        " max-age=0, pre-check=0, post-check=0");
-    ws_add_header(req, "Pragma", "no-cache");
-    ws_add_header(req, "Expires", "Sat, 01 Dec 2001 00:00:00 GMT");
-}
-
-static void timestamp_headers(request_t *req) {
-    if(req->route->websocket.polling_fallback.timestamps) {
+        " max-age=0, pre-check=0, post-check=0"));
+    SNIMPL(ws_add_header(req, "Pragma", "no-cache"));
+    SNIMPL(ws_add_header(req, "Expires", "Sat, 01 Dec 2001 00:00:00 GMT"));
+    CONFIG_STRING_STRING_LOOP(line, mreq->route->headers) {
+        SNIMPL(ws_add_header(req, line->key, line->value));
+    }
+    if(mreq->route->websocket.allow_origins) {
+        // Internals of ws_add_header revealed
+        SNIMPL(ws_add_header(req,
+            "Access-Control-Allow-Origin", req->headerindex[WS_H_ORIGIN]));
+        SNIMPL(ws_add_header(req,
+            "Access-Control-Allow-Methods", "GET, POST"));
+        SNIMPL(ws_add_header(req,
+            "Access-Control-Allow-Headers", "Origin, Content-Type"));
+        SNIMPL(ws_add_header(req,
+            "Access-Control-Expose-Headers",
+            "X-Messages, X-Timestamp, X-Wait-Time, "
+            "X-Connection, X-Format, X-Message-ID, X-Last-ID"));
+        SNIMPL(ws_add_header(req,
+            "Access-Control-Max-Age",
+            mreq->route->websocket.access_control_max_age));
+    }
+    if(mreq->route->websocket.polling_fallback.timestamps) {
         char buf[32];
-        req->outgoing_time = ev_now(root.loop);
-        sprintf(buf, "%f", req->outgoing_time);
-        ws_add_header(&req->ws, "X-Timestamp", buf);
-        sprintf(buf, "%f", req->outgoing_time - req->incoming_time);
-        ws_add_header(&req->ws, "X-Wait-Time", buf);
+        mreq->outgoing_time = ev_now(root.loop);
+        sprintf(buf, "%f", mreq->outgoing_time);
+        SNIMPL(ws_add_header(req, "X-Timestamp", buf));
+        sprintf(buf, "%f", mreq->outgoing_time - mreq->incoming_time);
+        SNIMPL(ws_add_header(req, "X-Wait-Time", buf));
     }
 }
 
@@ -201,9 +219,8 @@ static void empty_reply(hybi_t *hybi) {
     }
     ws_request_t *req = &mreq->ws;
     ws_statusline(req, "200 OK");
-    ws_add_header(req, "X-Messages", "0");
-    nocache_headers(req);
-    timestamp_headers(mreq);
+    SNIMPL(ws_add_header(req, "X-Messages", "0"));
+    set_headers(mreq);
     ws_reply_data(req, "", 0);
     mreq->hybi = NULL;
     REQ_DECREF(mreq);
@@ -235,8 +252,7 @@ static void close_reply(hybi_t *hybi) {
     ws_statusline(req, "200 OK");
     ws_add_header(req, "X-Messages", "0");
     ws_add_header(req, "X-Connection", "close");
-    nocache_headers(req);
-    timestamp_headers(mreq);  // for consistency
+    set_headers(mreq);
     ws_reply_data(req, "", 0);
     mreq->hybi = NULL;
     REQ_DECREF(mreq);
@@ -367,8 +383,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             ws_add_header(req, "X-Messages", "1");
             ws_add_header(req, "X-Format", "single");
             ws_add_header(req, "X-Message-ID", buf);
-            nocache_headers(req);
-            timestamp_headers(mreq);
+            set_headers(mreq);
             ws_finish_headers(req);
             mreq->flags |= REQ_HAS_MESSAGE;
             SNIMPL(zmq_msg_init(&mreq->response_msg));
@@ -389,8 +404,7 @@ static void send_later(struct ev_loop *loop, struct ev_idle *watch, int rev) {
             ws_add_header(req, "X-Last-ID", buf);
             ws_add_header(req, "X-Format", "jsonlist");
             ws_add_header(req, "Content-Type", "application/json");
-            nocache_headers(req);
-            timestamp_headers(mreq);
+            set_headers(mreq);
             ws_finish_headers(req);
             obstack_blank(&req->pieces, 0);
             obstack_1grow(&req->pieces, '[');
@@ -446,8 +460,7 @@ static int comet_connect(request_t *req) {
         req->route->websocket.polling_fallback.inactivity_timeout);
     ev_timer_start(root.loop, &hybi->comet->inactivity);
     ws_statusline(&req->ws, "200 OK");
-    nocache_headers(&req->ws);
-    timestamp_headers(req);
+    set_headers(req);
     ws_finish_headers(&req->ws);
     char *uid = obstack_alloc(&req->ws.pieces, UID_LEN*2);
     char mask[MD5_DIGEST_LENGTH];
@@ -507,6 +520,14 @@ int comet_request(request_t *req) {
                 args.action = ACT_GET;
             }
         }
+    }
+    if(!strcmp(req->ws.method, "OPTIONS")) {
+        ws_request_t *wreq = &req->ws;
+        ws_statusline(wreq, "200 OK");
+        // The next line hopefully put access control headers to the reply
+        set_headers(req);
+        ws_reply_data(wreq, "", 0);
+        return 0;
     }
     ANIMPL(hybi->comet->cur_request != req);
     if(args.action == ACT_GET || args.action == ACT_BIDI
@@ -569,8 +590,7 @@ int comet_request(request_t *req) {
         ws_request_t *wreq = &req->ws;
         ws_statusline(wreq, "200 OK");
         ws_add_header(wreq, "X-Messages", "0");
-        nocache_headers(wreq);
-        timestamp_headers(req);
+        set_headers(req);
         ws_reply_data(wreq, "", 0);
     }
     return 0;

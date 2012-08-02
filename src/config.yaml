@@ -475,6 +475,14 @@ __types__:
     websocket:
       enabled: !Bool
         =: no
+      allow-origins: !Array
+        element: !String
+        inheritance: replace-default
+        description: List of origins which connections are accepted from
+      access-control-max-age: !String
+        default: "86400"
+        description: Maximum number of seconds this access controls can be
+          kept in cache. Actually the value of HTTP header with same name
       idle-ping-interval: !UInt
         default: 120
         min: 0

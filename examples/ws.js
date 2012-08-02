@@ -1,16 +1,17 @@
 
-function Connection(path) {
+function Connection(path, host) {
     var self = this;
+    this.host = host || location.host;
     this.path = path;
     if(window.WebSocket) {
         if(window.location.protocol == 'http:') {
-            this.conn = new WebSocket('ws://' + location.host + path);
+            this.conn = new WebSocket('ws://' + this.host + path);
         } else {
-            this.conn = new WebSocket('wss://' + location.host + path);
+            this.conn = new WebSocket('wss://' + this.host + path);
         }
         this.conn.onerror = function(ev) { self.http_fallback(ev); }
     } else {
-        this.conn = new HTTPPolling('http://' + location.host + path);
+        this.conn = new HTTPPolling('http://' + this.host + path);
         this.conn.onerror = function(ev) { self.call_onerror(ev); }
     }
     this.conn.onopen = function(ev) { self.call_onopen(ev); }
@@ -26,7 +27,7 @@ Connection.prototype.CLOSED = 3;
 
 Connection.prototype.http_fallback = function () {
     var self = this;
-    this.conn = new HTTPPolling('http://' + location.host + this.path);
+    this.conn = new HTTPPolling('http://' + this.host + this.path);
     this.conn.onerror = function(ev) { self.call_onerror(ev); }
     this.conn.onopen = function(ev) { self.call_onopen(ev); }
     this.conn.onmessage = function(ev) { self.call_onmessage(ev); }
@@ -87,6 +88,7 @@ function HTTPPolling(url) {
     this.readyState = this.CONNECTING;
     var req = new XMLHttpRequest();
     req.open('POST', this.url + "?action=CONNECT", true);
+    req.setRequestHeader('Content-Type', 'text/plain')
     req.onreadystatechange = function(ev) { self.connect_req(ev); };
     req.send();
     this.nrequests = 1;
@@ -124,6 +126,7 @@ HTTPPolling.prototype.request_next = function(data) {
     var req = new XMLHttpRequest();
     req.open('POST', this.url + "?id=" + this.connection_id
         + "&ack=" + this.last_message + "&rnd=" + Math.random(), true);
+    req.setRequestHeader('Content-Type', 'text/plain')
     req.onreadystatechange = function(ev) { self.message_req(ev); };
     req.send(data);
     this.nrequests += 1;

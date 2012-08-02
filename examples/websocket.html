@@ -17,7 +17,7 @@
   }
 
   function testWebSocket() {
-    websocket = new Connection("/chat");
+    websocket = new Connection("/chat", "localhost:8000");
     websocket.onopen = function(evt) { onOpen(evt) };
     websocket.onclose = function(evt) { onClose(evt) };
     websocket.onmessage = function(evt) { onMessage(evt) };

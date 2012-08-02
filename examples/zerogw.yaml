@@ -60,6 +60,9 @@ Routing:
             "/chat*":
               websocket:
                 enabled: yes
+                allow-origins:
+                - http://localhost:8000
+                - http://127.0.0.1:8000
                 forward:
                 - !zmq.Bind "tcp://127.0.0.1:7002"
                 subscribe:
