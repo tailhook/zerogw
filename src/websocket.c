@@ -765,6 +765,17 @@ int start_websocket(request_t *req) {
         || route->websocket.disable_websocket) {
         return -1;
     }
+    if(route->websocket.allow_origins_len) {
+        char *origin = req->ws.headerindex[WS_H_ORIGIN];
+        if(!origin)
+            return -1;
+        CONFIG_STRING_LOOP(cur, route->websocket.allow_origins) {
+            if(!strcmp(cur->value, origin)) {
+                return websock_start((connection_t *)req->ws.conn, route);
+            }
+        }
+        return -1;
+    }
     return websock_start((connection_t *)req->ws.conn, route);
 }
 

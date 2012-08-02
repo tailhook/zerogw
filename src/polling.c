@@ -185,7 +185,7 @@ static void set_headers(request_t *mreq) {
     CONFIG_STRING_STRING_LOOP(line, mreq->route->headers) {
         SNIMPL(ws_add_header(req, line->key, line->value));
     }
-    if(mreq->route->websocket.allow_origins) {
+    if(mreq->route->websocket.allow_origins && req->headerindex[WS_H_ORIGIN]) {
         // Internals of ws_add_header revealed
         SNIMPL(ws_add_header(req,
             "Access-Control-Allow-Origin", req->headerindex[WS_H_ORIGIN]));
@@ -493,6 +493,17 @@ int comet_request(request_t *req) {
     }
     if(args.action == ACT_CONNECT) {
         LDEBUG("Got comet CONNECT request");
+        if(req->route->websocket.allow_origins_len) {
+            char *origin = req->ws.headerindex[WS_H_ORIGIN];
+            if(!origin)
+                return -1;
+            CONFIG_STRING_LOOP(cur, req->route->websocket.allow_origins) {
+                if(!strcmp(cur->value, origin)) {
+                    return comet_connect(req);
+                }
+            }
+            return -1;
+        }
         return comet_connect(req);
     }
 
