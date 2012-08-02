@@ -493,10 +493,8 @@ int comet_request(request_t *req) {
     }
     if(args.action == ACT_CONNECT) {
         LDEBUG("Got comet CONNECT request");
-        if(req->route->websocket.allow_origins_len) {
-            char *origin = req->ws.headerindex[WS_H_ORIGIN];
-            if(!origin)
-                return -1;
+        char *origin = req->ws.headerindex[WS_H_ORIGIN];
+        if(req->route->websocket.allow_origins_len && origin) {
             CONFIG_STRING_LOOP(cur, req->route->websocket.allow_origins) {
                 if(!strcmp(cur->value, origin)) {
                     return comet_connect(req);
