@@ -25,10 +25,15 @@ Use it for:
  * Ajax
  * WebSockets
 
-Don't use it for:
- * Serving static
- * File uploads
- * Huge full-blown web pages (maybe)
+
+Resources
+---------
+
+* Home page: http://zerogw.com
+* Mailing list: http://groups.google.com/group/zerogw
+* Documentation: http://docs.zerogw.com
+* Online chat example: http://tabbedchat.zerogw.com
+
 
 Installing
 ----------

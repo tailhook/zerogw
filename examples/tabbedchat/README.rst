@@ -13,6 +13,8 @@ Which runs multiple processes of python and zerogw, to show how it could be
 scaled. But you need to turn sockets into tcp ones to scale it to multiple
 machines, and also fix redis config which is awfully slow for testing purposes.
 
+You can also find this chat online at http://tabbedchat.zerogw.com
+
 
 Hacking Remarks
 ---------------
