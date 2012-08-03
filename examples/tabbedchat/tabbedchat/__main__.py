@@ -25,6 +25,9 @@ def get_options():
     ap.add_argument('--output-bind', metavar="ZMQADDR",
         help="Zerogw's subsription address (repeatable)",
         default=[], action="append")
+    ap.add_argument('--log-file', metavar="FILE",
+        help="Log file name",
+        dest="log_file", default="./run/python.log")
 
     return ap
 
@@ -32,7 +35,7 @@ def main():
     ap = get_options()
     options = ap.parse_args()
 
-    logging.basicConfig(filename="./run/python.log", level=logging.DEBUG)
+    logging.basicConfig(filename=options.log_file, level=logging.WARNING)
 
     lp = loop.Loop()
     lp.add_output('output',
