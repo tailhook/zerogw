@@ -28,7 +28,9 @@ def get_options():
     ap.add_argument('--log-file', metavar="FILE",
         help="Log file name",
         dest="log_file", default="./run/python.log")
-
+    ap.add_argument('--redis-socket', metavar="FILE",
+        help="Redis socket (only unix sockets supported)",
+        dest="redis_sock", default='./run/redis.sock')
     return ap
 
 def main():
@@ -42,7 +44,7 @@ def main():
         connect=options.output_connect,
         bind=options.output_bind,
         )
-    lp.add_redis('redis', socket='./run/redis.sock')
+    lp.add_redis('redis', socket=options.redis_sock)
     lp.add_service('auth', auth.Service(),
         connect=options.auth_connect,
         bind=options.auth_bind,
