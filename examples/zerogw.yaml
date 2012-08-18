@@ -1,3 +1,9 @@
+# Sample configuration file to run with chat.py and echo.py
+#
+# It's configured to run from root of the zerogw sources:
+#
+#   ./build/zerogw -c examples/zerogw.yaml
+#
 Server:
   zmq-io-threads: 1
   disk-io-threads: 1
