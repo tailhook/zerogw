@@ -6,7 +6,6 @@
 #define STAT_MAXLEN 4096
 
 #include <website.h>
-#include <pthread.h>
 #include <sys/queue.h>
 
 #include <ev.h>

@@ -2,7 +2,6 @@
 
 #include <ev.h>
 #include <website.h>
-#include <pthread.h>
 #include <strings.h>
 #include <unistd.h>
 #include <stdlib.h>
