@@ -364,8 +364,7 @@ static void request_timeout(struct ev_loop *loop, struct ev_timer *tm, int rev){
     }
 }
 
-int http_headers(request_t *req) {
-    req->incoming_time = ev_now(root.loop);
+void http_dissect_path(request_t *req) {
     char *query = strchr(req->ws.uri, '?');
     if(query) {
         int len = query - req->ws.uri;
@@ -375,6 +374,11 @@ int http_headers(request_t *req) {
     } else {
         req->path = req->ws.uri;
     }
+}
+
+int http_headers(request_t *req) {
+    req->incoming_time = ev_now(root.loop);
+    http_dissect_path(req);
     config_Route_t *route = preliminary_resolve(req);
     if(route && req->ws.bodylen > route->limits.max_body_size) {
         TWARN("Request size too big");

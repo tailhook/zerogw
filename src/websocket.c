@@ -758,6 +758,7 @@ void websock_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
 
 int start_websocket(request_t *req) {
     request_init(req);
+    http_dissect_path(req);
     config_Route_t *route = preliminary_resolve(req);
     if(!route
         || !route->websocket.subscribe.value_len

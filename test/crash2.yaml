@@ -1,0 +1,21 @@
+# vim: sw=2:ts=2:et
+Server:
+  zmq-io-threads: 1
+  disk-io-threads: 1
+  listen:
+    - unix-socket: /tmp/zerogw-test
+  error-log:
+    level: 1
+    warning-timeout: 300
+
+Routing:
+    routing: !Prefix
+    routing-by: !Path
+    map:
+      "/test":
+        websocket:
+          enabled: yes
+          forward:
+          - !zmq.Connect ipc:///tmp/test/zerogw-test-fw
+          subscribe:
+          - !zmq.Connect ipc:///tmp/test/zerogw-test-sub
