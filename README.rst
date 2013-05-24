@@ -41,6 +41,7 @@ Installing
 Ubuntu::
 
     sudo add-apt-repository ppa:tailhook/zerogw
+    sudo apt-get update
     sudo apt-get install zerogw
 
 ArchLinux::
