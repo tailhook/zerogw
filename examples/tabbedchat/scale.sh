@@ -36,6 +36,7 @@ for i in $(seq 0 4); do
         --output-connect "ipc://./run/z1/output.sock" \
         --output-connect "ipc://./run/z2/output.sock" \
         --output-connect "ipc://./run/z3/output.sock" \
+        --redis-socket "./run/redis.sock" \
         &
 done
 

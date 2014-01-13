@@ -22,9 +22,13 @@ class ReplyError(Exception):
 
 class Redis(object):
 
-    def __init__(self, socket_path):
-        self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._sock.connect(socket_path)
+    def __init__(self, socket_path=None, host='localhost', port=6379):
+        if socket_path:
+            self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self._sock.connect(socket_path)
+        else:
+            self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._sock.connect((host, port))
         self._buf = bytearray()
 
     def execute(self, *args):

@@ -60,8 +60,10 @@ class Loop(object):
         sock = self._make_socket(zmq.PUB, settings)
         self._outputs[name] = Output(sock)
 
-    def add_redis(self, name, *, socket):
-        self._redises[name] = redis.Redis(socket_path=socket)
+    def add_redis(self, name, *, socket, host, port):
+        self._redises[name] = redis.Redis(
+            host=host, port=port,
+            socket_path=socket)
 
     def get(self, name):
         if name in self._outputs:
