@@ -19,6 +19,7 @@ python3 -m tabbedchat \
     --auth-connect "ipc://./run/auth.sock" \
     --chat-connect "ipc://./run/chat.sock" \
     --output-connect "ipc://./run/output.sock" \
+    --log-file "./run/python.log" \
     &
 
 echo "========================================================================"

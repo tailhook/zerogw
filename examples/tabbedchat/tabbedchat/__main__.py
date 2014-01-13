@@ -27,7 +27,7 @@ def get_options():
         default=[], action="append")
     ap.add_argument('--log-file', metavar="FILE",
         help="Log file name",
-        dest="log_file", default="./run/python.log")
+        dest="log_file", default=None)
     ap.add_argument('--redis-host', metavar="HOST",
         help="Redis host",
         dest="redis_host", default="localhost")

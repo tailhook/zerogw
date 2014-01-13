@@ -20,6 +20,7 @@ python3 -m tabbedchat \
     --chat-connect "ipc://./run/chat.sock" \
     --output-connect "ipc://./run/output.sock" \
     --redis-socket "./run/redis.sock" \
+    --log-file "./run/python.log" \
     &
 
 echo "========================================================================"
