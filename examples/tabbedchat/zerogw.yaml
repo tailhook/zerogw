@@ -39,7 +39,7 @@ Routing:
             sync-interval: 10  # too low, for example purposes
             =:
             - !zmq.Bind "ipc://$dir/chat.sock"
-        subscribe: !zmq.Pull
+        subscribe: !zmq.Sub
         - !zmq.Bind "ipc://$dir/output.sock"
   children:
     - match:
