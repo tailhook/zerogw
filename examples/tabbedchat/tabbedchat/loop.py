@@ -74,7 +74,6 @@ class Loop(object):
 
     def _make_socket(self, kind, settings):
         sock = self._ctx.socket(kind)
-        sock.setsockopt(zmq.HWM, settings.get('hwm', 100))
         # TODO(tailhook) implement socket options
         for i in settings.get('bind', ()):
             sock.bind(i)
