@@ -114,6 +114,9 @@ void http_process(struct ev_loop *loop, struct ev_io *watch, int revents) {
                 Z_RECV(msg);
                 if(msg_opt) {
                     TWARN("Too many message parts");
+                    /*  We already set status and headers,
+                     *  but they were only buffered, so we're lucky  */
+                    SNIMPL(ws_reset_headers(&req->ws));
                     http_static_response(req,
                         &REQRCONFIG(req)->responses.internal_error);
                     request_finish(req);

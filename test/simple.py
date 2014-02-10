@@ -120,6 +120,19 @@ class HTTP(Base):
         self.assertEqual(resp.headers['Content-Type'], None)
         self.assertTrue(resp.headers['Date'])
 
+    def testBadReply(self):
+        conn = self.http()
+        self.addCleanup(conn.close)
+        conn.request('GET', '/echo/test')
+        self.assertEqual(self.backend_recv(),
+                          [b'/echo/test', b''])
+        self.backend_send(b'200 OK', b'', b'hello', b'CRAP')
+        resp = conn.getresponse()
+        self.assertEqual(500, resp.status)
+        self.assertTrue(b'Error' in resp.read())
+        self.assertEqual(resp.headers['Content-Type'], None)
+        self.assertTrue(resp.headers['Date'])
+
     def testHeadersEcho(self):
         conn = self.http()
         self.addCleanup(conn.close)
