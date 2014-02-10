@@ -1,0 +1,19 @@
+language: python
+
+python:
+- "3.3"
+
+install:
+- "sudo apt-get remove libzmq3"
+- "sudo apt-get install libev-dev uuid-dev"
+- "git clone --depth=1 git://github.com/tailhook/coyaml"
+- "cd coyaml; PYTHON=python3 ./waf configure --prefix=/usr; python3 ./waf build; cd .."
+- "git clone --depth=1 git://github.com/tailhook/libwebsite"
+- "cd libwebsite; PYTHON=python3 ./waf configure --prefix=/usr; python3 ./waf build; cd .."
+- "wget http://download.zeromq.org/zeromq-2.2.0.tar.gz"
+- "tar -xzf zeromq-2.2.0.tar.gz"
+- "cd zeromq-2.2.0; ./configure --prefix=/usr; make; sudo make install; cd .."
+- "pip install pyzmq PyYAML --use-mirrors"
+- 'PYTHON=python3 CFLAGS="-I$(pwd)/coyaml/include -I$(pwd)/libwebsite/include" LDFLAGS="-L$(pwd)/coyaml/build -L$(pwd)/libwebsite/build" ./waf configure --prefix=/usr; PYTHONPATH=coyaml python3 ./waf build'
+
+script: "PYTHONPATH=coyaml ./waf test"
