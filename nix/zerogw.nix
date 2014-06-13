@@ -1,8 +1,12 @@
 {pkgs, stdenv, fetchgit, zeromq, coyaml, libev, libwebsite, mime-types}:
 
 let python = pkgs.python33;
-    pyyaml = pkgs.python33Packages.pyyaml;
-    pyzmq = pkgs.python33Packages.pyzmq;
+    pypkg = pkgs.python33Packages;
+    pyyaml = pypkg.pyyaml;
+    pyzmq = pkgs.callPackage ./pyzmq.nix {
+      zeromq=zeromq;
+      buildPythonPackage = pypkg.buildPythonPackage;
+    };
 in stdenv.mkDerivation rec {
   version="0.6.2-dev";
   name="zerogw-${version}";
