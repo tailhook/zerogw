@@ -5,6 +5,7 @@ from waflib.Build import BuildContext
 from waflib.Scripting import Dist
 import subprocess
 import os.path
+import sys
 
 APPNAME='zerogw'
 if os.path.exists('.git'):
@@ -130,7 +131,7 @@ def build_tests(bld):
     bld.add_group()
     bld(rule='cd ${SRC[0].parent.parent.abspath()};'
         'export BUILDDIR=${SRC[1].parent.abspath()};'
-        'python -m unittest discover -s test -p "*.py" -t . -v',
+         + sys.executable + ' -m unittest discover -s test -p "*.py" -t . -v',
         source=['test/simple.py', 'zerogw'],
         always=True)
 
