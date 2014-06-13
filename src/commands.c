@@ -5,7 +5,7 @@
 #include "websocket.h"
 
 #define REPLY_COMMAND(sock, msg, more) \
-            if(zmq_send(sock, &msg, ZMQ_NOBLOCK \
+            if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT \
                 | (more ? ZMQ_SNDMORE : 0)) < 0) { \
                 LWARN("Can't send reply on command"); \
                 goto msg_error; \

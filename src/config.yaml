@@ -63,11 +63,6 @@ __types__:
       description: >
         Zeromq identity for the socket. Refer to zeromq documentation for
         details
-    swap: !UInt
-      =: 0
-      description: >
-        Size of swap size for messages that exceed high water mark. Refer to
-        zeromq documentation for details
     affinity: !UInt
       =: 0
       description: >

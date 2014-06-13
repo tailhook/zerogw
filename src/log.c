@@ -111,7 +111,7 @@ void timedwarn(time_t *tt, char *file, int line, char *msg, ...) {
 
 void setcloexec(int fd) {
     int flags = fcntl(fd, F_GETFD);
-    SNIMPL(flags < 0);
+    SNIMPL(flags);
     fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
 }
 

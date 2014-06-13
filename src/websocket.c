@@ -74,7 +74,7 @@ int backend_send_real(config_zmqsocket_t *sock, hybi_t *hybi, void *msg) {
     zmq_msg_t zmsg;
     SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
     memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
-    if(zmq_send(sock->_sock, &zmsg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+    if(zmq_msg_send(&zmsg, sock->_sock, ZMQ_SNDMORE|ZMQ_DONTWAIT) < 0) {
         if(errno == EAGAIN || errno == EINTR) {
             zmq_msg_close(&zmsg);
             return -1;
@@ -103,11 +103,11 @@ int backend_send_real(config_zmqsocket_t *sock, hybi_t *hybi, void *msg) {
     SNIMPL(zmq_msg_init_size(&zmsg, len));
     memcpy(zmq_msg_data(&zmsg), kind, len);
     int flag = (is_msg || hybi->flags & WS_HAS_COOKIE) ? ZMQ_SNDMORE : 0;
-    SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | flag));
+    SNIMPL(zmq_msg_send(&zmsg, sock->_sock, ZMQ_DONTWAIT | flag));
     if(hybi->flags & WS_HAS_COOKIE) {
         flag = is_msg ? ZMQ_SNDMORE : 0;
         SNIMPL(zmq_msg_copy(&zmsg, &hybi->cookie));
-        SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK | flag));
+        SNIMPL(zmq_msg_send(&zmsg, sock->_sock, ZMQ_DONTWAIT | flag));
     }
     if(is_msg) {
         if(hybi->type == HYBI_COMET) {
@@ -119,7 +119,7 @@ int backend_send_real(config_zmqsocket_t *sock, hybi_t *hybi, void *msg) {
             SNIMPL(zmq_msg_init_data(&zmsg, wmsg->ws.data, wmsg->ws.length,
                 websock_free_message, wmsg));
         }
-        SNIMPL(zmq_send(sock->_sock, &zmsg, ZMQ_NOBLOCK));
+        SNIMPL(zmq_msg_send(&zmsg, sock->_sock, ZMQ_DONTWAIT));
     }
     return 0;
 }
@@ -788,8 +788,8 @@ static void heartbeat(struct ev_loop *loop,
         - offsetof(config_Route_t, websocket._heartbeat_timer));
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-    if(zmq_send(route->websocket.forward._sock, &msg,
-        ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+    if(zmq_msg_send(&msg, route->websocket.forward._sock,
+        ZMQ_SNDMORE|ZMQ_DONTWAIT) < 0) {
         if(errno != EAGAIN) { //TODO: EINTR???
             SNIMPL(-1);
         } else {
@@ -798,7 +798,7 @@ static void heartbeat(struct ev_loop *loop,
         }
     }
     SNIMPL(zmq_msg_init_data(&msg, "heartbeat", 9, NULL, NULL));
-    if(zmq_send(route->websocket.forward._sock, &msg, ZMQ_NOBLOCK) < 0) {
+    if(zmq_msg_send(&msg, route->websocket.forward._sock, ZMQ_DONTWAIT) < 0) {
         if(errno != EAGAIN) { //TODO: EINTR???
             SNIMPL(-1);
         } // else: nevermind
@@ -814,7 +814,7 @@ static void send_sync(struct ev_loop *loop,
     if(!LIST_FIRST(&socket->_int.outputs)) return;
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init_data(&msg, root.instance_id, IID_LEN, NULL, NULL));
-    if(zmq_send(socket->_sock, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK) < 0) {
+    if(zmq_msg_send(&msg, socket->_sock, ZMQ_SNDMORE|ZMQ_DONTWAIT) < 0) {
         if(errno != EAGAIN) { //TODO: EINTR???
             SNIMPL(-1);
         } else {
@@ -830,16 +830,16 @@ static void send_sync(struct ev_loop *loop,
         // Same users are guaranteed to be on subsequent entries on the list
         if(prev && prev->connection == item->connection) continue;
         prev = item;
-        SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE));
+        SNIMPL(zmq_msg_send(&msg, socket->_sock, ZMQ_DONTWAIT|ZMQ_SNDMORE));
         SNIMPL(zmq_msg_init_size(&msg, UID_LEN));
         memcpy(zmq_msg_data(&msg), item->connection->uid, UID_LEN);
-        SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK|ZMQ_SNDMORE));
+        SNIMPL(zmq_msg_send(&msg, socket->_sock, ZMQ_DONTWAIT|ZMQ_SNDMORE));
         if(item->connection->flags & WS_HAS_COOKIE) {
             zmq_msg_copy(&msg, &item->connection->cookie);
         }
     }
 
-    SNIMPL(zmq_send(socket->_sock, &msg, ZMQ_NOBLOCK));
+    SNIMPL(zmq_msg_send(&msg, socket->_sock, ZMQ_DONTWAIT));
 }
 
 static int socket_visitor(config_Route_t *route) {

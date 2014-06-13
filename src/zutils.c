@@ -72,15 +72,16 @@ int zmq_open(config_zmqsocket_t *sock, int kinds, int defkind,
     }
     if(sock->hwm) {
         uint64_t hwm = sock->hwm;
+# if defined(ZMQ_HWM)
         SNIMPL(zmq_setsockopt(result, ZMQ_HWM, &hwm, sizeof(hwm)));
+# else
+        SNIMPL(zmq_setsockopt(result, ZMQ_RCVHWM, &hwm, sizeof(hwm)));
+        SNIMPL(zmq_setsockopt(result, ZMQ_SNDHWM, &hwm, sizeof(hwm)));
+# endif
     }
     if(sock->identity && sock->identity_len) {
         SNIMPL(zmq_setsockopt(result, ZMQ_IDENTITY,
             sock->identity, sock->identity_len));
-    }
-    if(sock->swap) {
-        uint64_t swap = sock->swap;
-        SNIMPL(zmq_setsockopt(result, ZMQ_SWAP, &swap, sizeof(swap)));
     }
     if(sock->affinity) {
         uint64_t affinity = sock->affinity;
@@ -112,12 +113,12 @@ int zmq_open(config_zmqsocket_t *sock, int kinds, int defkind,
 }
 
 void skip_message(void * sock) {
-    int64_t opt = 1;
+    more_t opt = 1;
     size_t len = sizeof(opt);
     zmq_msg_t msg;
     SNIMPL(zmq_msg_init(&msg));
     while(opt) {
-        SNIMPL(zmq_recv(sock, &msg, 0));
+        SNIMPL(zmq_msg_recv(&msg, sock, 0));
         LDEBUG("Skipped garbage: [%d] %.*s", zmq_msg_size(&msg),
             zmq_msg_size(&msg), zmq_msg_data(&msg));
         SNIMPL(zmq_getsockopt(sock, ZMQ_RCVMORE, &opt, &len));

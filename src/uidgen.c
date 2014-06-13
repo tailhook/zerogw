@@ -22,7 +22,7 @@ int init_uid(config_main_t *config) {
     pieces->time_micro = tv.tv_usec;
     int fd = open("/dev/urandom", O_RDONLY);
     while(fd < 0) {
-        SNIMPL(errno != EINTR);
+        SNIMPL((errno == EINTR) ? 0 : -1);
         fd = open("/dev/urandom", O_RDONLY);
     }
     int res = 0;
@@ -43,7 +43,7 @@ int make_hole_uid(void *object, char data[UID_LEN], sieve_t *sieve,
     if(secure) {
         int fd = open("/dev/urandom", O_RDONLY);
         while(fd < 0) {
-            SNIMPL(errno != EINTR);
+            SNIMPL((errno == EINTR) ? 0 : -1);
             fd = open("/dev/urandom", O_RDONLY);
         }
         int res = 0;

@@ -5,6 +5,7 @@
 #include <assert.h>
 
 #include "config.h"
+#include "zutils.h"
 
 typedef struct zerogwctl_flags_s {
     char *config;
@@ -95,16 +96,16 @@ int main(int argc, char **argv) {
         zmq_msg_t msg;
         rc = zmq_msg_init_data(&msg, argv[i], strlen(argv[i]), NULL, NULL);
         assert(rc == 0);
-        rc = zmq_send(socket, &msg, (i == argc-1 ? 0: ZMQ_SNDMORE));
+        rc = zmq_msg_send(&msg, socket, (i == argc-1 ? 0: ZMQ_SNDMORE));
         assert(rc == 0);
     }
     while(TRUE) {
         zmq_msg_t msg;
-        long opt;
+        more_t opt;
         size_t size = sizeof(opt);
         zmq_msg_init(&msg);
-        int rc = zmq_recv(socket, &msg, 0);
-        assert(rc == 0);
+        int rc = zmq_msg_recv(&msg, socket, 0);
+        assert(rc >= 0);
         rc = zmq_getsockopt(socket, ZMQ_RCVMORE, &opt, &size);
         assert(size == 8);
         assert(rc == 0);

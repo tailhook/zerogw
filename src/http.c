@@ -302,7 +302,7 @@ static int do_forward(request_t *req) {
     zmq_msg_t msg;
     REQ_INCREF(req);
     SNIMPL(zmq_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
-    if(zmq_send(sock, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK)) {
+    if(zmq_msg_send(&msg, sock, ZMQ_SNDMORE|ZMQ_DONTWAIT)) {
         zmq_msg_close(&msg);
         if(errno == EAGAIN) {
             http_static_response(req, &route->responses.service_unavailable);
@@ -317,7 +317,7 @@ static int do_forward(request_t *req) {
     }
     if(route->zmq_forward.socket.kind == CONFIG_zmq_Req
         || route->zmq_forward.socket.kind == CONFIG_auto) {
-        SNIMPL(zmq_send(sock, &msg, ZMQ_SNDMORE|ZMQ_NOBLOCK)); // empty sentinel
+        SNIMPL(zmq_msg_send(&msg, sock, ZMQ_SNDMORE|ZMQ_DONTWAIT)); // empty sentinel
     }
     config_a_RequestField_t *contents = route->zmq_forward.contents;
     ANIMPL(contents);
@@ -327,8 +327,8 @@ static int do_forward(request_t *req) {
         zmq_msg_t msg;
         REQ_INCREF(req);
         SNIMPL(zmq_msg_init_data(&msg, (void *)value, len, request_decref, req));
-        SNIMPL(zmq_send(sock, &msg,
-            (item->head.next ? ZMQ_SNDMORE : 0)|ZMQ_NOBLOCK));
+        SNIMPL(zmq_msg_send(&msg, sock,
+            (item->head.next ? ZMQ_SNDMORE : 0)|ZMQ_DONTWAIT));
         SNIMPL(zmq_msg_close(&msg));
     }
     return 0;

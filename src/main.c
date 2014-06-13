@@ -51,7 +51,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.connects - root.stat.disconnects);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::requests.processing: %s %ld %zu",
@@ -62,7 +62,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.http_requests - root.stat.http_replies);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::connections.websockets: %s %ld %zu",
@@ -73,7 +73,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_connects - root.stat.websock_disconnects);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::websockets.comets: %s %ld %zu",
@@ -84,7 +84,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.comet_connects - root.stat.comet_disconnects);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::websockets.topics: %s %ld %zu",
@@ -95,7 +95,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.topics_created - root.stat.topics_removed);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::websockets.subscriptions: %s %ld %zu",
@@ -106,7 +106,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_subscribed - root.stat.websock_unsubscribed);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::websockets.backend_queue: %s %ld %zu",
@@ -117,7 +117,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_backend_queued - root.stat.websock_backend_unqueued);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::requests.issued: %s %ld %zu:c",
@@ -128,7 +128,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.http_requests);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::requests.forwarded: %s %ld %zu:c",
@@ -139,7 +139,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.zmq_requests);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::comet.acks: %s %ld %zu:c",
@@ -150,7 +150,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.comet_acks);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::comet.empty_replies: %s %ld %zu:c",
@@ -161,7 +161,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.comet_empty_replies);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::comet.aborted_replies: %s %ld %zu:c",
@@ -172,7 +172,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.comet_aborted_replies);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::comet.received_messages: %s %ld %zu:c",
@@ -183,7 +183,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.comet_aborted_replies);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::comet.send_messages: %s %ld %zu:c",
@@ -194,7 +194,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.comet_aborted_replies);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::comet.send_batches: %s %ld %zu:c",
@@ -205,7 +205,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.comet_aborted_replies);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::websockets.sent_messages: %s %ld %zu:c",
@@ -216,7 +216,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_sent);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::websockets.received_messages: %s %ld %zu:c",
@@ -227,7 +227,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_received);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::websockets.published_messages: %s %ld %zu:c",
@@ -238,7 +238,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_published);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::websockets.sent_pings: %s %ld %zu:c",
@@ -249,7 +249,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.websock_sent_pings);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::disk.requests: %s %ld %zu:c",
@@ -260,7 +260,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.disk_requests);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::disk.reads: %s %ld %zu:c",
@@ -271,7 +271,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.disk_reads);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 
     len = sprintf(buf,
         "ESTP:%.64s:%.64s::disk.bytes_read: %s %ld %zu:c",
@@ -282,7 +282,7 @@ void flush_statistics(struct ev_loop *loop, struct ev_timer *watch, int rev) {
         root.stat.disk_bytes_read);
     if(zmq_msg_init_size(&msg, len) < 0) return; //  No memory
     memcpy(zmq_msg_data(&msg), buf, len);
-    if(zmq_send(sock, &msg, ZMQ_NOBLOCK) < 0) return;
+    if(zmq_msg_send(&msg, sock, ZMQ_DONTWAIT) < 0) return;
 }
 
 int on_connect(connection_t *conn) {
