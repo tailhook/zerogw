@@ -11,7 +11,7 @@ in stdenv.mkDerivation rec {
   version="0.6.2-dev";
   name="zerogw-${version}";
 
-  srcs = fetchgit {
+  src = fetchgit {
     url = "git://github.com/tailhook/zerogw";
     rev = "d85a0ce";
     sha256 = "372562e3d90401dae281e2a0b78eacd272681d6c14b86fcc3599689cfab1d67f";
