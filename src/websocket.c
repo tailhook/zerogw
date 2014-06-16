@@ -71,10 +71,15 @@ void websock_free_message(void *data, void *hint) {
 }
 
 int backend_send_real(config_zmqsocket_t *sock, hybi_t *hybi, void *msg) {
+    int rc, i;
     zmq_msg_t zmsg;
     SNIMPL(zmq_msg_init_size(&zmsg, UID_LEN));
     memcpy(zmq_msg_data(&zmsg), hybi->uid, UID_LEN);
-    if(zmq_msg_send(&zmsg, sock->_sock, ZMQ_SNDMORE|ZMQ_DONTWAIT) < 0) {
+    i = 0; do {
+        rc = zmq_msg_send(&zmsg, sock->_sock, ZMQ_SNDMORE|ZMQ_DONTWAIT);
+    } while (rc < 0 && (errno == EAGAIN || errno == EINTR)
+                    && ++i < ZMQ_RETRY_COUNT);
+    if(rc < 0) {
         if(errno == EAGAIN || errno == EINTR) {
             zmq_msg_close(&zmsg);
             return -1;

@@ -18,9 +18,17 @@
 #   define zmq_msg_send(msg,sock,opt) zmq_send (sock, msg, opt)
 #   define zmq_msg_recv(msg,sock,opt) zmq_recv (sock, msg, opt)
 #   define ZMQ_POLL_MSEC    1000        //  zmq_poll is usec
+#   define ZMQ_RETRY_COUNT 1
 #elif ZMQ_VERSION_MAJOR >= 3
 #   define more_t int
 #   define ZMQ_POLL_MSEC    1           //  zmq_poll is msec
+//  Unfortunately zeromq 3 and above, does often spurios EAGAIN returns even
+//  when there is a peer to send to. It's probably possible to make robust
+//  decision. I.e. to poll on socket. But it's not implemented in some places.
+//  E.g. when forwarding HTTP, zerogw sends a request and relies on timeouts to
+//  retry on error. However, I think it's worth to recheck spurious EAGAIN's so
+//  that request is send immediately in such situations.
+#   define ZMQ_RETRY_COUNT 2
 #endif
 
 typedef void (*sock_callback)(struct ev_loop *ev, struct ev_io *io, int revents);

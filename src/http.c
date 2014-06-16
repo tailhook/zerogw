@@ -295,6 +295,7 @@ static int socket_unvisitor(config_Route_t *route) {
 }
 
 static int do_forward(request_t *req) {
+    int rc, i;
     config_Route_t *route = req->route;
     void *sock = route->zmq_forward.socket._sock;
     // Must wake up reading and on each send, because the way zmq sockets work
@@ -302,7 +303,11 @@ static int do_forward(request_t *req) {
     zmq_msg_t msg;
     REQ_INCREF(req);
     SNIMPL(zmq_msg_init_data(&msg, req->uid, UID_LEN, request_decref, req));
-    if(zmq_msg_send(&msg, sock, ZMQ_SNDMORE|ZMQ_DONTWAIT)) {
+    i = 0; do {
+        rc = zmq_msg_send(&msg, sock, ZMQ_SNDMORE|ZMQ_DONTWAIT);
+    } while (rc < 0 && (errno == EAGAIN || errno == EINTR)
+                    && ++i < ZMQ_RETRY_COUNT);
+    if(rc < 0) {
         zmq_msg_close(&msg);
         if(errno == EAGAIN) {
             http_static_response(req, &route->responses.service_unavailable);
