@@ -13,8 +13,8 @@ in stdenv.mkDerivation rec {
 
   src = fetchgit {
     url = "git://github.com/tailhook/zerogw";
-    rev = "d85a0ce";
-    sha256 = "372562e3d90401dae281e2a0b78eacd272681d6c14b86fcc3599689cfab1d67f";
+    rev = "4e50525";
+    sha256 = "d9ae9fc54def7478070977cae0fbf5898a91d9b90eec4d52390cd90c8f0df65a";
   };
 
   buildInputs = with pkgs; [
