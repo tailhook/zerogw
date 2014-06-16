@@ -57,7 +57,7 @@ Routing:
           subscribe: !zmq.Sub
           - !zmq.Bind "ipc:///tmp/zerogw-test-chat"
           named-outputs:
-            minigame:
+            minigame: !zmq.Push
               =:
               - !zmq.Bind "ipc:///tmp/zerogw-test-minigame"
               sync-interval: 100
