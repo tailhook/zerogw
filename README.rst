@@ -6,7 +6,7 @@ request and sends it using zeromq socket (ZMQ_REQ). Then waits for the reply
 and responds with data received from zeromq socket.
 
 Starting with v0.3 zerogw also supports WebSockets. Websockets are implemented
-by forwarding incoming messages using ZMQ_PUB socket, and listening clommands
+by forwarding incoming messages using ZMQ_PUB socket, and listening commands
 from ZMQ_SUB socket. Each WebSocket client can be subscribed to unlimited
 number of topics. Each zeromq message it either control message (e.g.
 subscription) or message to a specified topic which will be efficiently sent
