@@ -31,6 +31,7 @@ def configure(conf):
 def build(bld):
     bld.recurse('coyaml', name='build_only')
     bld.recurse('libwebsite', name='build_only')
+    bld.add_group()
 
     import sys
     sys.path.append("coyaml")
