@@ -1,0 +1,35 @@
+containers:
+
+  ubuntu:
+    builder: ubuntu
+    parameters:
+      repos: universe
+      ppas: libzmq-dbg libzmq-dev libzmq1
+      packages:
+        gcc make checkinstall wget git
+        libzmq-dbg libzmq-dev libzmq1 python3 python3-yaml
+        libyaml-dev libev-dev libssl-dev
+
+
+commands:
+
+  build-ubuntu-package:
+
+    description: Create an ubuntu (.deb) package using checkinstall in
+      container
+    container: ubuntu
+    write-mode: transient-hard-link-copy
+    run: |
+      set -ex
+      #
+      python3 ./waf configure --prefix=/usr
+      python3 ./waf build
+      #
+      checkinstall \
+        --default \
+        --maintainer=paul@colomiets.name \
+        --pkglicense=MIT \
+        --pkgname=zerogw \
+        --pkgver=${1:-$(git describe | cut -c2-)} \
+        --nodoc \
+      python3 ./waf install

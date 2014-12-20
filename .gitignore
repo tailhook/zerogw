@@ -6,5 +6,11 @@
 *.pyo
 __pycache__
 zerogw-*.tar.bz2
+*.deb
 *~
 *.swp
+.vagga
+
+# checkinstall
+description-pak
+*.tgz
