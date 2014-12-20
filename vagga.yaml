@@ -2,6 +2,8 @@ containers:
 
   ubuntu:
     builder: ubuntu
+    uids: [0-1000, 65534]
+    gids: [0-1000, 65534]
     parameters:
       repos: universe
       ppas: libzmq-dbg libzmq-dev libzmq1
