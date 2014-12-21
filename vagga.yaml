@@ -34,6 +34,7 @@ commands:
         --maintainer=paul@colomiets.name \
         --pkglicense=MIT \
         --pkgname=zerogw \
+        --requires="libev4, libyaml-0-2, libzmq1" \
         --pkgver=${1:-$(git describe | cut -c2-)} \
         --nodoc \
       python3 ./waf install
