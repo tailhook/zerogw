@@ -13,19 +13,19 @@ while True:
         pub.send(b'subscribe', zmq.SNDMORE)
         pub.send(parts[0], zmq.SNDMORE)
         pub.send(parts[0])
-        
+
         pub.send(b'subscribe', zmq.SNDMORE)
         pub.send(parts[0], zmq.SNDMORE)
         pub.send(b'room:default')
-        
+
         pub.send(b'subscribe', zmq.SNDMORE)
         pub.send(parts[0], zmq.SNDMORE)
         pub.send(b'room:default:joins')
-        
+
         pub.send(b'publish', zmq.SNDMORE)
         pub.send(b'room:default:joins', zmq.SNDMORE)
         pub.send(b'User joined room')
-        
+
     elif parts[1] == b'message':
         if parts[2] == b'no_spam':
             pub.send(b'unsubscribe', zmq.SNDMORE)

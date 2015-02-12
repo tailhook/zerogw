@@ -22,6 +22,19 @@ containers:
       # for packaging
       - checkinstall
 
+  redis:
+    setup:
+    - !Alpine v3.1
+    - !Install [redis]
+
+  py-chat:
+    setup:
+    - !Ubuntu trusty
+    - !UbuntuUniverse ~
+    - !Install [libzmq1]
+    - !BuildDeps [libzmq-dev]
+    - !Py3Install [pyzmq]
+
 
 commands:
 
@@ -50,3 +63,53 @@ commands:
         --pkgver=${1:-$(git describe | cut -c2-)} \
         --nodoc \
       python3 ./waf install
+
+  example-tabbedchat: !Supervise
+    description: Run tabbed chat example (including python, redis and zerogw).
+      Zerogw should already been built.
+    children:
+      redis: !Command
+        container: redis
+        work-dir: examples/tabbedchat
+        run: redis-server redis.conf
+      zerogw: !Command
+        container: ubuntu
+        work-dir: examples/tabbedchat
+        run: /work/build/zerogw -c zerogw.yaml
+      py: !Command
+        container: py-chat
+        work-dir: examples/tabbedchat
+        run:
+        - python3
+        - -m
+        - tabbedchat
+        - --auth-connect=ipc://./run/auth.sock
+        - --chat-connect=ipc://./run/chat.sock
+        - --output-connect=ipc://./run/output.sock
+        - --redis-socket=./run/redis.sock
+        - --log-file=./run/python.log
+
+  example-echo: !Supervise
+    description: Run simpler echo HTTP example (including python and zerogw).
+      Zerogw should already been built.
+    children:
+      zerogw: !Command
+        container: ubuntu
+        work-dir: examples
+        run: /work/build/zerogw -c zerogw.yaml
+      py: !Command
+        container: py-chat
+        work-dir: examples
+        run: python3 echo.py
+
+  example-chat: !Supervise
+    description: Run simpler websocket chat example (including python and
+      zerogw). Zerogw should already been built.
+    children:
+      zerogw: !Command
+        container: ubuntu
+        run: /work/build/zerogw -c examples/zerogw.yaml
+      py: !Command
+        container: py-chat
+        work-dir: examples
+        run: python3 chat.py
