@@ -1,24 +1,36 @@
 containers:
 
   ubuntu:
-    builder: ubuntu
-    uids: [0-1000, 65534]
-    gids: [0-1000, 65534]
-    parameters:
-      repos: universe
-      ppas: libzmq-dbg libzmq-dev libzmq1
-      packages:
-        gcc make checkinstall wget git
-        libzmq-dbg libzmq-dev libzmq1 python3 python3-yaml
-        libyaml-dev libev-dev libssl-dev
-    provision: |
-      /bin/chown root /var/spool/rsyslog
+    setup:
+    - !Ubuntu trusty
+    - !UbuntuUniverse ~
+    - !Install
+      # runtime dependencies
+      - libzmq1
+      # for "git describe"
+      - git
+      # build dependendies
+      - gcc
+      - make
+      - libzmq-dbg
+      - libzmq-dev
+      - libyaml-dev
+      - libev-dev
+      - libssl-dev
+      - python3
+      - python3-yaml
+      # for packaging
+      - checkinstall
 
 
 commands:
 
-  build-ubuntu-package:
+  waf: !Command
+    description: The generic waf command
+    container: ubuntu
+    run: ["./waf"]
 
+  build-ubuntu-package: !Command
     description: Create an ubuntu (.deb) package using checkinstall in
       container
     container: ubuntu
