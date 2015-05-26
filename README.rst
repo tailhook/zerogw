@@ -77,6 +77,9 @@ parser and embedded few other libraries for easier compiling :) )
 Compiling
 ---------
 
+The two libs libwebsite and coyaml need to be checked out or symlinked into the subdirectories of
+this project.
+
 ::
 
     ./waf configure --prefix=/usr

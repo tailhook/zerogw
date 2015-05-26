@@ -16,6 +16,7 @@
 #include "log.h"
 #include "http.h"
 #include "resolve.h"
+#include <pthread.h>
 
 const char content_type[] = "Content-Type";
 const char last_modified[] = "Last-Modified";
