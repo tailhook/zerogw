@@ -78,7 +78,7 @@ Compiling
 ---------
 
 The two libs libwebsite and coyaml need to be checked out or symlinked into the subdirectories of
-this project. Alternativly you can use ``git submodule init`` and ``git submodule update`` to get the packages as submodules.
+this project. Alternatively you can use ``git submodule init`` and ``git submodule update`` to get the packages as submodules.
 
 ::
 
