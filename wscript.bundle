@@ -44,7 +44,7 @@ def build(bld):
             'src/msgqueue.c',
             ],
         target       = 'zerogw',
-        includes     = ['src', 'libev', 'libwebsite/include', 'libyaml/include', 'coyaml/include'],
+        includes     = ['src', 'libev', 'libwebsite/include', 'libyaml/include', 'coyaml/include', '/usr/pkg/include/','/usr/local/include'],
         libpath      = ['libyaml', 'libwebsite'],
         defines      = [
             'LOG_STRIP_PATH="../src/"',

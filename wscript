@@ -57,7 +57,7 @@ def build(bld):
             'src/msgqueue.c',
             ],
         target       = 'zerogw',
-        includes     = ['src', 'coyaml/include', 'libwebsite/include'],
+        includes     = ['src', 'coyaml/include', 'libwebsite/include','/usr/pkg/include/','/usr/local/include','/usr/pkg/include/ev', '/usr/pkg/include'],
         libpath      = [
             bld.bldnode.abspath() + '/coyaml',
             bld.bldnode.abspath() + '/libwebsite',
@@ -84,7 +84,7 @@ def build(bld):
             'src/zerogwctl.c',
             ],
         target       = 'zerogwctl',
-        includes     = ['src', 'coyaml/include', 'libwebsite/include'],
+        includes     = ['src', 'coyaml/include', 'libwebsite/include','/usr/pkg/include/','/usr/local/include','/usr/pkg/include/ev', '/usr/pkg/include'],
         libpath      = [
             bld.bldnode.abspath() + '/coyaml',
             bld.bldnode.abspath() + '/libwebsite',

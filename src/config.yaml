@@ -7,7 +7,7 @@ __meta__:
     communication with backends.
 
   c_std_include:
-  - ev.h
+  - ev/ev.h
   c_include:
   - msgqueue.h
   - namedoutput.h
