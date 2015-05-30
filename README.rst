@@ -82,7 +82,28 @@ Installation of the following packages (some are not needed)
   * libtool-fortran-2.4.2nb5 Generic shared library support script (the script itself, incl. Fortran)
   * libtool-info-2.4.2  Generic shared library support script - info pages
   * m4-1.4.17           GNU version of UNIX m4 macro language processor
- 
+
+Usage :
+
+    export LD_LIBRARY_PATH=/usr/pkg/lib/ev:/usr/pkg/lib:/usr/local/lib
+    export PATH=/usr/local/bin/:$PATH
+
+Libs :
+    ldd /usr/local/bin/zerogw
+    /usr/local/bin/zerogw:
+	-lyaml-0.2 => /usr/pkg/lib/libyaml-0.so.2
+	-lc.12 => /usr/lib/libc.so.12
+	-lzmq.4 => /usr/local/lib/libzmq.so.4
+	-lsodium.13 => /usr/pkg/lib/libsodium.so.13
+	-lrt.1 => /usr/lib/librt.so.1
+	-lgcc_s.1 => /lib/libgcc_s.so.1
+	-lpthread.1 => /usr/lib/libpthread.so.1
+	-lstdc++.7 => /usr/lib/libstdc++.so.7
+	-lm.0 => /usr/lib/libm.so.0
+	-lev.4 => /usr/pkg/lib/ev/libev.so.4
+	-lcrypto.8 => /usr/lib/libcrypto.so.8
+	-lcrypt.1 => /lib/libcrypt.so.1
+	
     
 For other distributions refer to Compiling section.
 
