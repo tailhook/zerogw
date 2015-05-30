@@ -55,13 +55,19 @@ def build(bld):
             'src/commands.c',
             'src/pool.c',
             'src/msgqueue.c',
+            'src/obstack.c',
+            'src/strchrnul.c',
+            'src/accept4.c',
+            'src/rawmemchr.c',
             ],
         target       = 'zerogw',
-        includes     = ['src', 'coyaml/include', 'libwebsite/include'],
+        includes     = ['src', 'coyaml/include', 'libwebsite/include','/usr/pkg/include/','/usr/local/include','/usr/pkg/include/ev', '/usr/pkg/include'],
         libpath      = [
             bld.bldnode.abspath() + '/coyaml',
             bld.bldnode.abspath() + '/libwebsite',
-            ],
+            '/usr/local/lib',
+            '/usr/pkg/lib/ev'
+        ],
         defines      = [
             'LOG_STRIP_PATH="../src/"',
             ],
@@ -82,12 +88,15 @@ def build(bld):
         source       = [
             'src/config.yaml',
             'src/zerogwctl.c',
+            'src/obstack.c',
             ],
         target       = 'zerogwctl',
-        includes     = ['src', 'coyaml/include', 'libwebsite/include'],
+        includes     = ['src', 'coyaml/include', 'libwebsite/include','/usr/pkg/include/','/usr/local/include','/usr/pkg/include/ev', '/usr/pkg/include'],
         libpath      = [
             bld.bldnode.abspath() + '/coyaml',
             bld.bldnode.abspath() + '/libwebsite',
+            '/usr/local/lib',
+            '/usr/pkg/lib/ev'
             ],
         cflags       = ['-std=gnu99'],
         lib          = ['coyaml', 'yaml', 'zmq'],
