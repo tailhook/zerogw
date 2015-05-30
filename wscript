@@ -71,7 +71,7 @@ def build(bld):
         defines      = [
             'LOG_STRIP_PATH="../src/"',
             ],
-        cflags      = ['-std=gnu99'],
+        cflags      = ['-std=gnu99','-O0','-g3'],
         lib          = [
             'coyaml',
             'yaml',
@@ -98,7 +98,7 @@ def build(bld):
             '/usr/local/lib',
             '/usr/pkg/lib/ev'
             ],
-        cflags       = ['-std=gnu99'],
+        cflags       = ['-std=gnu99','-O0','-g3'],
         lib          = ['coyaml', 'yaml', 'zmq'],
         )
     bld(
