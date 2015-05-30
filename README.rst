@@ -48,14 +48,48 @@ ArchLinux::
 
     yaourt -S zerogw
 
+NetBsd::
+
+   git clone git@github.com:h4ck3rm1k3/zerogw.git
+   git clone git@github.com:tailhook/libwebsite.git
+   git clone git@github.com:tailhook/coyaml.git
+   git clone git@github.com:zeromq/libzmq.git
+
+
+Installation of the following packages (some are not needed)
+  * libsodium-1.0.0     Library for build higher-level cryptographic tools
+  * libev-4.15          Full-featured and high-performance event loop
+  * libyaml-0.1.6nb1    YAML 1.1 parser and emitter written in C
+  * py34-expat-3.4.2    Python interface to expat
+  * py34-pip-1.5.6      Installs Python packages as an easy_install replacement
+  * py34-setuptools-8.0.1 New Python packaging system
+  * python34-3.4.2      Interpreted, interactive, object-oriented programming language
+  * pkg-config-0.28     System for managing library compile/link flags
+  * autoconf-2.69nb5    Generates automatic source code configuration scripts
+  * automake-1.14.1nb1  GNU Standards-compliant Makefile generator
+  * curl-7.39.0nb1      Client that groks URLs
+  * gettext-0.19.3      Tools for providing messages in different languages
+  * gettext-asprintf-0.19.3 Provides a printf-like interface for C++
+  * gettext-lib-0.19.3  Internationalized Message Handling Library (libintl)
+  * gettext-m4-0.19.3   Autoconf/automake m4 files for GNU NLS library
+  * gettext-tools-0.19.3 Tools for providing messages in different languages
+  * git-2.2.1           GIT version control suite meta-package
+  * git-base-2.2.1      GIT Tree History Storage Tool (base package)
+  * git-docs-2.2.1      GIT Tree History Storage Tool (documentation)
+  * git-gitk-2.2.1      GIT Tree History Storage Tool (gitk)
+  * libtool-2.4.2nb2    Generic shared library support script
+  * libtool-base-2.4.2nb9 Generic shared library support script (the script itself)
+  * libtool-fortran-2.4.2nb5 Generic shared library support script (the script itself, incl. Fortran)
+  * libtool-info-2.4.2  Generic shared library support script - info pages
+  * m4-1.4.17           GNU version of UNIX m4 macro language processor
+ 
+    
 For other distributions refer to Compiling section.
 
-We currently support only Linux.
 
 Dependencies
 ------------
 
- * linux with kernel at least 2.6.28 (need accept4)
  * libwebsite_ for handling http
  * coyaml_ for handling configuration
  * python3_ needed for coyaml to build configuration parser
