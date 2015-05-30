@@ -14,3 +14,5 @@ zerogw-*.tar.bz2
 # checkinstall
 description-pak
 *.tgz
+/examples/zerogw.core
+/zerogw.core

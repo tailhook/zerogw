@@ -83,7 +83,7 @@ Installation of the following packages (some are not needed)
   * libtool-fortran-2.4.2nb5 Generic shared library support script (the script itself, incl. Fortran)
   * libtool-info-2.4.2  Generic shared library support script - info pages
   * m4-1.4.17           GNU version of UNIX m4 macro language processor
-
+  * mutt-1.5.23nb2      Text-based MIME mail client with PGP & S/MIME support
 
 Usage :
 

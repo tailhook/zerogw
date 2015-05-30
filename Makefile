@@ -15,7 +15,9 @@ clean: configure
 	echo build
 
 test2 : ./build/zerogw
-	#./build/zerogw  --log-level 7 -PP --debug-config -c examples/zerogw.yaml -e error.log
 	./build/zerogw  --log-level 7 -c examples/zerogw.yaml -e error.log
+
+testcon : ./build/zerogw
+	./build/zerogw  --log-level 7 -PP --debug-config -c examples/zerogw.yaml -e error.log
 
 
