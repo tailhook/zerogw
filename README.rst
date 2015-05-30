@@ -51,8 +51,8 @@ ArchLinux::
 NetBsd::
 
    git clone git@github.com:h4ck3rm1k3/zerogw.git
-   git clone git@github.com:tailhook/libwebsite.git
-   git clone git@github.com:tailhook/coyaml.git
+   git clone git@github.com:h4ck3rm1k3/libwebsite.git
+   git clone git@github.com:h4ck3rm1k3/coyaml.git
    git clone git@github.com:zeromq/libzmq.git
 
 
