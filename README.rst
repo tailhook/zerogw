@@ -53,10 +53,11 @@ NetBsd::
    git clone git@github.com:h4ck3rm1k3/zerogw.git
    git clone git@github.com:h4ck3rm1k3/libwebsite.git
    git clone git@github.com:h4ck3rm1k3/coyaml.git
-   git clone git@github.com:zeromq/libzmq.git
+
 
 
 Installation of the following packages (some are not needed)
+  * zeromq-4.0.5        The ZeroMQ messaging library
   * libsodium-1.0.0     Library for build higher-level cryptographic tools
   * libev-4.15          Full-featured and high-performance event loop
   * libyaml-0.1.6nb1    YAML 1.1 parser and emitter written in C
@@ -83,6 +84,7 @@ Installation of the following packages (some are not needed)
   * libtool-info-2.4.2  Generic shared library support script - info pages
   * m4-1.4.17           GNU version of UNIX m4 macro language processor
 
+
 Usage :
 
     export LD_LIBRARY_PATH=/usr/pkg/lib/ev:/usr/pkg/lib:/usr/local/lib
@@ -93,7 +95,7 @@ Libs :
     /usr/local/bin/zerogw:
 	-lyaml-0.2 => /usr/pkg/lib/libyaml-0.so.2
 	-lc.12 => /usr/lib/libc.so.12
-	-lzmq.4 => /usr/local/lib/libzmq.so.4
+	-lzmq.4 => /usr/pkg/lib/libzmq.so.4
 	-lsodium.13 => /usr/pkg/lib/libsodium.so.13
 	-lrt.1 => /usr/lib/librt.so.1
 	-lgcc_s.1 => /lib/libgcc_s.so.1
@@ -103,8 +105,8 @@ Libs :
 	-lev.4 => /usr/pkg/lib/ev/libev.so.4
 	-lcrypto.8 => /usr/lib/libcrypto.so.8
 	-lcrypt.1 => /lib/libcrypt.so.1
-	
-    
+
+
 For other distributions refer to Compiling section.
 
 

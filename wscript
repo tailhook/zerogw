@@ -66,6 +66,7 @@ def build(bld):
             bld.bldnode.abspath() + '/coyaml',
             bld.bldnode.abspath() + '/libwebsite',
             '/usr/local/lib',
+            '/usr/pkg/lib',
             '/usr/pkg/lib/ev'
         ],
         defines      = [
@@ -96,6 +97,7 @@ def build(bld):
             bld.bldnode.abspath() + '/coyaml',
             bld.bldnode.abspath() + '/libwebsite',
             '/usr/local/lib',
+            '/usr/pkg/lib',
             '/usr/pkg/lib/ev'
             ],
         cflags       = ['-std=gnu99','-O0','-g3'],
