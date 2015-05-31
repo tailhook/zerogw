@@ -273,7 +273,7 @@ void *disk_loop(void *_) {
         int64_t opt;
         size_t optlen = sizeof(opt);
         SNIMPL(zmq_getsockopt(sock, ZMQ_RCVMORE, &opt, &optlen));
-        ANIMPL(optlen == sizeof(opt) && !opt);
+        //ANIMPL(optlen == sizeof(opt) && !opt);
         req = zmq_msg_data(&msg);
         size_t reqlen = zmq_msg_size(&msg);
         if(reqlen == 8 && !memcmp(req, "shutdown", 8)) break;
