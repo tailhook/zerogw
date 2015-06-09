@@ -1,6 +1,0 @@
-[submodule "coyaml"]
-	path = coyaml
-	url = git://github.com/tailhook/coyaml
-[submodule "libwebsite"]
-	path = libwebsite
-	url = git://github.com/tailhook/libwebsite

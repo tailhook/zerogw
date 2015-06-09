@@ -48,14 +48,71 @@ ArchLinux::
 
     yaourt -S zerogw
 
+NetBsd::
+
+   git clone git@github.com:h4ck3rm1k3/zerogw.git
+   git clone git@github.com:h4ck3rm1k3/libwebsite.git
+   git clone git@github.com:h4ck3rm1k3/coyaml.git
+
+
+
+Installation of the following packages (some are not needed)
+  * zeromq-4.0.5        The ZeroMQ messaging library
+  * libsodium-1.0.0     Library for build higher-level cryptographic tools
+  * libev-4.15          Full-featured and high-performance event loop
+  * libyaml-0.1.6nb1    YAML 1.1 parser and emitter written in C
+  * py34-expat-3.4.2    Python interface to expat
+  * py34-pip-1.5.6      Installs Python packages as an easy_install replacement
+  * py34-setuptools-8.0.1 New Python packaging system
+  * python34-3.4.2      Interpreted, interactive, object-oriented programming language
+  * pkg-config-0.28     System for managing library compile/link flags
+  * autoconf-2.69nb5    Generates automatic source code configuration scripts
+  * automake-1.14.1nb1  GNU Standards-compliant Makefile generator
+  * curl-7.39.0nb1      Client that groks URLs
+  * gettext-0.19.3      Tools for providing messages in different languages
+  * gettext-asprintf-0.19.3 Provides a printf-like interface for C++
+  * gettext-lib-0.19.3  Internationalized Message Handling Library (libintl)
+  * gettext-m4-0.19.3   Autoconf/automake m4 files for GNU NLS library
+  * gettext-tools-0.19.3 Tools for providing messages in different languages
+  * git-2.2.1           GIT version control suite meta-package
+  * git-base-2.2.1      GIT Tree History Storage Tool (base package)
+  * git-docs-2.2.1      GIT Tree History Storage Tool (documentation)
+  * git-gitk-2.2.1      GIT Tree History Storage Tool (gitk)
+  * libtool-2.4.2nb2    Generic shared library support script
+  * libtool-base-2.4.2nb9 Generic shared library support script (the script itself)
+  * libtool-fortran-2.4.2nb5 Generic shared library support script (the script itself, incl. Fortran)
+  * libtool-info-2.4.2  Generic shared library support script - info pages
+  * m4-1.4.17           GNU version of UNIX m4 macro language processor
+  * mutt-1.5.23nb2      Text-based MIME mail client with PGP & S/MIME support
+
+Usage :
+
+    export LD_LIBRARY_PATH=/usr/pkg/lib/ev:/usr/pkg/lib:/usr/local/lib
+    export PATH=/usr/local/bin/:$PATH
+
+Libs :
+    ldd /usr/local/bin/zerogw
+    /usr/local/bin/zerogw:
+	-lyaml-0.2 => /usr/pkg/lib/libyaml-0.so.2
+	-lc.12 => /usr/lib/libc.so.12
+	-lzmq.4 => /usr/pkg/lib/libzmq.so.4
+	-lsodium.13 => /usr/pkg/lib/libsodium.so.13
+	-lrt.1 => /usr/lib/librt.so.1
+	-lgcc_s.1 => /lib/libgcc_s.so.1
+	-lpthread.1 => /usr/lib/libpthread.so.1
+	-lstdc++.7 => /usr/lib/libstdc++.so.7
+	-lm.0 => /usr/lib/libm.so.0
+	-lev.4 => /usr/pkg/lib/ev/libev.so.4
+	-lcrypto.8 => /usr/lib/libcrypto.so.8
+	-lcrypt.1 => /lib/libcrypt.so.1
+
+
 For other distributions refer to Compiling section.
 
-We currently support only Linux.
 
 Dependencies
 ------------
 
- * linux with kernel at least 2.6.28 (need accept4)
  * libwebsite_ for handling http
  * coyaml_ for handling configuration
  * python3_ needed for coyaml to build configuration parser
@@ -78,7 +135,7 @@ Compiling
 ---------
 
 The two libs libwebsite and coyaml need to be checked out or symlinked into the subdirectories of
-this project.
+this project. Alternatively you can use ``git submodule init`` and ``git submodule update`` to get the packages as submodules.
 
 ::
 
