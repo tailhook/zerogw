@@ -3,7 +3,7 @@ AC_CONFIG_SRCDIR([src/commands.c])
 AM_INIT_AUTOMAKE([1.14 subdir-objects])
 orig_CFLAGS="$CFLAGS"
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_HEADERS([aconfig.h])
 AM_MAINTAINER_MODE
 AC_PROG_CC
 

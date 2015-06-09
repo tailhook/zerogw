@@ -25,3 +25,16 @@ description-pak
 /src/#accept4.c#
 /src/#log.c#
 /src/.#accept4.c
+/Makefile.in
+/autom4te.cache/*
+/config.log
+/config.status
+/configure
+\#*\#
+/examples/index.html
+/src/.deps/*
+/src/*.o
+/stamp-h1
+
+/src/.dirstamp
+/config.h

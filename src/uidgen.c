@@ -1,3 +1,9 @@
+#define _BSDSOURCE
+#define __USE_BSD
+#include <endian.h>
+
+#include <stdint.h>
+
 #include <sys/time.h>
 #include <sys/fcntl.h>
 #include <unistd.h>
