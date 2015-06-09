@@ -3,9 +3,11 @@ import zmq
 ctx = zmq.Context(1)
 sub = ctx.socket(zmq.SUB)
 sub.connect('tcp://127.0.0.1:7002')
+print("connection 1", sub)
 sub.setsockopt(zmq.SUBSCRIBE, b"")
 pub = ctx.socket(zmq.PUB)
 pub.connect('tcp://127.0.0.1:7003')
+print("connection 2", pub)
 while True:
     parts = sub.recv_multipart()
     print("GOT", parts)
