@@ -2,6 +2,7 @@
 #define _H_DISK
 
 #include <zmq.h>
+#include <pthread.h>
 
 #include "config.h"
 

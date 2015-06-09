@@ -4,8 +4,8 @@
 #include "log.h"
 #include "websocket.h"
 
-#define REPLY_COMMAND(sock, msg, more) \
-            if(zmq_send(sock, &msg, ZMQ_NOBLOCK \
+#define REPLY_COMMAND(sock, msg, more, len)		\
+  if(zmq_send(sock, &msg, len, ZMQ_NOBLOCK		\
                 | (more ? ZMQ_SNDMORE : 0)) < 0) { \
                 LWARN("Can't send reply on command"); \
                 goto msg_error; \
@@ -13,7 +13,7 @@
 #define REPLY_SHORT(sock, msg, str, more) \
     zmq_msg_init_size(&msg, strlen(str)); \
     memcpy(zmq_msg_data(&msg), str, strlen(str)); \
-    REPLY_COMMAND(sock, msg, more)
+    REPLY_COMMAND(sock, msg, more, strlen(str))
 
 #define COMMAND(name) (len == strlen(#name) \
             && !memcmp(data, #name, strlen(#name)))
@@ -27,7 +27,7 @@ void recv_command(struct ev_loop *loop, struct ev_io *io, int rev) {
         size_t len;
         while(TRUE) {
             len = zmq_msg_size(&msg);
-            REPLY_COMMAND(sock, msg, TRUE);
+            REPLY_COMMAND(sock, msg, len, TRUE);
             if(!len) break;
             Z_RECV_NEXT(msg);
         }

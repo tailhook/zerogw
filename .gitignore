@@ -14,3 +14,27 @@ zerogw-*.tar.bz2
 # checkinstall
 description-pak
 *.tgz
+/examples/zerogw.core
+/zerogw.core
+/a.out
+/config.txt
+/error.log
+/examples/#test.sh#
+/examples/error.log
+/examples/test.sh
+/src/#accept4.c#
+/src/#log.c#
+/src/.#accept4.c
+/Makefile.in
+/autom4te.cache/*
+/config.log
+/config.status
+/configure
+\#*\#
+/examples/index.html
+/src/.deps/*
+/src/*.o
+/stamp-h1
+
+/src/.dirstamp
+/config.h

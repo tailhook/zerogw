@@ -29,6 +29,7 @@ static char *levels[] = {
     "DEBG"
 };
 static char hexchar[] = "0123456789abcdef";
+#define LOG_STRIP_PATH "./src"
 static char source_path[] = LOG_STRIP_PATH;
 static int path_strip_chars = sizeof(source_path)-1;
 static int logfile = 1;

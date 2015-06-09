@@ -21,6 +21,7 @@ Server:
       yaml: text/x-yaml
       mov: application/x-movable
     no-warnings: yes
+    file: /usr/pkg/etc/mime.types # from mutt
 
 Estp:
   socket: !zmq.Pub
